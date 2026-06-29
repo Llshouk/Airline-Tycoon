@@ -1,0 +1,447 @@
+"use client";
+
+import { useEffect, useRef, type MutableRefObject } from "react";
+import { aircraftById } from "@/data/aircraft";
+import { airports, airportsById } from "@/data/airports";
+import { calculateBearing, greatCirclePath, interpolatePosition } from "@/lib/geo";
+import type { AircraftInstance, AircraftModel, Route } from "@/types/game";
+
+export type MapDisplayMode = "all" | "network" | "airports" | "aircraft";
+type AircraftIconCategory = "regional" | "narrowBodyTwin" | "wideBodyTwin" | "wideBodyQuad";
+
+type Props = {
+  baseAirportId: string;
+  expandedAirportIds: string[];
+  routes: Route[];
+  fleet: AircraftInstance[];
+  currentGameTimeMs: number;
+  selectedAirportId: string | null;
+  selectedRouteId: string | null;
+  displayMode: MapDisplayMode;
+  onSelectAirport: (airportId: string) => void;
+  onSelectRoute: (routeId: string) => void;
+  onSelectFlight: (flightId: string) => void;
+};
+
+declare global {
+  interface Window {
+    google?: any;
+    initAirlineTycoonMap?: () => void;
+  }
+}
+
+export function GameMap(props: Props) {
+  const mapElementRef = useRef<HTMLDivElement | null>(null);
+  const googleMapRef = useRef<any>(null);
+  const leafletMapRef = useRef<any>(null);
+  const googleLayersRef = useRef<any[]>([]);
+  const leafletLayersRef = useRef<any>(null);
+  const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  useEffect(() => {
+    if (!mapElementRef.current) return;
+    if (googleKey) {
+      initGoogleMap(mapElementRef.current, googleMapRef).then(() => {
+        drawGoogleLayers(props, googleMapRef.current, googleLayersRef);
+      });
+      return;
+    }
+
+    let cancelled = false;
+    initLeafletMap(mapElementRef.current, leafletMapRef).then((L) => {
+      if (cancelled) return;
+      drawLeafletLayers(props, L, leafletMapRef.current, leafletLayersRef);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [googleKey]);
+
+  useEffect(() => {
+    if (googleKey && googleMapRef.current) {
+      drawGoogleLayers(props, googleMapRef.current, googleLayersRef);
+    }
+    if (!googleKey && leafletMapRef.current) {
+      import("leaflet").then((leaflet) => drawLeafletLayers(props, leaflet, leafletMapRef.current, leafletLayersRef));
+    }
+  }, [props, googleKey]);
+
+  return (
+    <div className="relative h-full w-full">
+      <div ref={mapElementRef} className="h-full w-full" />
+      <div className="absolute left-3 top-3 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
+        {googleKey ? "Google Maps" : "OpenStreetMap"}
+      </div>
+    </div>
+  );
+}
+
+async function initLeafletMap(element: HTMLDivElement, mapRef: MutableRefObject<any>) {
+  const L = await import("leaflet");
+  if (mapRef.current) return L;
+
+  mapRef.current = L.map(element, {
+    center: [30, 5],
+    zoom: 2,
+    worldCopyJump: true
+  });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors",
+    maxZoom: 10
+  }).addTo(mapRef.current);
+
+  return L;
+}
+
+function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, layerRef: MutableRefObject<any>) {
+  if (!map) return;
+  if (layerRef.current) {
+    layerRef.current.remove();
+  }
+  const layer = L.layerGroup().addTo(map);
+  layerRef.current = layer;
+
+  if (shouldShowRoutes(props.displayMode)) {
+    props.routes.forEach((route) => {
+      const origin = airportsById[route.originAirportId];
+      const destination = airportsById[route.destinationAirportId];
+      const active = props.selectedRouteId === route.id;
+      L.polyline(greatCirclePath(origin, destination), {
+        color: active ? "#d76745" : "#18545c",
+        weight: active ? 4 : 2,
+        opacity: 0.85
+      })
+        .on("click", () => props.onSelectRoute(route.id))
+        .addTo(layer);
+    });
+  }
+
+  if (shouldShowAircraft(props.displayMode)) {
+    props.fleet.forEach((aircraft) => {
+      const model = aircraftById[aircraft.modelId];
+      const iconCategory = getAircraftIconCategory(model);
+      const iconSize = aircraftIconSize(iconCategory);
+      aircraft.schedule
+        .filter((item) => item.status === "in-flight")
+        .forEach((item) => {
+          const origin = airportsById[item.originAirportId];
+          const destination = airportsById[item.destinationAirportId];
+          const progress = (props.currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
+          const position = interpolatePosition(origin, destination, progress);
+          const bearing = calculateBearing(position.lat, position.lng, destination.lat, destination.lng);
+          L.marker([position.lat, position.lng], {
+            icon: L.divIcon({
+              html: aircraftIconHtml(bearing, iconCategory),
+              className: `aircraft-map-icon aircraft-map-icon-${iconCategory}`,
+              iconSize: [iconSize, iconSize],
+              iconAnchor: [iconSize / 2, iconSize / 2]
+            }),
+            title: item.flightNumber ? `${item.flightNumber} ${aircraft.registration}` : aircraft.registration
+          })
+            .on("click", () => {
+              props.onSelectFlight(item.id);
+              window.setTimeout(() => {
+                L.popup({ offset: [0, -10] })
+                  .setLatLng([position.lat, position.lng])
+                  .setContent(aircraftDetailsHtml(aircraft, model, item))
+                  .openOn(map);
+              }, 0);
+            })
+            .addTo(layer);
+        });
+    });
+  }
+
+  if (shouldShowAirports(props.displayMode)) {
+    const networkAirportIds = getNetworkAirportIds(props);
+    airports.forEach((airport) => {
+      const isBase = airport.id === props.baseAirportId;
+      if (props.displayMode === "network" && !networkAirportIds.has(airport.id)) return;
+      if (props.displayMode === "aircraft" && !isBase) return;
+      const isExpanded = props.expandedAirportIds.includes(airport.id);
+      const pinSize = airportPinSize(isBase, isExpanded);
+      const marker = L.marker([airport.lat, airport.lng], {
+        icon: L.divIcon({
+          html: airportPinHtml(isBase, isExpanded),
+          className: `airport-marker ${isBase ? "airport-marker-base" : isExpanded ? "airport-marker-expanded" : ""}`,
+          iconSize: [pinSize.width, pinSize.height],
+          iconAnchor: [pinSize.width / 2, pinSize.height - 1]
+        }),
+        title: `${airport.iata} ${airport.name}`
+      });
+      marker.on("click", () => {
+        props.onSelectAirport(airport.id);
+        window.setTimeout(() => {
+          L.popup({ offset: [0, -26] })
+            .setLatLng([airport.lat, airport.lng])
+            .setContent(airportDetailsHtml(airport, isBase, isExpanded))
+            .openOn(map);
+        }, 0);
+      });
+      marker.addTo(layer);
+    });
+  }
+}
+
+async function initGoogleMap(element: HTMLDivElement, mapRef: MutableRefObject<any>) {
+  if (mapRef.current) return;
+  await loadGoogleMapsScript();
+  if (!window.google) return;
+  // TODO: Add custom clustering and richer Google map controls once V1 expands past the seed airport set.
+  mapRef.current = new window.google.maps.Map(element, {
+    center: { lat: 30, lng: 5 },
+    zoom: 2,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false
+  });
+}
+
+function drawGoogleLayers(props: Props, map: any, layersRef: MutableRefObject<any[]>) {
+  if (!window.google || !map) return;
+  layersRef.current.forEach((layer) => layer.setMap(null));
+  layersRef.current = [];
+
+  if (shouldShowRoutes(props.displayMode)) {
+    props.routes.forEach((route) => {
+      const origin = airportsById[route.originAirportId];
+      const destination = airportsById[route.destinationAirportId];
+      const active = props.selectedRouteId === route.id;
+      const line = new window.google.maps.Polyline({
+        path: greatCirclePath(origin, destination).map(([lat, lng]) => ({ lat, lng })),
+        geodesic: true,
+        strokeColor: active ? "#d76745" : "#18545c",
+        strokeOpacity: 0.85,
+        strokeWeight: active ? 4 : 2,
+        map
+      });
+      line.addListener("click", () => props.onSelectRoute(route.id));
+      layersRef.current.push(line);
+    });
+  }
+
+  if (shouldShowAircraft(props.displayMode)) {
+    props.fleet.forEach((aircraft) => {
+      const model = aircraftById[aircraft.modelId];
+      const iconCategory = getAircraftIconCategory(model);
+      aircraft.schedule
+        .filter((item) => item.status === "in-flight")
+        .forEach((item) => {
+          const origin = airportsById[item.originAirportId];
+          const destination = airportsById[item.destinationAirportId];
+          const progress = (props.currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
+          const position = interpolatePosition(origin, destination, progress);
+          const bearing = calculateBearing(position.lat, position.lng, destination.lat, destination.lng);
+          const marker = new window.google.maps.Marker({
+            position,
+            map,
+            title: item.flightNumber ? `${item.flightNumber} ${aircraft.registration}` : aircraft.registration,
+            icon: {
+              path: aircraftSymbolPath(iconCategory),
+              fillColor: "#f6c945",
+              fillOpacity: 1,
+              strokeColor: "#102026",
+              strokeWeight: 2,
+              scale: googleAircraftScale(iconCategory),
+              rotation: bearing,
+              anchor: new window.google.maps.Point(12, 12)
+            }
+          });
+          const infoWindow = new window.google.maps.InfoWindow({
+            content: aircraftDetailsHtml(aircraft, model, item)
+          });
+          marker.addListener("click", () => {
+            props.onSelectFlight(item.id);
+            infoWindow.open({ anchor: marker, map });
+          });
+          layersRef.current.push(marker);
+        });
+    });
+  }
+
+  if (shouldShowAirports(props.displayMode)) {
+    const networkAirportIds = getNetworkAirportIds(props);
+    airports.forEach((airport) => {
+      const isBase = airport.id === props.baseAirportId;
+      if (props.displayMode === "network" && !networkAirportIds.has(airport.id)) return;
+      if (props.displayMode === "aircraft" && !isBase) return;
+      const isExpanded = props.expandedAirportIds.includes(airport.id);
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: airportDetailsHtml(airport, isBase, isExpanded)
+      });
+      const pinScale = isBase ? 1 : isExpanded ? 0.9 : 0.78;
+      const marker = new window.google.maps.Marker({
+        position: { lat: airport.lat, lng: airport.lng },
+        map,
+        title: `${airport.iata} ${airport.name}`,
+        icon: {
+          path: "M12 2C7.6 2 4 5.6 4 10c0 5.6 8 12 8 12s8-6.4 8-12c0-4.4-3.6-8-8-8Zm0 11.2A3.2 3.2 0 1 1 12 6.8a3.2 3.2 0 0 1 0 6.4Z",
+          fillColor: isBase ? "#d76745" : isExpanded ? "#4f9d7e" : "#ffffff",
+          fillOpacity: 1,
+          strokeColor: isBase || isExpanded ? "#102026" : "#18545c",
+          strokeWeight: 2,
+          scale: pinScale,
+          anchor: new window.google.maps.Point(12, 22)
+        }
+      });
+      marker.addListener("click", () => {
+        props.onSelectAirport(airport.id);
+        infoWindow.open({ anchor: marker, map });
+      });
+      layersRef.current.push(marker);
+    });
+  }
+}
+
+function shouldShowAirports(mode: MapDisplayMode) {
+  return mode === "all" || mode === "airports" || mode === "network" || mode === "aircraft";
+}
+
+function shouldShowRoutes(mode: MapDisplayMode) {
+  return mode === "all" || mode === "network";
+}
+
+function shouldShowAircraft(mode: MapDisplayMode) {
+  return mode === "all" || mode === "aircraft" || mode === "network";
+}
+
+function getNetworkAirportIds(props: Props) {
+  const ids = new Set<string>([props.baseAirportId]);
+  props.routes.forEach((route) => {
+    ids.add(route.originAirportId);
+    ids.add(route.destinationAirportId);
+  });
+  return ids;
+}
+
+function airportPinHtml(isBase: boolean, isExpanded: boolean) {
+  const fill = isBase ? "#d76745" : isExpanded ? "#4f9d7e" : "#ffffff";
+  return `
+    <span class="airport-pin">
+      <svg viewBox="0 0 34 40" aria-hidden="true" focusable="false">
+        <path d="M17 1.8C8.8 1.8 2.2 8.4 2.2 16.6 2.2 27 17 38.2 17 38.2S31.8 27 31.8 16.6C31.8 8.4 25.2 1.8 17 1.8Z" fill="${fill}" />
+        <circle cx="17" cy="16.4" r="9.4" fill="rgba(255,255,255,0.16)" />
+      </svg>
+    </span>
+  `;
+}
+
+function aircraftIconHtml(bearing: number, category: AircraftIconCategory) {
+  const asset = getAircraftIconAsset(category);
+  const imageRotation = bearing - 90;
+  return `
+    <span class="aircraft-map-icon-inner">
+      <img class="aircraft-map-icon-image" src="${asset}" alt="" style="transform: rotate(${imageRotation}deg);" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+      <svg class="aircraft-map-icon-fallback" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="display:none; transform: rotate(${bearing}deg);">
+        <path d="${aircraftSymbolPath(category)}" />
+        ${category === "wideBodyQuad" ? '<circle cx="7.5" cy="13.2" r="1.1" /><circle cx="16.5" cy="13.2" r="1.1" /><circle cx="5.8" cy="15.5" r="0.9" /><circle cx="18.2" cy="15.5" r="0.9" />' : ""}
+      </svg>
+    </span>
+  `;
+}
+
+function airportDetailsHtml(airport: (typeof airports)[number], isBase: boolean, isExpanded: boolean) {
+  return `
+    <div class="airport-popup">
+      <strong>${airport.name}</strong>
+      <span>${airport.iata} / ${airport.icao}</span>
+      <span>${airport.city}, ${airport.country}</span>
+      <span>Size: ${airport.sizeTier}</span>
+      <span>${isBase ? "Base airport" : "Not base airport"}</span>
+      <span>${isExpanded ? "Connected to network" : "Not connected yet"}</span>
+    </div>
+  `;
+}
+
+function aircraftDetailsHtml(
+  aircraft: AircraftInstance,
+  model: AircraftModel | undefined,
+  item: AircraftInstance["schedule"][number]
+) {
+  const origin = airportsById[item.originAirportId];
+  const destination = airportsById[item.destinationAirportId];
+  return `
+    <div class="airport-popup">
+      <strong>${aircraft.registration}</strong>
+      <span>${model ? `${model.manufacturer} ${model.model}` : aircraft.modelId}</span>
+      <span>Flight: ${item.flightNumber ?? "-"}</span>
+      <span>${origin.iata} to ${destination.iata}</span>
+      <span>Status: ${item.status}</span>
+    </div>
+  `;
+}
+
+function getAircraftIconCategory(model: AircraftModel | undefined): AircraftIconCategory {
+  if (!model) return "narrowBodyTwin";
+  const name = `${model.manufacturer} ${model.model}`.toLowerCase();
+  if (name.includes("a380") || name.includes("747")) return "wideBodyQuad";
+  if (model.type === "widebody") return "wideBodyTwin";
+  if (model.maxPassengerSeats <= 150) return "regional";
+  return "narrowBodyTwin";
+}
+
+function aircraftIconSize(category: AircraftIconCategory) {
+  if (category === "regional") return 26;
+  if (category === "narrowBodyTwin") return 32;
+  if (category === "wideBodyTwin") return 40;
+  return 46;
+}
+
+function airportPinSize(isBase: boolean, isExpanded: boolean) {
+  if (isBase) return { width: 22, height: 28 };
+  if (isExpanded) return { width: 19, height: 24 };
+  return { width: 17, height: 22 };
+}
+
+function getAircraftIconAsset(category: AircraftIconCategory) {
+  switch (category) {
+    case "regional":
+      return "/aircraft-icons/regional.png";
+    case "narrowBodyTwin":
+      return "/aircraft-icons/narrow-body-twin.png";
+    case "wideBodyTwin":
+      return "/aircraft-icons/wide-body-twin.png";
+    case "wideBodyQuad":
+      return "/aircraft-icons/wide-body-quad.png";
+  }
+}
+
+function googleAircraftScale(category: AircraftIconCategory) {
+  if (category === "regional") return 0.9;
+  if (category === "narrowBodyTwin") return 1.08;
+  if (category === "wideBodyTwin") return 1.28;
+  return 1.42;
+}
+
+function aircraftSymbolPath(category: AircraftIconCategory) {
+  if (category === "regional") {
+    return "M12 2.4 14.1 10.3 20.2 13.2 19.3 15.4 13.8 14.2 14.5 20.4 12 21.6 9.5 20.4 10.2 14.2 4.7 15.4 3.8 13.2 9.9 10.3 12 2.4Z";
+  }
+  if (category === "wideBodyTwin") {
+    return "M12 1.5 15.5 9.7 22.8 12.7 21.8 16.1 14.8 14.5 16.2 21.1 12 22.7 7.8 21.1 9.2 14.5 2.2 16.1 1.2 12.7 8.5 9.7 12 1.5Z";
+  }
+  if (category === "wideBodyQuad") {
+    return "M12 1.1 15.9 9.1 23.2 12.3 22 16.1 15 14.3 16.5 21.4 12 23 7.5 21.4 9 14.3 2 16.1 0.8 12.3 8.1 9.1 12 1.1Z";
+  }
+  return "M12 2 15 10.2 22 13.5 21 16 14.2 14.4 15.2 21 12 22.4 8.8 21 9.8 14.4 3 16 2 13.5 9 10.2 12 2Z";
+}
+
+function loadGoogleMapsScript() {
+  if (window.google) return Promise.resolve();
+  const existing = document.querySelector<HTMLScriptElement>("script[data-airline-google-maps]");
+  if (existing) {
+    return new Promise<void>((resolve) => existing.addEventListener("load", () => resolve(), { once: true }));
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.dataset.airlineGoogleMaps = "true";
+    script.async = true;
+    script.defer = true;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Google Maps failed to load"));
+    document.head.appendChild(script);
+  });
+}
