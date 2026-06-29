@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-node-bin.ps1 node_modules/next/dist/bin/next dev",
-    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-node-bin.ps1 node_modules/next/dist/bin/next build",
-    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-node-bin.ps1 node_modules/next/dist/bin/next start",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "lint": "next lint",
-    "typecheck": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-node-bin.ps1 node_modules/typescript/bin/tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.20",
