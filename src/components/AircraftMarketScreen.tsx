@@ -2,9 +2,11 @@
 
 import { RotateCcw, ShoppingCart } from "lucide-react";
 import { useMemo, useState } from "react";
+import { AircraftImage } from "@/components/AircraftImage";
+import { SeatConfigurationModal } from "@/components/SeatConfigurationModal";
 import { aircraftById, aircraftModels } from "@/data/aircraft";
 import { useTranslation } from "@/i18n";
-import { availableCargoTons, routeSuitabilityHints, validateCabinLayout } from "@/lib/cabin";
+import { getDefaultCabinConfig, routeSuitabilityHints, validateCabinLayout } from "@/lib/cabin";
 import { canAfford } from "@/lib/cash";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { createRegistration } from "@/lib/ids";
@@ -24,8 +26,9 @@ export function AircraftMarketScreen() {
   const [sortMode, setSortMode] = useState<SortMode>("price");
   const [selectedModelId, setSelectedModelId] = useState(aircraftModels[1].id);
   const selectedModel = aircraftById[selectedModelId] ?? aircraftModels[0];
-  const [layout, setLayout] = useState<CabinLayout>(selectedModel.suggestedLayout);
+  const [layout, setLayout] = useState<CabinLayout>(() => getDefaultCabinConfig(selectedModel));
   const [registration, setRegistration] = useState(createRegistration(game?.fleet.length ?? 0));
+  const [isSeatConfigOpen, setIsSeatConfigOpen] = useState(false);
   const validation = useMemo(() => validateCabinLayout(selectedModel, layout), [layout, selectedModel]);
   const affordable = game ? canAfford(game, validation.purchasePriceGBP) : false;
   const registrationError = useMemo(() => {
@@ -54,8 +57,12 @@ export function AircraftMarketScreen() {
 
   function selectModel(model: AircraftModel) {
     setSelectedModelId(model.id);
-    setLayout(model.suggestedLayout);
+    setLayout(getDefaultCabinConfig(model));
     setRegistration(createRegistration(game?.fleet.length ?? 0));
+  }
+
+  function resetLayout() {
+    setLayout(getDefaultCabinConfig(selectedModel));
   }
 
   return (
@@ -82,7 +89,7 @@ export function AircraftMarketScreen() {
                       model.id === selectedModelId ? "border-coral bg-coral/5" : "border-slate-200"
                     }`}
                   >
-                    <AircraftVisual model={model} />
+                    <AircraftImage model={model} />
                     <div className="mt-3 flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">{model.manufacturer}</p>
@@ -111,27 +118,45 @@ export function AircraftMarketScreen() {
               <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">{selectedModel.manufacturer}</p>
               <h3 className="font-black text-ink">{selectedModel.model} cabin</h3>
             </div>
-            <button type="button" onClick={() => setLayout(selectedModel.suggestedLayout)} className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-jet">
+            <button type="button" onClick={resetLayout} className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-jet">
               <RotateCcw size={16} />
               {t("fleet.suggested")}
             </button>
           </div>
+          <AircraftImage model={selectedModel} className="mt-4 h-32" />
           <label className="mt-4 block">
             <span className="text-sm font-semibold text-slate-700">{t("fleet.registration")}</span>
             <input value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} maxLength={12} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-jet focus:ring-2 focus:ring-jet/20" />
           </label>
           {registrationError ? <p className="mt-2 rounded-md bg-coral/10 px-3 py-2 text-sm font-semibold text-coral">{registrationError}</p> : null}
-          <div className="mt-4 space-y-3">
-            <CabinInput label={t("fleet.firstClass")} value={layout.first} limit={selectedModel.cabinLimits.first.max} onChange={(value) => setLayout({ ...layout, first: value })} />
-            <CabinInput label={t("fleet.business")} value={layout.business} limit={selectedModel.cabinLimits.business.max} onChange={(value) => setLayout({ ...layout, business: value })} />
-            <CabinInput label={t("fleet.premiumEconomy")} value={layout.premiumEconomy} limit={selectedModel.cabinLimits.premiumEconomy.max} onChange={(value) => setLayout({ ...layout, premiumEconomy: value })} />
-            <CabinInput label={t("fleet.economy")} value={layout.economy} limit={selectedModel.cabinLimits.economy.max} onChange={(value) => setLayout({ ...layout, economy: value })} />
-            <CabinInput label={t("fleet.cargoTonnes")} value={layout.cargoTons} limit={availableCargoTons(selectedModel, layout)} step="0.5" onChange={(value) => setLayout({ ...layout, cargoTons: value })} />
+          <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+            <Spec label={t("fleet.firstClass")} value={String(layout.first)} />
+            <Spec label={t("fleet.business")} value={String(layout.business)} />
+            <Spec label={t("fleet.premiumEconomy")} value={String(layout.premiumEconomy)} />
+            <Spec label={t("fleet.economy")} value={String(layout.economy)} />
+            <Spec label={t("fleet.cargo")} value={`${layout.cargoTons.toFixed(1)} t`} />
+            <Spec label="Seat space" value={`${validation.seatEquivalent}/${selectedModel.maxPassengerSeats}`} />
+          </div>
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setIsSeatConfigOpen(true)}
+              className="w-full rounded-md bg-jet px-3 py-3 text-sm font-black text-white transition hover:bg-jet/90"
+            >
+              Seat Configuration
+            </button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
             <Spec label={t("fleet.purchasePrice")} value={formatGBP.format(validation.purchasePriceGBP)} />
             <Spec label={t("fleet.routeFit")} value={routeSuitabilityHints(selectedModel, layout)[0]} />
           </div>
+          {validation.errors.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              {validation.errors.map((error) => (
+                <p key={error} className="rounded-md bg-coral/10 px-3 py-2 text-sm font-bold text-coral">{error}</p>
+              ))}
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => {
@@ -146,30 +171,21 @@ export function AircraftMarketScreen() {
           </button>
         </div>
       </section>
+      {isSeatConfigOpen ? (
+        <SeatConfigurationModal
+          model={selectedModel}
+          layout={layout}
+          registration={registration}
+          onRegistrationChange={setRegistration}
+          onLayoutChange={setLayout}
+          onCancel={() => setIsSeatConfigOpen(false)}
+          onConfirm={(nextLayout) => {
+            setLayout(nextLayout);
+            setIsSeatConfigOpen(false);
+          }}
+        />
+      ) : null}
     </div>
-  );
-}
-
-function AircraftVisual({ model }: { model: AircraftModel }) {
-  const wide = model.visualVariant !== "narrow-body";
-  const longHaul = model.visualVariant === "long-haul-wide-body";
-  return (
-    <div className="relative h-24 overflow-hidden rounded-md bg-gradient-to-br from-sky/20 via-white to-mint/20">
-      <div className={`absolute left-1/2 top-1/2 h-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-jet shadow-sm ${wide ? "w-48" : "w-36"}`} />
-      <div className={`absolute left-1/2 top-[42%] h-10 -translate-x-1/2 -skew-x-12 rounded-[100%] bg-coral/90 ${wide ? "w-28" : "w-20"}`} />
-      <div className={`absolute left-[18%] top-1/2 h-12 w-5 -translate-y-1/2 -rotate-45 rounded-full bg-jet ${longHaul ? "scale-110" : ""}`} />
-      <div className={`absolute right-[18%] top-1/2 h-12 w-5 -translate-y-1/2 rotate-45 rounded-full bg-jet ${longHaul ? "scale-110" : ""}`} />
-      <div className="absolute right-[12%] top-[38%] h-7 w-4 rotate-45 rounded-sm bg-jet" />
-    </div>
-  );
-}
-
-function CabinInput({ label, value, limit, step = "1", onChange }: { label: string; value: number; limit: number; step?: string; onChange: (value: number) => void }) {
-  return (
-    <label className="grid grid-cols-[1fr_110px] items-center gap-3">
-      <span className="text-sm font-semibold text-slate-700">{label}</span>
-      <input type="number" min="0" max={limit} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} className="w-full rounded-md border border-slate-300 px-3 py-2 text-right outline-none focus:border-jet focus:ring-2 focus:ring-jet/20" />
-    </label>
   );
 }
 

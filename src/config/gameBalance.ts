@@ -3,12 +3,15 @@
 export const ENABLE_GAME_CONSOLE = true;
 
 export const GAME_BALANCE = {
+  // V1 uses gameplay-scaled weekly demand so network planning needs multiple aircraft and frequencies.
+  routeDemandScale: 12,
   passengerDemandMultiplier: 1.6,
   premiumDemandMultiplier: 1.35,
   cargoDemandMultiplier: 1.5,
   revenueMultiplier: 3.15,
   longHaulRevenueBonus: 1.2,
   majorHubDemandBonus: 1.25,
+  longHaulDemandBonus: 1.25,
   costMultiplier: 0.03,
   minLoadFactor: 0.58,
   maxLoadFactor: 0.96

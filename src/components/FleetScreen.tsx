@@ -3,6 +3,7 @@
 import { CalendarClock, ChevronDown, ChevronRight, Pencil, Plane } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AircraftDetailPanel } from "@/components/AircraftDetailPanel";
+import { AircraftImage } from "@/components/AircraftImage";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -50,13 +51,16 @@ export function FleetScreen() {
                   onClick={() => setExpandedGroups((current) => ({ ...current, [group.modelId]: !isExpanded }))}
                   className="flex w-full flex-wrap items-start justify-between gap-3 text-left"
                 >
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-normal text-coral">{group.model.manufacturer}</p>
-                    <h3 className="flex items-center gap-2 text-base font-black text-ink">
-                      <Icon size={18} />
-                      {group.model.model} x {group.aircraft.length}
-                    </h3>
-                    <p className="text-xs text-slate-600">Visual grouping only; each aircraft record remains separate.</p>
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <AircraftImage model={group.model} className="h-16 w-28 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-normal text-coral">{group.model.manufacturer}</p>
+                      <h3 className="flex items-center gap-2 text-base font-black text-ink">
+                        <Icon size={18} />
+                        {group.model.model} x {group.aircraft.length}
+                      </h3>
+                      <p className="text-xs text-slate-600">Visual grouping only; each aircraft record remains separate.</p>
+                    </div>
                   </div>
                   <span className="rounded-md bg-runway px-2 py-1 text-xs font-bold text-jet">{isExpanded ? "Collapse" : "Expand"}</span>
                 </button>
@@ -84,20 +88,23 @@ export function FleetScreen() {
                       return (
                         <div key={aircraft.id} className="rounded-md border border-slate-200 p-2.5">
                           <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              {isEditing ? (
-                                <div>
-                                  <input
-                                    value={registrationDraft}
-                                    onChange={(event) => setRegistrationDraft(event.target.value.toUpperCase())}
-                                    className="w-36 rounded-md border border-slate-300 px-2 py-1 font-black text-ink outline-none focus:border-jet focus:ring-2 focus:ring-jet/20"
-                                  />
-                                  {registrationError ? <p className="mt-1 text-xs font-bold text-coral">{registrationError}</p> : null}
-                                </div>
-                              ) : (
-                                <h4 className="text-base font-black text-ink">{aircraft.registration}</h4>
-                              )}
-                              <p className="text-sm text-slate-600">{model.model}</p>
+                            <div className="flex min-w-0 items-start gap-3">
+                              <AircraftImage model={model} className="h-14 w-24 shrink-0" />
+                              <div>
+                                {isEditing ? (
+                                  <div>
+                                    <input
+                                      value={registrationDraft}
+                                      onChange={(event) => setRegistrationDraft(event.target.value.toUpperCase())}
+                                      className="w-36 rounded-md border border-slate-300 px-2 py-1 font-black text-ink outline-none focus:border-jet focus:ring-2 focus:ring-jet/20"
+                                    />
+                                    {registrationError ? <p className="mt-1 text-xs font-bold text-coral">{registrationError}</p> : null}
+                                  </div>
+                                ) : (
+                                  <h4 className="text-base font-black text-ink">{aircraft.registration}</h4>
+                                )}
+                                <p className="text-sm text-slate-600">{model.model}</p>
+                              </div>
                             </div>
                             <span className="rounded-md bg-runway px-2 py-1 text-xs font-bold capitalize text-jet">{aircraft.status}</span>
                           </div>

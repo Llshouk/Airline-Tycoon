@@ -1,9 +1,18 @@
 import type { AircraftModel, CabinClass, CabinLayout, Route } from "@/types/game";
 
+export const CABIN_CLASSES: CabinClass[] = ["first", "business", "premiumEconomy", "economy"];
+
 const spaceWeights: Record<CabinClass, number> = {
   first: 2.5,
   business: 1.6,
   premiumEconomy: 1.15,
+  economy: 1
+};
+
+const visualSpaceWeights: Record<CabinClass, number> = {
+  first: 4,
+  business: 2.5,
+  premiumEconomy: 1.4,
   economy: 1
 };
 
@@ -18,6 +27,24 @@ export function layoutSeatEquivalent(layout: CabinLayout) {
 
 export function totalPassengerSeats(layout: CabinLayout) {
   return layout.first + layout.business + layout.premiumEconomy + layout.economy;
+}
+
+export function cabinVisualSpaceUnits(layout: CabinLayout, cabin: CabinClass) {
+  return Math.max(0, layout[cabin]) * visualSpaceWeights[cabin];
+}
+
+export function getVisibleCabinSegments(layout: CabinLayout) {
+  const visible = CABIN_CLASSES.map((cabin) => ({
+    cabin,
+    seats: Math.max(0, layout[cabin]),
+    spaceUnits: cabinVisualSpaceUnits(layout, cabin)
+  })).filter((segment) => segment.seats > 0 && segment.spaceUnits > 0);
+  const totalSpaceUnits = visible.reduce((sum, segment) => sum + segment.spaceUnits, 0);
+
+  return visible.map((segment) => ({
+    ...segment,
+    widthPercent: totalSpaceUnits > 0 ? (segment.spaceUnits / totalSpaceUnits) * 100 : 0
+  }));
 }
 
 export function availableCargoTons(model: AircraftModel, layout: CabinLayout) {
@@ -36,12 +63,58 @@ export function estimateConfiguredPrice(model: AircraftModel, layout: CabinLayou
   return Math.round(model.estimatedPriceGBP + premiumFitOut + cargoFitOut);
 }
 
+export function getDefaultCabinConfig(model: AircraftModel) {
+  return normalizeCabinLayout(model, model.suggestedLayout);
+}
+
+export function getMaxSeatCabinConfig(model: AircraftModel) {
+  const layout = normalizeCabinLayout(model, {
+    first: model.cabinLimits.first.min,
+    business: model.cabinLimits.business.min,
+    premiumEconomy: model.cabinLimits.premiumEconomy.min,
+    economy: model.cabinLimits.economy.min,
+    cargoTons: 0
+  });
+
+  for (const cabin of ["economy", "premiumEconomy", "business", "first"] as CabinClass[]) {
+    if (model.type === "narrowbody" && cabin === "first") continue;
+    while (layout[cabin] < model.cabinLimits[cabin].max) {
+      const candidate = { ...layout, [cabin]: layout[cabin] + 1 };
+      if (layoutSeatEquivalent(candidate) > model.maxPassengerSeats) break;
+      layout[cabin] = candidate[cabin];
+    }
+  }
+
+  return normalizeCabinLayout(model, { ...layout, cargoTons: availableCargoTons(model, layout) });
+}
+
+export function normalizeCabinLayout(model: AircraftModel, layout: CabinLayout): CabinLayout {
+  const normalized: CabinLayout = {
+    first: normalizeSeatCount(layout.first),
+    business: normalizeSeatCount(layout.business),
+    premiumEconomy: normalizeSeatCount(layout.premiumEconomy),
+    economy: normalizeSeatCount(layout.economy),
+    cargoTons: normalizeCargo(layout.cargoTons)
+  };
+
+  if (model.type === "narrowbody") normalized.first = 0;
+
+  CABIN_CLASSES.forEach((cabin) => {
+    normalized[cabin] = clamp(normalized[cabin], model.cabinLimits[cabin].min, model.cabinLimits[cabin].max);
+  });
+
+  reduceUntilValidSeatSpace(model, normalized);
+  normalized.cargoTons = Math.min(normalized.cargoTons, availableCargoTons(model, normalized));
+  normalized.cargoTons = Math.round(normalized.cargoTons * 10) / 10;
+
+  return normalized;
+}
+
 export function validateCabinLayout(model: AircraftModel, layout: CabinLayout) {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const cabins: CabinClass[] = ["first", "business", "premiumEconomy", "economy"];
 
-  cabins.forEach((cabin) => {
+  CABIN_CLASSES.forEach((cabin) => {
     const seats = layout[cabin];
     const limit = model.cabinLimits[cabin];
     if (!Number.isFinite(seats) || seats < 0) errors.push(`${label(cabin)} cannot be negative.`);
@@ -102,4 +175,26 @@ export function routeSuitabilityHints(model: AircraftModel, layout: CabinLayout,
 function label(cabin: CabinClass) {
   if (cabin === "premiumEconomy") return "Premium Economy";
   return cabin[0].toUpperCase() + cabin.slice(1);
+}
+
+function normalizeSeatCount(value: number) {
+  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+}
+
+function normalizeCargo(value: number) {
+  return Number.isFinite(value) ? Math.max(0, Math.round(value * 10) / 10) : 0;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function reduceUntilValidSeatSpace(model: AircraftModel, layout: CabinLayout) {
+  const reductionOrder: CabinClass[] = ["economy", "premiumEconomy", "business", "first"];
+
+  while (layoutSeatEquivalent(layout) > model.maxPassengerSeats) {
+    const cabin = reductionOrder.find((key) => layout[key] > model.cabinLimits[key].min);
+    if (!cabin) break;
+    layout[cabin] -= 1;
+  }
 }

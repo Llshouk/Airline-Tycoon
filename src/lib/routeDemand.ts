@@ -12,16 +12,22 @@ export type RemainingDemandSummary = {
   warnings: string[];
 };
 
+export type ScheduleDemandPreview = RemainingDemandSummary & {
+  previewDemand: CabinDemand;
+  remainingAfterPreview: CabinDemand;
+  oversupplyAfterPreview: CabinDemand;
+};
+
 export function calculateAdjustedRouteDemand(route: Route) {
   return estimatePriceAdjustedDemand(route);
 }
 
-export function calculateScheduledCapacityForRoute(routeId: string, game: GameState): CabinDemand {
+export function calculateScheduledCapacityForRoute(routeId: string, game: GameState, excludeWeeklyScheduleId?: string): CabinDemand {
   const capacity = emptyDemand();
 
   game.fleet.forEach((aircraft) => {
     aircraft.weeklySchedules
-      .filter((schedule) => schedule.routeId === routeId)
+      .filter((schedule) => schedule.routeId === routeId && schedule.id !== excludeWeeklyScheduleId)
       .forEach((schedule) => {
         addLayoutCapacity(capacity, aircraft.cabinLayout, schedule.daysOfWeek.length * (schedule.isRoundTrip ? 2 : 1));
       });
@@ -48,11 +54,60 @@ export function calculateRemainingDemand(routeId: string, game: GameState): Rema
   return { route, totalDemand, usedDemand, remainingDemand, oversupplyDemand, warnings };
 }
 
+export function calculatePreviewCapacity(layout: CabinLayout, daysOfWeekCount: number, isRoundTrip: boolean): CabinDemand {
+  const capacity = emptyDemand();
+  addLayoutCapacity(capacity, layout, daysOfWeekCount * (isRoundTrip ? 2 : 1));
+  return roundDemand(capacity);
+}
+
+export function calculateRemainingDemandForSchedulePreview(
+  routeId: string,
+  game: GameState,
+  previewLayout: CabinLayout,
+  daysOfWeekCount: number,
+  isRoundTrip: boolean,
+  excludeWeeklyScheduleId?: string
+): ScheduleDemandPreview | null {
+  const route = game.routes.find((item) => item.id === routeId);
+  if (!route) return null;
+
+  const totalDemand = calculateAdjustedRouteDemand(route);
+  const usedDemand = calculateScheduledCapacityForRoute(routeId, game, excludeWeeklyScheduleId);
+  const previewDemand = calculatePreviewCapacity(previewLayout, daysOfWeekCount, isRoundTrip);
+  const usedWithPreview = addDemand(usedDemand, previewDemand);
+  const remainingDemand = subtractDemand(totalDemand, usedDemand, "remaining");
+  const oversupplyDemand = subtractDemand(usedDemand, totalDemand, "oversupply");
+  const remainingAfterPreview = subtractDemand(totalDemand, usedWithPreview, "remaining");
+  const oversupplyAfterPreview = subtractDemand(usedWithPreview, totalDemand, "oversupply");
+  const warnings = demandWarnings(totalDemand, usedWithPreview, remainingAfterPreview, oversupplyAfterPreview);
+
+  return {
+    route,
+    totalDemand,
+    usedDemand,
+    previewDemand,
+    remainingDemand,
+    oversupplyDemand,
+    remainingAfterPreview,
+    oversupplyAfterPreview,
+    warnings
+  };
+}
+
 function addLayoutCapacity(target: CabinDemand, layout: CabinLayout, flights: number) {
   CABIN_KEYS.forEach((key) => {
     target[key] += layout[key] * flights;
   });
   target.cargoTons += layout.cargoTons * flights;
+}
+
+function addDemand(a: CabinDemand, b: CabinDemand) {
+  const result = emptyDemand();
+  CABIN_KEYS.forEach((key) => {
+    result[key] = a[key] + b[key];
+  });
+  result.cargoTons = a.cargoTons + b.cargoTons;
+  return roundDemand(result);
 }
 
 function demandWarnings(total: CabinDemand, used: CabinDemand, remaining: CabinDemand, oversupply: CabinDemand) {

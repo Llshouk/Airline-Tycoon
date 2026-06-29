@@ -13,7 +13,6 @@ import {
   estimateRouteOpeningCost,
   estimateTicketPrices,
   estimateWeeklyScheduleFinancials,
-  optimizeRoutePricing,
   priceWarning,
   routePricingFromDefaults
 } from "@/lib/economy";
@@ -82,7 +81,7 @@ export function RoutesScreen() {
     const distance = distanceKm(origin, destination);
     const estimatedTicketPrices = estimateTicketPrices(distance);
     setPricing({ ...estimatedTicketPrices, cargo: estimateCargoRatePerTon(distance) });
-  }, [destinationAirportId, game, originAirportId]);
+  }, [destinationAirportId, game?.baseAirportId, originAirportId]);
 
   if (!game) return null;
   const base = airportsById[game.baseAirportId];
@@ -154,16 +153,11 @@ export function RoutesScreen() {
                 route={preview.route}
                 pricing={pricing ?? routePricingFromDefaults(preview.route)}
                 capacityHint={preview.bestEstimate?.aircraft.cabinLayout}
+                recommendedButtonLabel={t("routes.setRecommendedPrices")}
                 onChange={setPricing}
-                onOptimize={() => {
-                  setPricing(
-                    optimizeRoutePricing(
-                      preview.route,
-                      preview.bestEstimate?.model,
-                      preview.bestEstimate?.aircraft.cabinLayout
-                    )
-                  );
-                  setPricingMessage("Profit Maximized");
+                onSetRecommended={() => {
+                  setPricing(recommendedPricingForRoute(preview.route));
+                  setPricingMessage(t("routes.recommendedPricesApplied"));
                 }}
               />
               {pricingMessage ? <p className="rounded-md bg-mint/10 px-3 py-2 text-sm font-bold text-mint">{pricingMessage}</p> : null}
@@ -256,12 +250,11 @@ export function RoutesScreen() {
                 route={editedRoute}
                 pricing={editingPricing}
                 capacityHint={editingPreview.capacityHint}
+                recommendedButtonLabel={t("routes.setRecommendedPrices")}
                 onChange={setEditingPricing}
-                onOptimize={() => {
-                  setEditingPricing(
-                    optimizeRoutePricing(editedRoute, editingPreview.modelHint, editingPreview.capacityHint)
-                  );
-                  setPricingMessage("Profit Maximized");
+                onSetRecommended={() => {
+                  setEditingPricing(recommendedPricingForRoute(editedRoute));
+                  setPricingMessage(t("routes.recommendedPricesApplied"));
                 }}
               />
               {pricingMessage ? <p className="rounded-md bg-mint/10 px-3 py-2 text-sm font-bold text-mint">{pricingMessage}</p> : null}
@@ -445,13 +438,15 @@ function PricingEditor({
   route,
   pricing,
   capacityHint,
-  onOptimize,
+  recommendedButtonLabel,
+  onSetRecommended,
   onChange
 }: {
   route: Route;
   pricing: RoutePricing;
   capacityHint?: CabinLayout;
-  onOptimize?: () => void;
+  recommendedButtonLabel: string;
+  onSetRecommended?: () => void;
   onChange: (pricing: RoutePricing) => void;
 }) {
   const recommended = route.recommendedPricing ?? routePricingFromDefaults(route);
@@ -467,13 +462,13 @@ function PricingEditor({
     <div className="rounded-md border border-slate-200 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-bold text-ink">Ticket Pricing</p>
-        {onOptimize ? (
+        {onSetRecommended ? (
           <button
             type="button"
-            onClick={onOptimize}
+            onClick={onSetRecommended}
             className="rounded-md bg-mint px-3 py-1.5 text-xs font-black text-white transition hover:bg-mint/90"
           >
-            Optimize Prices
+            {recommendedButtonLabel}
           </button>
         ) : null}
       </div>
@@ -551,6 +546,10 @@ function priceWarnings(route: Route) {
         .filter(Boolean) as string[]
     )
   );
+}
+
+function recommendedPricingForRoute(route: Route): RoutePricing {
+  return route.recommendedPricing ?? routePricingFromDefaults(route);
 }
 
 type RoutePricingPreview = {

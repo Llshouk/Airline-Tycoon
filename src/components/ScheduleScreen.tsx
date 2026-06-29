@@ -3,6 +3,7 @@
 import { CalendarPlus, Pencil, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AircraftDetailPanel } from "@/components/AircraftDetailPanel";
+import { AircraftImage } from "@/components/AircraftImage";
 import { AircraftWeeklyTimetableGrid } from "@/components/AircraftWeeklyTimetableGrid";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
@@ -19,6 +20,7 @@ import {
   weeklyEventBlocksFromSchedule,
   weeklyScheduleLabel
 } from "@/lib/schedule";
+import { calculateRemainingDemandForSchedulePreview, type ScheduleDemandPreview } from "@/lib/routeDemand";
 import { formatDuration } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
 import type { DayOfWeek, WeeklySchedule } from "@/types/game";
@@ -109,6 +111,18 @@ export function ScheduleScreen() {
     });
     return { blocks, conflict, error: error ?? (conflict ? "Schedule conflict: preview overlaps existing aircraft timetable." : null) };
   }, [departureTimeLocal, editingScheduleId, game, isRoundTrip, outboundFlightNumber, returnFlightNumber, selectedAircraft, selectedDays, selectedRoute]);
+
+  const demandPreview = useMemo(() => {
+    if (!game || !selectedAircraft || !selectedRoute) return null;
+    return calculateRemainingDemandForSchedulePreview(
+      selectedRoute.id,
+      game,
+      selectedAircraft.cabinLayout,
+      selectedDays.length,
+      isRoundTrip,
+      editingScheduleId ?? undefined
+    );
+  }, [editingScheduleId, game, isRoundTrip, selectedAircraft, selectedDays.length, selectedRoute]);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -303,6 +317,7 @@ export function ScheduleScreen() {
               estimate={projection.estimate}
             />
           ) : null}
+          {demandPreview ? <RemainingDemandPreview summary={demandPreview} /> : null}
           {localError || preview.error ? (
             <p className="mt-4 rounded-md bg-coral/10 px-3 py-2 text-sm font-bold text-coral">{localError ?? preview.error}</p>
           ) : null}
@@ -316,26 +331,31 @@ export function ScheduleScreen() {
         </form>
 
         <div className="space-y-4">
-          {selectedAircraft ? (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <button type="button" onClick={() => setDetailAircraftId(selectedAircraft.id)} className="text-left">
-                  <p className="font-black text-ink">{selectedAircraft.registration}</p>
-                  <p className="text-sm text-slate-500">
-                    {model?.manufacturer} {model?.model}
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDetailAircraftId(selectedAircraft.id)}
-                  className="rounded-md bg-runway px-3 py-2 text-sm font-bold text-jet hover:bg-slate-100"
-                >
-                  View aircraft timetable
-                </button>
+          <div className="space-y-4 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:pr-1">
+            {selectedAircraft ? (
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <button type="button" onClick={() => setDetailAircraftId(selectedAircraft.id)} className="flex min-w-0 items-center gap-3 text-left">
+                    {model ? <AircraftImage model={model} className="h-14 w-24 shrink-0" /> : null}
+                    <span>
+                      <span className="block font-black text-ink">{selectedAircraft.registration}</span>
+                      <span className="block text-sm text-slate-500">
+                        {model?.manufacturer} {model?.model}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDetailAircraftId(selectedAircraft.id)}
+                    className="rounded-md bg-runway px-3 py-2 text-sm font-bold text-jet hover:bg-slate-100"
+                  >
+                    View aircraft timetable
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : null}
-          <AircraftWeeklyTimetableGrid aircraft={gridAircraft} routes={game.routes} previewBlocks={preview.blocks} />
+            ) : null}
+            <AircraftWeeklyTimetableGrid aircraft={gridAircraft} routes={game.routes} previewBlocks={preview.blocks} />
+          </div>
 
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
             <h3 className="font-black text-ink">Saved services</h3>
@@ -441,4 +461,60 @@ function ScheduleFinancialSummary({
       </div>
     </div>
   );
+}
+
+function RemainingDemandPreview({ summary }: { summary: ScheduleDemandPreview }) {
+  const rows = [
+    { label: "First", key: "first", suffix: "" },
+    { label: "Business", key: "business", suffix: "" },
+    { label: "Premium", key: "premiumEconomy", suffix: "" },
+    { label: "Economy", key: "economy", suffix: "" },
+    { label: "Cargo", key: "cargoTons", suffix: " t" }
+  ] as const;
+
+  return (
+    <div className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-black text-ink">Remaining Weekly Demand</p>
+        <p className="text-xs font-semibold text-slate-500">Updates from the selected route and draft timetable</p>
+      </div>
+      <div className="mt-3 overflow-hidden rounded-md border border-slate-100">
+        <div className="grid grid-cols-[1fr_repeat(4,78px)] gap-2 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-normal text-slate-500">
+          <span>Cabin</span>
+          <span>Total</span>
+          <span>Used</span>
+          <span>Preview</span>
+          <span>After</span>
+        </div>
+        {rows.map((row) => {
+          const remaining = summary.remainingAfterPreview[row.key];
+          const oversupply = summary.oversupplyAfterPreview[row.key];
+          return (
+            <div key={row.key} className="grid grid-cols-[1fr_repeat(4,78px)] gap-2 border-t border-slate-100 px-3 py-2 text-xs">
+              <span className="font-bold text-ink">{row.label}</span>
+              <span>{formatScheduleDemand(summary.totalDemand[row.key], row.suffix)}</span>
+              <span>{formatScheduleDemand(summary.usedDemand[row.key], row.suffix)}</span>
+              <span>{formatScheduleDemand(summary.previewDemand[row.key], row.suffix)}</span>
+              <span className={oversupply > 0 ? "font-black text-coral" : "font-black text-mint"}>
+                {oversupply > 0 ? `+${formatScheduleDemand(oversupply, row.suffix)} over` : formatScheduleDemand(remaining, row.suffix)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {summary.warnings.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {summary.warnings.map((warning) => (
+            <span key={warning} className="rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700">
+              {warning}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatScheduleDemand(value: number, suffix: string) {
+  return suffix ? `${value.toFixed(1)}${suffix}` : formatNumber.format(Math.round(value));
 }

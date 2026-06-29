@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ENABLE_GAME_CONSOLE } from "@/config/gameBalance";
 import { useTranslation } from "@/i18n";
+import { getCurrentCash } from "@/lib/cash";
 import { formatGBP } from "@/lib/format";
 import { useGameStore } from "@/store/gameStore";
 import type { GameState } from "@/types/game";
@@ -27,6 +28,7 @@ export function GameConsole({ onClose }: { onClose?: () => void }) {
   const exportText = useMemo(() => (game ? JSON.stringify(game, null, 2) : ""), [game]);
 
   if (!ENABLE_GAME_CONSOLE || !game) return null;
+  const cash = getCurrentCash(game);
 
   function readNumber(value: string, label: string) {
     const amount = Number(value);
@@ -68,7 +70,7 @@ export function GameConsole({ onClose }: { onClose?: () => void }) {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div className="rounded-md border border-amber-100 bg-white p-3">
           <h4 className="font-bold text-ink">Money</h4>
-          <p className="mt-1 text-sm font-semibold text-slate-500">{t("console.currentCash")}: {formatGBP.format(game.money)}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-500">{t("console.currentCash")}: {formatGBP.format(cash)}</p>
           <input
             type="number"
             min="0"

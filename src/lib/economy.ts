@@ -2,7 +2,6 @@ import { COST_BALANCE_MULTIPLIER, GAME_BALANCE, GAME_REVENUE_MULTIPLIER, PRICE_E
 import type { AircraftInstance, AircraftModel, CabinDemand, CabinLayout, CabinPrices, Route, RoutePricing, WeeklySchedule } from "@/types/game";
 
 type PriceDemandClass = keyof RoutePricing;
-const PRICE_CANDIDATE_MULTIPLIERS = [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 2, 2.2, 2.5, 3] as const;
 
 export function estimateTicketPrices(distanceKm: number): CabinPrices {
   const economy = Math.round(55 + distanceKm * 0.115 + Math.min(distanceKm, 10000) * 0.012);
@@ -114,49 +113,6 @@ export function priceWarning(recommendedPrice: number, actualPrice: number) {
   if (ratio > 1.5) return "High price: demand will decrease.";
   if (ratio <= 0.85) return "High demand but lower yield.";
   return null;
-}
-
-export function optimizeRoutePricing(route: Route, model?: AircraftModel, layout?: CabinLayout): RoutePricing {
-  const recommended = route.recommendedPricing ?? routePricingFromDefaults(route);
-  let bestPricing: RoutePricing = route.pricing ?? recommended;
-  let bestProfit = estimateRouteProfitWithPricing(route, bestPricing, model, layout);
-
-  (Object.keys(recommended) as PriceDemandClass[]).forEach((key) => {
-    let bestCabinPrice = bestPricing[key];
-    PRICE_CANDIDATE_MULTIPLIERS.forEach((multiplier) => {
-      const candidate = {
-        ...bestPricing,
-        [key]: Math.max(1, Math.round(recommended[key] * multiplier))
-      };
-      const profit = estimateRouteProfitWithPricing(route, candidate, model, layout);
-      if (profit > bestProfit) {
-        bestProfit = profit;
-        bestCabinPrice = candidate[key];
-      }
-    });
-    bestPricing = { ...bestPricing, [key]: bestCabinPrice };
-  });
-
-  return bestPricing;
-}
-
-export function estimateRouteProfitWithPricing(route: Route, pricing: RoutePricing, model?: AircraftModel, layout?: CabinLayout) {
-  const pricedRoute = { ...route, pricing };
-  if (model && layout) {
-    return estimateExpectedFlightProfit(pricedRoute, model, layout).profit;
-  }
-
-  const demand = estimatePriceAdjustedDemand(pricedRoute);
-  const longHaulBonus = route.distanceKm >= 5500 ? GAME_BALANCE.longHaulRevenueBonus : 1;
-  const revenue =
-    (demand.first * pricing.first +
-      demand.business * pricing.business +
-      demand.premiumEconomy * pricing.premiumEconomy +
-      demand.economy * pricing.economy +
-      demand.cargoTons * pricing.cargo) *
-    GAME_REVENUE_MULTIPLIER *
-    longHaulBonus;
-  return Math.round(revenue);
 }
 
 export function estimateExpectedFlightProfit(route: Route, model: AircraftModel, layout?: CabinLayout) {

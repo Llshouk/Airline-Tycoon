@@ -144,7 +144,7 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
               window.setTimeout(() => {
                 L.popup({ offset: [0, -10] })
                   .setLatLng([position.lat, position.lng])
-                  .setContent(aircraftDetailsHtml(aircraft, model, item))
+                  .setContent(aircraftDetailsHtml(aircraft, model, item, props.currentGameTimeMs))
                   .openOn(map);
               }, 0);
             })
@@ -249,7 +249,7 @@ function drawGoogleLayers(props: Props, map: any, layersRef: MutableRefObject<an
             }
           });
           const infoWindow = new window.google.maps.InfoWindow({
-            content: aircraftDetailsHtml(aircraft, model, item)
+            content: aircraftDetailsHtml(aircraft, model, item, props.currentGameTimeMs)
           });
           marker.addListener("click", () => {
             props.onSelectFlight(item.id);
@@ -357,19 +357,58 @@ function airportDetailsHtml(airport: (typeof airports)[number], isBase: boolean,
 function aircraftDetailsHtml(
   aircraft: AircraftInstance,
   model: AircraftModel | undefined,
-  item: AircraftInstance["schedule"][number]
+  item: AircraftInstance["schedule"][number],
+  currentGameTimeMs: number
 ) {
   const origin = airportsById[item.originAirportId];
   const destination = airportsById[item.destinationAirportId];
+  const imageUrl = getAircraftDisplayImage(aircraft, model);
+  const imageAlt = model?.imageAlt ?? `${aircraft.registration} aircraft image`;
+  const progress = Math.max(0, Math.min(100, Math.round(((currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime)) * 100)));
+  const eta = new Date(item.arrivalGameTime).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   return `
     <div class="airport-popup">
+      ${
+        imageUrl
+          ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" style="display:block;width:180px;height:72px;object-fit:contain;background:#fff;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:8px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" /><span style="display:none;margin-bottom:8px;color:#64748b;font-weight:700;">No aircraft image available</span>`
+          : `<span style="display:block;margin-bottom:8px;color:#64748b;font-weight:700;">No aircraft image available</span>`
+      }
       <strong>${aircraft.registration}</strong>
       <span>${model ? `${model.manufacturer} ${model.model}` : aircraft.modelId}</span>
       <span>Flight: ${item.flightNumber ?? "-"}</span>
-      <span>${origin.iata} to ${destination.iata}</span>
+      <span>Origin: ${origin.iata} ${origin.city}</span>
+      <span>Destination: ${destination.iata} ${destination.city}</span>
+      <span>Route: ${origin.iata} to ${destination.iata}</span>
+      <span>Progress: ${progress}%</span>
+      <span>ETA: ${eta}</span>
       <span>Status: ${item.status}</span>
+      ${item.revenue ? `<span>Revenue: £${Math.round(item.revenue).toLocaleString()}</span>` : ""}
+      ${item.profit ? `<span>Profit: £${Math.round(item.profit).toLocaleString()}</span>` : ""}
     </div>
   `;
+}
+
+function getAircraftDisplayImage(aircraft: AircraftInstance, model: AircraftModel | undefined) {
+  return (aircraft as AircraftInstance & { imageUrl?: string }).imageUrl ?? model?.imageUrl ?? "";
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return char;
+    }
+  });
 }
 
 function getAircraftIconCategory(model: AircraftModel | undefined): AircraftIconCategory {

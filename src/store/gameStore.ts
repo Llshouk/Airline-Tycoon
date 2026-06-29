@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
 import { validateCabinLayout } from "@/lib/cabin";
-import { addCash, canAfford, spendCash, updateCash } from "@/lib/cash";
+import { addCash, canAfford, getCurrentCash, spendCash, updateCash } from "@/lib/cash";
 import { estimateDemand } from "@/lib/demand";
 import {
   estimateCargoRatePerTon,
@@ -58,7 +58,7 @@ type GameStore = {
   setTimeMultiplier: (speed: TimeMultiplier) => void;
   togglePause: () => void;
   buyAircraft: (modelId: string, cabinLayout: CabinLayout, registration: string) => void;
-  openRoute: (originAirportId: string, destinationAirportId: string, pricing?: Route["pricing"]) => void;
+  openRoute: (originAirportId: string, destinationAirportId: string, pricing?: Route["pricing"]) => { ok: boolean; message: string; route?: Route };
   updateRoutePricing: (routeId: string, pricing: RoutePricing) => void;
   updateAircraftRegistration: (aircraftId: string, registration: string) => { ok: boolean; message: string };
   addConsoleMoney: (amount: number) => void;
@@ -177,32 +177,38 @@ export const useGameStore = create<GameStore>()(
       },
       openRoute: (originAirportId, destinationAirportId, pricing) => {
         const game = normalizeGame(get().game);
-        if (!game) return;
+        if (!game) return { ok: false, message: "Start or load a game first." };
         const origin = airportsById[originAirportId];
         const destination = airportsById[destinationAirportId];
-        if (!origin || !destination || origin.id === destination.id) return;
+        if (!origin || !destination || origin.id === destination.id) {
+          return { ok: false, message: "Select two different airports." };
+        }
         if (!game.expandedAirportIds.includes(origin.id) && !game.expandedAirportIds.includes(destination.id)) {
-          set({ notice: "Routes must touch an airport already in your network." });
-          return;
+          const message = "Routes must touch an airport already in your network.";
+          set({ notice: message });
+          return { ok: false, message };
         }
 
         const existingRoute = game.routes.find((route) => routeConnects(route, origin.id, destination.id));
         if (existingRoute) {
-          set({ notice: "That route is already open." });
-          return;
+          const message = "That route is already open.";
+          set({ notice: message });
+          return { ok: false, message, route: existingRoute };
         }
 
         const distance = distanceKm(origin, destination);
         const hasRange = game.fleet.some((aircraft) => aircraftById[aircraft.modelId]?.rangeKm >= distance);
         if (!hasRange) {
-          set({ notice: "You need at least one owned aircraft with enough range for that route." });
-          return;
+          const message = "You need at least one owned aircraft with enough range for that route.";
+          set({ notice: message });
+          return { ok: false, message };
         }
 
         const cost = estimateRouteOpeningCost(distance);
         if (!canAfford(game, cost)) {
-          set({ notice: "Not enough cash to open that route." });
-          return;
+          const message = "Not enough cash to open that route.";
+          set({ notice: message });
+          return { ok: false, message };
         }
 
         const estimatedTicketPrices = estimateTicketPrices(distance);
@@ -226,7 +232,9 @@ export const useGameStore = create<GameStore>()(
           routes: [...game.routes, route]
         };
         updateLeaderboard(nextGame);
-        set({ game: nextGame, notice: `${origin.iata}-${destination.iata} is now open.` });
+        const message = `${origin.iata}-${destination.iata} is now open.`;
+        set({ game: nextGame, notice: message });
+        return { ok: true, message, route };
       },
       updateRoutePricing: (routeId, pricing) => {
         const game = normalizeGame(get().game);
@@ -502,10 +510,17 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: "airline-tycoon-v1",
-      version: 2,
+      version: 3,
+      partialize: (state) => ({
+        game: normalizeGame(state.game),
+        notice: state.notice
+      }),
       migrate: (persisted) => {
         const state = persisted as Partial<GameStore>;
-        return { ...state, game: normalizeGame(state.game ?? null) };
+        return {
+          game: normalizeGame(state.game ?? null),
+          notice: state.notice ?? null
+        };
       }
     }
   )
@@ -752,8 +767,17 @@ function getLatestSchedulePosition(aircraft: AircraftInstance, routes: Route[]) 
 
 function normalizeGame(game: GameState | null | undefined): GameState | null {
   if (!game) return null;
+  const rawGame = game as GameState & {
+    cash?: unknown;
+    capital?: unknown;
+    playerMoney?: unknown;
+    airline?: { cash?: unknown; money?: unknown };
+  };
+  const { cash: _cash, capital: _capital, playerMoney: _playerMoney, airline: _airline, ...cleanGame } = rawGame;
+  const money = getCurrentCash(rawGame);
   return {
-    ...game,
+    ...cleanGame,
+    money,
     timeMultiplier: game.timeMultiplier ?? DEFAULT_GAME_SPEED,
     isPaused: game.isPaused ?? false,
     routes: game.routes.map((route) => {
@@ -824,7 +848,7 @@ function updateLeaderboard(game: GameState) {
     airlineName: game.airlineName,
     isPlayer: true,
     valuation: estimateCompanyValuation(game),
-    cash: game.money,
+    cash: getCurrentCash(game),
     totalProfit: game.totalProfit,
     fleetSize: game.fleet.length,
     routes: game.routes.length,
@@ -889,7 +913,7 @@ function mock(
 function estimateCompanyValuation(game: GameState) {
   const fleetValue = game.fleet.reduce((sum, aircraft) => sum + aircraft.purchasePriceGBP * 0.82, 0);
   const routeValue = game.routes.reduce((sum, route) => sum + estimateRouteOpeningCost(route.distanceKm) * 0.75, 0);
-  return Math.round(game.money + fleetValue + routeValue + Math.max(0, game.totalProfit) * 2.5);
+  return Math.round(getCurrentCash(game) + fleetValue + routeValue + Math.max(0, game.totalProfit) * 2.5);
 }
 
 function routeConnects(route: Route, airportA: string, airportB: string) {

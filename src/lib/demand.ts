@@ -20,10 +20,21 @@ export function estimateDemand(origin: Airport, destination: Airport, distanceKm
   const averageDemandScore = (origin.baseDemandScore + destination.baseDemandScore) / 2;
   const tierBlend = (tierMultiplier[origin.sizeTier] + tierMultiplier[destination.sizeTier]) / 2;
   const distanceMultiplier = band === "short-haul" ? 1.22 : band === "medium-haul" ? 1.02 : 0.9;
+  const longHaulDemandBonus = band === "long-haul" ? GAME_BALANCE.longHaulDemandBonus : 1;
 
   // TODO: Replace this seed-score model with imported static traffic data when the airport dataset grows.
-  // Demand is stored and displayed as a 7-day weekly market so timetable capacity consumes it naturally.
-  const weeklyBase = averageDemandScore * tierBlend * hubBonus * distanceMultiplier * 2.2 * DAYS_PER_WEEK * GAME_BALANCE.passengerDemandMultiplier;
+  // Demand is stored as a 7-day weekly market and intentionally scaled up for V1 gameplay,
+  // so one aircraft cannot usually satisfy an entire route by itself.
+  const weeklyBase =
+    averageDemandScore *
+    tierBlend *
+    hubBonus *
+    distanceMultiplier *
+    longHaulDemandBonus *
+    2.2 *
+    DAYS_PER_WEEK *
+    GAME_BALANCE.passengerDemandMultiplier *
+    GAME_BALANCE.routeDemandScale;
   const premiumBias = hubBonus * (band === "long-haul" ? 1.45 : band === "medium-haul" ? 1.14 : 0.76) * GAME_BALANCE.premiumDemandMultiplier;
   const cargoBias = (band === "long-haul" ? 1.18 : 1) * GAME_BALANCE.cargoDemandMultiplier;
 

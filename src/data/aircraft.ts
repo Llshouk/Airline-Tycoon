@@ -1,13 +1,30 @@
 import type { AircraftModel } from "@/types/game";
+import { normalizeCabinLayout } from "@/lib/cabin";
 
 export const aircraftModels: AircraftModel[] = [
-  model("a220-300", "Airbus", "A220-300", "narrowbody", "narrow-body", "short-haul", 6390, 829, 145, 11, 72000000, 1450, 40, {
-    first: [0, 0],
-    business: [0, 20],
-    premiumEconomy: [0, 28],
-    economy: [80, 145],
-    suggested: { first: 0, business: 10, premiumEconomy: 18, economy: 105, cargoTons: 6 }
-  }),
+  model(
+    "a220-300",
+    "Airbus",
+    "A220-300",
+    "narrowbody",
+    "narrow-body",
+    "short-haul",
+    6390,
+    829,
+    145,
+    11,
+    72000000,
+    1450,
+    40,
+    {
+      first: [0, 0],
+      business: [0, 20],
+      premiumEconomy: [0, 28],
+      economy: [80, 145],
+      suggested: { first: 0, business: 10, premiumEconomy: 18, economy: 105, cargoTons: 6 }
+    },
+    { imageUrl: "/aircraft/a220-300.jpg", imageAlt: "Airbus A220-300" }
+  ),
   model("a320neo", "Airbus", "A320neo", "narrowbody", "narrow-body", "short-haul", 6300, 840, 180, 13, 95000000, 1750, 45, {
     first: [0, 0],
     business: [0, 24],
@@ -15,13 +32,29 @@ export const aircraftModels: AircraftModel[] = [
     economy: [110, 180],
     suggested: { first: 0, business: 12, premiumEconomy: 24, economy: 132, cargoTons: 7 }
   }),
-  model("a321neo", "Airbus", "A321neo", "narrowbody", "narrow-body", "medium-haul", 7400, 840, 220, 15, 112000000, 2100, 50, {
-    first: [0, 0],
-    business: [0, 28],
-    premiumEconomy: [0, 40],
-    economy: [135, 220],
-    suggested: { first: 0, business: 16, premiumEconomy: 28, economy: 160, cargoTons: 8 }
-  }),
+  model(
+    "a321neo",
+    "Airbus",
+    "A321neo",
+    "narrowbody",
+    "narrow-body",
+    "medium-haul",
+    7400,
+    840,
+    220,
+    15,
+    112000000,
+    2100,
+    50,
+    {
+      first: [0, 0],
+      business: [0, 28],
+      premiumEconomy: [0, 40],
+      economy: [135, 220],
+      suggested: { first: 0, business: 16, premiumEconomy: 28, economy: 160, cargoTons: 8 }
+    },
+    { imageUrl: "/aircraft/a321neo.jpeg" }
+  ),
   model("a330-900neo", "Airbus", "A330-900neo", "widebody", "wide-body", "long-haul", 13330, 871, 287, 38, 235000000, 3900, 75, {
     first: [0, 8],
     business: [18, 46],
@@ -29,13 +62,29 @@ export const aircraftModels: AircraftModel[] = [
     economy: [150, 287],
     suggested: { first: 4, business: 30, premiumEconomy: 44, economy: 198, cargoTons: 22 }
   }),
-  model("a350-900", "Airbus", "A350-900", "widebody", "long-haul-wide-body", "long-haul", 15000, 903, 315, 44, 270000000, 4300, 80, {
-    first: [0, 10],
-    business: [24, 56],
-    premiumEconomy: [24, 76],
-    economy: [170, 315],
-    suggested: { first: 6, business: 38, premiumEconomy: 52, economy: 219, cargoTons: 28 }
-  }),
+  model(
+    "a350-900",
+    "Airbus",
+    "A350-900",
+    "widebody",
+    "long-haul-wide-body",
+    "long-haul",
+    15000,
+    903,
+    315,
+    44,
+    270000000,
+    4300,
+    80,
+    {
+      first: [0, 10],
+      business: [24, 56],
+      premiumEconomy: [24, 76],
+      economy: [170, 315],
+      suggested: { first: 6, business: 38, premiumEconomy: 52, economy: 219, cargoTons: 28 }
+    },
+    { imageUrl: "/aircraft/a350-900.png" }
+  ),
   model("a350-1000", "Airbus", "A350-1000", "widebody", "long-haul-wide-body", "long-haul", 16100, 903, 369, 50, 315000000, 4850, 85, {
     first: [0, 12],
     business: [28, 66],
@@ -111,15 +160,24 @@ function model(
     premiumEconomy: CabinTuple;
     economy: CabinTuple;
     suggested: AircraftModel["suggestedLayout"];
+  },
+  image?: {
+    imageUrl?: string;
+    imageAlt?: string;
+    imageCredit?: string;
   }
 ): AircraftModel {
-  // TODO: Add verified aircraft photos to public/aircraft/ using these exact filenames.
+  // To replace an aircraft image, put the file in public/aircraft/ and set imageUrl to
+  // the root-relative runtime path, for example "/aircraft/a320neo.jpg".
   const imageAlt = `${manufacturer} ${aircraftModel}`;
-  return {
+  const imageUrl = image?.imageUrl ?? `/aircraft/${id}.jpg`;
+  const baseModel: AircraftModel = {
     id,
     manufacturer,
     model: aircraftModel,
-    imageAlt,
+    imageUrl,
+    imageAlt: image?.imageAlt ?? imageAlt,
+    ...(image?.imageCredit ? { imageCredit: image.imageCredit } : {}),
     type,
     visualVariant,
     recommendedRouteType,
@@ -142,5 +200,15 @@ function model(
     estimatedPriceGBP,
     fuelCostPerKm,
     turnaroundMinutes
+  };
+  const suggestedLayout = normalizeCabinLayout(baseModel, limits.suggested);
+
+  return {
+    ...baseModel,
+    suggestedLayout,
+    firstClassSeats: suggestedLayout.first,
+    businessClassSeats: suggestedLayout.business,
+    premiumEconomySeats: suggestedLayout.premiumEconomy,
+    economySeats: suggestedLayout.economy
   };
 }

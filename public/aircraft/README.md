@@ -2,9 +2,9 @@ Place verified aircraft images in this folder using these exact filenames:
 
 - a220-300.jpg
 - a320neo.jpg
-- a321neo.jpg
+- a321neo.jpeg
 - a330-900neo.jpg
-- a350-900.jpg
+- a350-900.png
 - a350-1000.jpg
 - 737-max-8.jpg
 - 737-max-9.jpg

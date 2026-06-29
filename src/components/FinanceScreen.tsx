@@ -2,6 +2,7 @@
 
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
+import { getCurrentCash } from "@/lib/cash";
 import { formatGBP } from "@/lib/format";
 import { formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
@@ -10,6 +11,7 @@ export function FinanceScreen() {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
   if (!game) return null;
+  const cash = getCurrentCash(game);
 
   return (
     <div className="space-y-5">
@@ -18,7 +20,7 @@ export function FinanceScreen() {
         <p className="text-slate-600">Completed flight revenue, operating costs, and profit.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        <Panel label={t("top.cash")} value={formatGBP.format(game.money)} />
+        <Panel label={t("top.cash")} value={formatGBP.format(cash)} />
         <Panel label={t("dashboard.totalProfit")} value={formatGBP.format(game.totalProfit)} />
         <Panel label={t("finance.completedFlights")} value={String(game.completedFlights)} />
         <Panel label={t("dashboard.passengers")} value={game.passengerCount.toLocaleString("en-GB")} />

@@ -1,4 +1,5 @@
 import { aircraftById } from "@/data/aircraft";
+import { getCurrentCash } from "@/lib/cash";
 import { estimateRouteOpeningCost, estimateWeeklyScheduleFinancials } from "@/lib/economy";
 import type { AircraftInstance, GameState, Route } from "@/types/game";
 
@@ -30,15 +31,16 @@ export function calculateDashboardStats(game: GameState): DashboardStats {
   const totalRevenue = game.flightLog.reduce((sum, entry) => sum + entry.revenue, 0);
   const totalOperatingCost = game.flightLog.reduce((sum, entry) => sum + entry.cost, 0);
   const totalProfit = game.flightLog.reduce((sum, entry) => sum + entry.profit, 0);
+  const cash = getCurrentCash(game);
   const companyValuation = calculateCompanyValuation({
-    cash: game.money,
+    cash,
     fleetValue: fleetStats.fleetValue,
     routeNetworkValue: routeStats.routeNetworkValue,
     recentProfit: totalProfit
   });
 
   return {
-    cash: game.money,
+    cash,
     aircraftOwned: game.fleet.length,
     activeAircraft: fleetStats.activeAircraft,
     aircraftInFlight: fleetStats.aircraftInFlight,

@@ -1,6 +1,7 @@
 "use client";
 
 import { Activity, Banknote, CheckCircle2, Gauge, Package, Plane, TrendingUp, Users } from "lucide-react";
+import { AircraftImage } from "@/components/AircraftImage";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -82,7 +83,12 @@ export function Dashboard() {
                     const airport = airportsById[aircraft.currentAirportId];
                     return (
                       <tr key={aircraft.id} className="border-t border-slate-100">
-                        <td className="px-3 py-2 font-semibold">{aircraft.registration}</td>
+                        <td className="px-3 py-2 font-semibold">
+                          <div className="flex items-center gap-2">
+                            {model ? <AircraftImage model={model} className="h-10 w-16 shrink-0" /> : null}
+                            <span>{aircraft.registration}</span>
+                          </div>
+                        </td>
                         <td className="px-3 py-2">{model?.manufacturer} {model?.model}</td>
                         <td className="px-3 py-2">{airport?.iata}</td>
                         <td className="px-3 py-2 capitalize">{aircraft.status}</td>

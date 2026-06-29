@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { AircraftImage } from "@/components/AircraftImage";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -58,6 +59,7 @@ export function AircraftDetailPanel({
 
         <div className="grid gap-4 p-5 lg:grid-cols-[320px_1fr]">
           <aside className="space-y-4">
+            <AircraftImage model={model} className="h-40" />
             <div className="grid grid-cols-2 gap-2 text-sm">
               <Info label={t("detail.location")} value={airport.iata} />
               <Info label={t("detail.status")} value={statusLabel(aircraft.status, t)} />

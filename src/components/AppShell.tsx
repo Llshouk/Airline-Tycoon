@@ -11,6 +11,7 @@ import { GameConsole } from "@/components/GameConsole";
 import { MapScreen } from "@/components/MapScreen";
 import { RoutesScreen } from "@/components/RoutesScreen";
 import { ScheduleScreen } from "@/components/ScheduleScreen";
+import { getCurrentCash } from "@/lib/cash";
 import { formatGBP } from "@/lib/format";
 import { formatGameDate, GAME_SPEED_OPTIONS } from "@/lib/time";
 import { useTranslation } from "@/i18n";
@@ -49,6 +50,7 @@ export function AppShell() {
   const togglePause = useGameStore((state) => state.togglePause);
 
   if (!game) return null;
+  const cash = getCurrentCash(game);
 
   return (
     <main className="min-h-screen bg-runway">
@@ -59,7 +61,7 @@ export function AppShell() {
             <h1 className="text-xl font-black text-ink">{game.airlineName}</h1>
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            <HeaderStat label={t("top.cash")} value={formatGBP.format(game.money)} onClick={() => setIsConsoleOpen(true)} title="Open Game Console" />
+            <HeaderStat label={t("top.cash")} value={formatGBP.format(cash)} onClick={() => setIsConsoleOpen(true)} title="Open Game Console" />
             <HeaderStat label={t("top.gameTime")} value={formatGameDate(game.currentGameTimeMs)} />
             <HeaderStat label={t("top.aircraft")} value={String(game.fleet.length)} />
             <HeaderStat label={t("top.routes")} value={String(game.routes.length)} />
