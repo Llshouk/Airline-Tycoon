@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ENABLE_GAME_CONSOLE } from "@/config/gameBalance";
+import { useAuthSession } from "@/components/AuthGate";
 import { useTranslation } from "@/i18n";
 import { getCurrentCash } from "@/lib/cash";
 import { formatGBP } from "@/lib/format";
@@ -10,6 +11,7 @@ import type { GameState } from "@/types/game";
 
 export function GameConsole({ onClose }: { onClose?: () => void }) {
   const { t } = useTranslation();
+  const { isAdmin } = useAuthSession();
   const game = useGameStore((state) => state.game);
   const addConsoleMoney = useGameStore((state) => state.addConsoleMoney);
   const setConsoleMoney = useGameStore((state) => state.setConsoleMoney);
@@ -28,6 +30,19 @@ export function GameConsole({ onClose }: { onClose?: () => void }) {
   const exportText = useMemo(() => (game ? JSON.stringify(game, null, 2) : ""), [game]);
 
   if (!ENABLE_GAME_CONSOLE || !game) return null;
+  if (!isAdmin) {
+    return (
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+        <h3 className="font-black text-ink">{t("cloud.adminOnly")}</h3>
+        <p className="mt-1 text-sm text-slate-600">{t("cloud.adminOnlyDescription")}</p>
+        {onClose ? (
+          <button type="button" onClick={onClose} className="mt-3 rounded-md border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">
+            Close
+          </button>
+        ) : null}
+      </section>
+    );
+  }
   const cash = getCurrentCash(game);
 
   function readNumber(value: string, label: string) {

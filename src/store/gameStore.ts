@@ -51,8 +51,10 @@ const LEADERBOARD_KEY = "airline-tycoon-v1-leaderboard";
 type GameStore = {
   game: GameState | null;
   notice: string | null;
+  isAdminUser: boolean;
   startGame: (airlineName: string, baseAirportId: string) => void;
   resetGame: () => void;
+  setAdminUser: (isAdminUser: boolean) => void;
   clearNotice: () => void;
   hydrateGameTime: () => void;
   setTimeMultiplier: (speed: TimeMultiplier) => void;
@@ -83,6 +85,7 @@ export const useGameStore = create<GameStore>()(
     (set, get) => ({
       game: null,
       notice: null,
+      isAdminUser: false,
       startGame: (airlineName, baseAirportId) => {
         const now = Date.now();
         const game: GameState = {
@@ -109,6 +112,7 @@ export const useGameStore = create<GameStore>()(
         set({ game, notice: "Base airport purchased. Your airline is cleared for startup." });
       },
       resetGame: () => set({ game: null, notice: null }),
+      setAdminUser: (isAdminUser) => set({ isAdminUser }),
       clearNotice: () => set({ notice: null }),
       hydrateGameTime: () => {
         const game = get().game;
@@ -279,6 +283,10 @@ export const useGameStore = create<GameStore>()(
         return { ok: true, message: "Aircraft registration updated." };
       },
       addConsoleMoney: (amount) => {
+        if (!get().isAdminUser) {
+          set({ notice: "Admin only." });
+          return;
+        }
         const game = normalizeGame(get().game);
         if (!game) return;
         const nextGame = addCash(game, amount);
@@ -286,6 +294,10 @@ export const useGameStore = create<GameStore>()(
         set({ game: nextGame, notice: "Cash updated." });
       },
       setConsoleMoney: (amount) => {
+        if (!get().isAdminUser) {
+          set({ notice: "Admin only." });
+          return;
+        }
         const game = normalizeGame(get().game);
         if (!game) return;
         const nextGame = updateCash(game, amount);
@@ -524,7 +536,7 @@ export const useGameStore = create<GameStore>()(
       name: "airline-tycoon-v1",
       version: 3,
       partialize: (state) => ({
-        game: normalizeGame(state.game),
+        game: withUpdatedAt(normalizeGame(state.game)),
         notice: state.notice
       }),
       migrate: (persisted) => {
@@ -850,6 +862,10 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
     cargoTransportedTons: game.cargoTransportedTons ?? 0,
     flightLog: game.flightLog.map((entry) => ({ ...entry, passengerCount: entry.passengerCount ?? 0, cargoTons: entry.cargoTons ?? 0 }))
   };
+}
+
+function withUpdatedAt(game: GameState | null): GameState | null {
+  return game ? { ...game, updatedAt: new Date().toISOString() } : null;
 }
 
 function updateLeaderboard(game: GameState) {

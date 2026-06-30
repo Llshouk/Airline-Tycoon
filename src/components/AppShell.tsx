@@ -4,6 +4,7 @@ import { BarChart3, CalendarClock, CircleDollarSign, Gauge, Map, Pause, Plane, P
 import { useState } from "react";
 import { Dashboard } from "@/components/Dashboard";
 import { AircraftMarketScreen } from "@/components/AircraftMarketScreen";
+import { useAuthSession } from "@/components/AuthGate";
 import { CloudSavePanel } from "@/components/CloudSavePanel";
 import { FinanceScreen } from "@/components/FinanceScreen";
 import { LeaderboardScreen } from "@/components/LeaderboardScreen";
@@ -15,6 +16,7 @@ import { ScheduleScreen } from "@/components/ScheduleScreen";
 import { getCurrentCash } from "@/lib/cash";
 import { formatGBP } from "@/lib/format";
 import { formatGameDate, GAME_SPEED_OPTIONS } from "@/lib/time";
+import { useCloudAutoSave } from "@/hooks/useCloudAutoSave";
 import { useTranslation } from "@/i18n";
 import { useGameStore } from "@/store/gameStore";
 import type { TimeMultiplier } from "@/types/game";
@@ -41,6 +43,7 @@ const navItems: NavItem[] = [
 
 export function AppShell() {
   const { language, setLanguage, t } = useTranslation();
+  const { user, isAdmin } = useAuthSession();
   const [screen, setScreen] = useState<Screen>("map");
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const game = useGameStore((state) => state.game);
@@ -49,6 +52,7 @@ export function AppShell() {
   const resetGame = useGameStore((state) => state.resetGame);
   const setTimeMultiplier = useGameStore((state) => state.setTimeMultiplier);
   const togglePause = useGameStore((state) => state.togglePause);
+  const autoSaveStatus = useCloudAutoSave(game, user);
 
   if (!game) return null;
   const cash = getCurrentCash(game);
@@ -62,12 +66,16 @@ export function AppShell() {
             <h1 className="text-xl font-black text-ink">{game.airlineName}</h1>
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            <HeaderStat label={t("top.cash")} value={formatGBP.format(cash)} onClick={() => setIsConsoleOpen(true)} title="Open Game Console" />
+            <HeaderStat label={t("top.cash")} value={formatGBP.format(cash)} onClick={isAdmin ? () => setIsConsoleOpen(true) : undefined} title={isAdmin ? "Open Game Console" : undefined} />
             <HeaderStat label={t("top.gameTime")} value={formatGameDate(game.currentGameTimeMs)} />
             <HeaderStat label={t("top.aircraft")} value={String(game.fleet.length)} />
             <HeaderStat label={t("top.routes")} value={String(game.routes.length)} />
           </div>
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-runway p-2">
+            {user?.email ? <span className="rounded-md bg-white px-2 py-2 text-xs font-bold text-slate-600">{user.email}</span> : null}
+            {formatAutoSaveStatus(autoSaveStatus, t) ? (
+              <span className="rounded-md bg-white px-2 py-2 text-xs font-bold text-slate-600">{formatAutoSaveStatus(autoSaveStatus, t)}</span>
+            ) : null}
             <button
               type="button"
               title={game.isPaused ? t("top.resume") : t("top.pause")}
@@ -160,11 +168,12 @@ export function AppShell() {
               isPaused={game.isPaused}
               setTimeMultiplier={setTimeMultiplier}
               togglePause={togglePause}
+              isAdmin={isAdmin}
             />
           )}
         </section>
       </div>
-      {isConsoleOpen ? (
+      {isConsoleOpen && isAdmin ? (
         <div className="fixed inset-0 z-[6000] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-sm">
           <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white animate-modal-in">
             <GameConsole onClose={() => setIsConsoleOpen(false)} />
@@ -190,13 +199,27 @@ function HeaderStat({ label, value, onClick, title }: { label: string; value: st
   );
 }
 
+function formatAutoSaveStatus(
+  status: ReturnType<typeof useCloudAutoSave>,
+  t: ReturnType<typeof useTranslation>["t"]
+) {
+  if (status.state === "disabled") return null;
+  if (status.state === "saving") return t("cloud.saving");
+  if (status.state === "failed") return t("cloud.autoSaveFailed");
+  if (status.state === "saved" && status.lastSavedAt) {
+    return `${t("cloud.autoSaved")} ${new Date(status.lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  }
+  return t("cloud.autoSaveEnabled");
+}
+
 function SettingsPanel({
   language,
   setLanguage,
   timeMultiplier,
   isPaused,
   setTimeMultiplier,
-  togglePause
+  togglePause,
+  isAdmin
 }: {
   language: string;
   setLanguage: (language: "en" | "zh") => void;
@@ -204,6 +227,7 @@ function SettingsPanel({
   isPaused: boolean;
   setTimeMultiplier: (speed: TimeMultiplier) => void;
   togglePause: () => void;
+  isAdmin: boolean;
 }) {
   return (
     <div className="max-w-3xl space-y-4">
@@ -254,7 +278,7 @@ function SettingsPanel({
       </div>
       <div>
         <p className="mb-2 text-xs font-black uppercase tracking-normal text-slate-500">Developer Tools</p>
-        <GameConsole />
+        {isAdmin ? <GameConsole /> : null}
       </div>
     </div>
   );
