@@ -87,7 +87,7 @@ export function AircraftDetailPanel({
                 {aircraft.weeklySchedules.map((schedule) => {
                   const route = game.routes.find((item) => item.id === schedule.routeId);
                   if (!route) return null;
-                  const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft);
+                  const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft, game.difficultyConfig);
                   return (
                     <div key={schedule.id} className="rounded-md border border-slate-200 bg-runway p-3">
                       <p className="font-bold text-ink">

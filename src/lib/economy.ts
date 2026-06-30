@@ -1,4 +1,5 @@
 import { COST_BALANCE_MULTIPLIER, GAME_BALANCE, GAME_REVENUE_MULTIPLIER, PRICE_ELASTICITY } from "@/config/gameBalance";
+import { getDifficultyConfig, type DifficultyConfig } from "@/config/difficulty";
 import type { AircraftInstance, AircraftModel, CabinDemand, CabinLayout, CabinPrices, Route, RoutePricing, WeeklySchedule } from "@/types/game";
 
 type PriceDemandClass = keyof RoutePricing;
@@ -32,22 +33,29 @@ export function estimateFlightFinancials(
   route: Route,
   model: AircraftModel,
   aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout,
-  seed: number
+  seed: number,
+  difficultyConfig?: DifficultyConfig
 ) {
+  const difficulty = difficultyConfig ?? getDifficultyConfig("easy");
   const cabinLayout = "cabinLayout" in aircraft ? aircraft.cabinLayout : aircraft;
   const adjustedDemand = estimatePriceAdjustedDemand(route);
   const prices = route.pricing ?? routePricingFromDefaults(route);
   const soldSeats = estimateSoldSeats(adjustedDemand, cabinLayout, seed);
   const cargoTons = Math.min(cabinLayout.cargoTons, adjustedDemand.cargoTons * (0.78 + deterministicNoise(seed + 17) * 0.2));
   const longHaulBonus = route.distanceKm >= 5500 ? GAME_BALANCE.longHaulRevenueBonus : 1;
+  const baseRevenue =
+    soldSeats.first * prices.first +
+    soldSeats.business * prices.business +
+    soldSeats.premiumEconomy * prices.premiumEconomy +
+    soldSeats.economy * prices.economy +
+    cargoTons * prices.cargo;
+  // Easy uses the existing gameplay-balanced revenue model. Simulation stacks an
+  // arcade bonus on top. Realistic removes artificial revenue inflation so
+  // unprofitable routes can genuinely lose money.
   const revenue =
-    (soldSeats.first * prices.first +
-      soldSeats.business * prices.business +
-      soldSeats.premiumEconomy * prices.premiumEconomy +
-      soldSeats.economy * prices.economy +
-      cargoTons * prices.cargo) *
-    GAME_REVENUE_MULTIPLIER *
-    longHaulBonus;
+    difficulty.difficulty === "realistic"
+      ? baseRevenue
+      : baseRevenue * GAME_REVENUE_MULTIPLIER * longHaulBonus * difficulty.revenueMultiplier;
   const flightTimeHours = route.distanceKm / model.cruiseSpeedKmh;
   const cost =
     (route.distanceKm * model.fuelCostPerKm +
@@ -115,8 +123,8 @@ export function priceWarning(recommendedPrice: number, actualPrice: number) {
   return null;
 }
 
-export function estimateExpectedFlightProfit(route: Route, model: AircraftModel, layout?: CabinLayout) {
-  return estimateFlightFinancials(route, model, layout ?? model.suggestedLayout, stableSeed(route.id.length + model.id.length));
+export function estimateExpectedFlightProfit(route: Route, model: AircraftModel, layout?: CabinLayout, difficultyConfig?: DifficultyConfig) {
+  return estimateFlightFinancials(route, model, layout ?? model.suggestedLayout, stableSeed(route.id.length + model.id.length), difficultyConfig);
 }
 
 export function estimateFlightRevenue(route: Route, model: AircraftModel, aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout) {
@@ -137,6 +145,7 @@ export function estimateScheduleWeeklyRevenue(input: {
   aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout;
   daysOfWeek: unknown[];
   isRoundTrip: boolean;
+  difficultyConfig?: DifficultyConfig;
 }) {
   return estimateScheduleFinancials(input).weeklyRevenue;
 }
@@ -147,17 +156,25 @@ export function estimateScheduleWeeklyProfit(input: {
   aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout;
   daysOfWeek: unknown[];
   isRoundTrip: boolean;
+  difficultyConfig?: DifficultyConfig;
 }) {
   return estimateScheduleFinancials(input).weeklyProfit;
 }
 
-export function estimateWeeklyScheduleFinancials(schedule: WeeklySchedule, route: Route, model: AircraftModel, aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout) {
+export function estimateWeeklyScheduleFinancials(
+  schedule: WeeklySchedule,
+  route: Route,
+  model: AircraftModel,
+  aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout,
+  difficultyConfig?: DifficultyConfig
+) {
   return estimateScheduleFinancials({
     route,
     model,
     aircraft,
     daysOfWeek: schedule.daysOfWeek,
-    isRoundTrip: schedule.isRoundTrip
+    isRoundTrip: schedule.isRoundTrip,
+    difficultyConfig
   });
 }
 
@@ -167,9 +184,10 @@ export function estimateScheduleFinancials(input: {
   aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout;
   daysOfWeek: unknown[];
   isRoundTrip: boolean;
+  difficultyConfig?: DifficultyConfig;
 }) {
   const cabinLayout = "cabinLayout" in input.aircraft ? input.aircraft.cabinLayout : input.aircraft;
-  const perFlight = estimateExpectedFlightProfit(input.route, input.model, cabinLayout);
+  const perFlight = estimateExpectedFlightProfit(input.route, input.model, cabinLayout, input.difficultyConfig);
   const legsPerService = input.isRoundTrip ? 2 : 1;
   const weeklyFlights = input.daysOfWeek.length * legsPerService;
   return {

@@ -1,3 +1,5 @@
+import type { DifficultyConfig, GameDifficulty } from "@/config/difficulty";
+
 export type AirportSizeTier = "regional" | "large" | "mega";
 export type CabinClass = "first" | "business" | "premiumEconomy" | "economy";
 export type AircraftStatus = "idle" | "scheduled" | "in-flight";
@@ -7,6 +9,7 @@ export type AircraftVisualVariant = "narrow-body" | "wide-body" | "long-haul-wid
 export type TimeMultiplier = 1 | 5 | 10 | 20 | 50 | 100;
 export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export type LeaderboardSort = "valuation" | "profit" | "fleet" | "routes" | "completedFlights";
+export type GameStatus = "active" | "bankrupt" | "gameOver";
 
 export interface Airport {
   id: string;
@@ -164,6 +167,10 @@ export interface FlightLogEntry {
 
 export interface GameState {
   airlineName: string;
+  difficulty: GameDifficulty;
+  difficultyConfig: DifficultyConfig;
+  gameStatus: GameStatus;
+  bailoutsUsed: number;
   baseAirportId: string;
   expandedAirportIds: string[];
   money: number;

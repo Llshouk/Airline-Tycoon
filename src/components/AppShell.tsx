@@ -15,11 +15,11 @@ import { RoutesScreen } from "@/components/RoutesScreen";
 import { ScheduleScreen } from "@/components/ScheduleScreen";
 import { getCurrentCash } from "@/lib/cash";
 import { formatGBP } from "@/lib/format";
-import { formatGameDate, GAME_SPEED_OPTIONS } from "@/lib/time";
+import { formatGameDate } from "@/lib/time";
 import { useCloudAutoSave } from "@/hooks/useCloudAutoSave";
 import { useTranslation } from "@/i18n";
 import { useGameStore } from "@/store/gameStore";
-import type { TimeMultiplier } from "@/types/game";
+import type { GameState } from "@/types/game";
 
 type Screen = "dashboard" | "map" | "fleet" | "market" | "routes" | "schedule" | "finance" | "leaderboard" | "settings";
 type NavItem = {
@@ -50,7 +50,6 @@ export function AppShell() {
   const notice = useGameStore((state) => state.notice);
   const clearNotice = useGameStore((state) => state.clearNotice);
   const resetGame = useGameStore((state) => state.resetGame);
-  const setTimeMultiplier = useGameStore((state) => state.setTimeMultiplier);
   const togglePause = useGameStore((state) => state.togglePause);
   const autoSaveStatus = useCloudAutoSave(game, user);
 
@@ -65,9 +64,10 @@ export function AppShell() {
             <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1</p>
             <h1 className="text-xl font-black text-ink">{game.airlineName}</h1>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
             <HeaderStat label={t("top.cash")} value={formatGBP.format(cash)} onClick={isAdmin ? () => setIsConsoleOpen(true) : undefined} title={isAdmin ? "Open Game Console" : undefined} />
             <HeaderStat label={t("top.gameTime")} value={formatGameDate(game.currentGameTimeMs)} />
+            <HeaderStat label={t("difficulty.difficulty")} value={t(`difficulty.${game.difficulty}`)} />
             <HeaderStat label={t("top.aircraft")} value={String(game.fleet.length)} />
             <HeaderStat label={t("top.routes")} value={String(game.routes.length)} />
           </div>
@@ -84,20 +84,9 @@ export function AppShell() {
             >
               {game.isPaused ? <Play size={17} /> : <Pause size={17} />}
             </button>
-            <div className="flex gap-1">
-              {GAME_SPEED_OPTIONS.map((speed) => (
-                <button
-                  key={speed}
-                  type="button"
-                  onClick={() => setTimeMultiplier(speed as TimeMultiplier)}
-                  className={`h-9 rounded-md px-3 text-sm font-black transition ${
-                    game.timeMultiplier === speed ? "bg-mint text-white" : "bg-white text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  {speed}x
-                </button>
-              ))}
-            </div>
+            <span className="rounded-md bg-white px-3 py-2 text-xs font-black text-slate-600">
+              {game.timeMultiplier}x - {t("difficulty.lockedByDifficulty")}
+            </span>
             <select
               value={language}
               onChange={(event) => setLanguage(event.target.value === "zh" ? "zh" : "en")}
@@ -152,6 +141,7 @@ export function AppShell() {
               </button>
             </div>
           ) : null}
+          {game.gameStatus !== "active" ? <GameOverPanel gameStatus={game.gameStatus} resetGame={resetGame} /> : null}
           {screen === "dashboard" && <Dashboard />}
           {screen === "map" && <MapScreen />}
           {screen === "fleet" && <FleetScreen />}
@@ -166,7 +156,6 @@ export function AppShell() {
               setLanguage={setLanguage}
               timeMultiplier={game.timeMultiplier}
               isPaused={game.isPaused}
-              setTimeMultiplier={setTimeMultiplier}
               togglePause={togglePause}
               isAdmin={isAdmin}
             />
@@ -199,6 +188,22 @@ function HeaderStat({ label, value, onClick, title }: { label: string; value: st
   );
 }
 
+function GameOverPanel({ gameStatus, resetGame }: { gameStatus: GameState["gameStatus"]; resetGame: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <section className="mb-4 rounded-lg border border-coral/30 bg-white p-5 shadow-soft">
+      <p className="text-xs font-black uppercase tracking-normal text-coral">{t("difficulty.airlineBankrupt")}</p>
+      <h2 className="mt-1 text-2xl font-black text-ink">
+        {gameStatus === "gameOver" ? t("difficulty.gameOver") : t("difficulty.airlineBankrupt")}
+      </h2>
+      <p className="mt-2 text-sm text-slate-600">{t("difficulty.bankruptSaveKept")}</p>
+      <button type="button" onClick={resetGame} className="mt-4 rounded-md bg-jet px-4 py-2 text-sm font-black text-white hover:bg-ink">
+        {t("difficulty.startAnotherDifficulty")}
+      </button>
+    </section>
+  );
+}
+
 function formatAutoSaveStatus(
   status: ReturnType<typeof useCloudAutoSave>,
   t: ReturnType<typeof useTranslation>["t"]
@@ -217,18 +222,17 @@ function SettingsPanel({
   setLanguage,
   timeMultiplier,
   isPaused,
-  setTimeMultiplier,
   togglePause,
   isAdmin
 }: {
   language: string;
   setLanguage: (language: "en" | "zh") => void;
-  timeMultiplier: TimeMultiplier;
+  timeMultiplier: number;
   isPaused: boolean;
-  setTimeMultiplier: (speed: TimeMultiplier) => void;
   togglePause: () => void;
   isAdmin: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="max-w-3xl space-y-4">
       <div>
@@ -248,18 +252,9 @@ function SettingsPanel({
           >
             {isPaused ? "Resume" : "Pause"}
           </button>
-          {GAME_SPEED_OPTIONS.map((speed) => (
-            <button
-              key={speed}
-              type="button"
-              onClick={() => setTimeMultiplier(speed as TimeMultiplier)}
-              className={`rounded-md px-3 py-2 text-sm font-black ${
-                timeMultiplier === speed ? "bg-mint text-white" : "bg-runway text-slate-600"
-              }`}
-            >
-              {speed}x
-            </button>
-          ))}
+          <span className="rounded-md bg-runway px-3 py-2 text-sm font-black text-slate-600">
+            {timeMultiplier}x - {t("difficulty.lockedByDifficulty")}
+          </span>
         </div>
       </section>
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">

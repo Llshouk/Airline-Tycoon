@@ -2,6 +2,8 @@
 
 import { PlaneTakeoff } from "lucide-react";
 import { FormEvent, useState } from "react";
+import { useAuthSession } from "@/components/AuthGate";
+import { getDifficultyConfig } from "@/config/difficulty";
 import { airports } from "@/data/airports";
 import { useTranslation } from "@/i18n";
 import { formatGBP } from "@/lib/format";
@@ -9,13 +11,15 @@ import { BASE_AIRPORT_COST, STARTING_CAPITAL, useGameStore } from "@/store/gameS
 
 export function StartScreen() {
   const { language, setLanguage, t } = useTranslation();
+  const { selectedDifficulty } = useAuthSession();
+  const difficultyConfig = getDifficultyConfig(selectedDifficulty);
   const [airlineName, setAirlineName] = useState("Atlas Link Airways");
   const [baseAirportId, setBaseAirportId] = useState("lhr");
   const startGame = useGameStore((state) => state.startGame);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    startGame(airlineName, baseAirportId);
+    startGame(airlineName, baseAirportId, difficultyConfig.difficulty);
   }
 
   return (
@@ -41,9 +45,10 @@ export function StartScreen() {
             </p>
           </div>
           <div className="grid max-w-xl gap-3 sm:grid-cols-3">
-            <Metric label="Starting capital" value={formatGBP.format(STARTING_CAPITAL)} />
+            <Metric label="Difficulty" value={difficultyConfig.label} />
+            <Metric label="Starting capital" value={formatGBP.format(STARTING_CAPITAL * difficultyConfig.startingCashMultiplier)} />
             <Metric label="Base cost" value={formatGBP.format(BASE_AIRPORT_COST)} />
-            <Metric label="Speed" value="10x" />
+            <Metric label="Speed" value={`${difficultyConfig.speedMultiplier}x`} />
           </div>
         </div>
 
@@ -76,7 +81,7 @@ export function StartScreen() {
             Start airline
           </button>
           <p className="mt-3 text-sm text-slate-500">
-            Your base purchase is deducted immediately, leaving {formatGBP.format(STARTING_CAPITAL - BASE_AIRPORT_COST)}.
+            Your base purchase is deducted immediately, leaving {formatGBP.format(STARTING_CAPITAL * difficultyConfig.startingCashMultiplier - BASE_AIRPORT_COST)}.
           </p>
         </form>
       </section>

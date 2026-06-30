@@ -83,7 +83,7 @@ export function calculateScheduleStats(game: GameState) {
       aircraft.weeklySchedules.forEach((schedule) => {
         const route = game.routes.find((item) => item.id === schedule.routeId);
         if (!route) return;
-        const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft);
+        const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft, game.difficultyConfig);
         totals.scheduledWeeklyFlights += estimate.weeklyFlights;
         totals.estimatedWeeklyRevenue += estimate.weeklyRevenue;
         totals.estimatedWeeklyCost += estimate.weeklyCost;

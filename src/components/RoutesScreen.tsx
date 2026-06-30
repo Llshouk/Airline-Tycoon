@@ -62,7 +62,7 @@ export function RoutesScreen() {
     const estimates = capableAircraft.map(({ aircraft, model }) => ({
       aircraft,
       model,
-      financials: estimateExpectedFlightProfit(route, model, aircraft.cabinLayout)
+      financials: estimateExpectedFlightProfit(route, model, aircraft.cabinLayout, game.difficultyConfig)
     }));
     const bestEstimate = estimates.sort((a, b) => b.financials.profit - a.financials.profit)[0] ?? null;
     const bestHints = capableAircraft[0]
@@ -571,7 +571,7 @@ function buildRoutePricingPreview(route: Route, game: GameState): RoutePricingPr
     .map((aircraft) => ({ aircraft, model: aircraftById[aircraft.modelId] }))
     .filter(({ model }) => model && model.rangeKm >= route.distanceKm);
   const bestEstimate = capable
-    .map(({ aircraft, model }) => ({ aircraft, model, financials: estimateExpectedFlightProfit(route, model, aircraft.cabinLayout) }))
+    .map(({ aircraft, model }) => ({ aircraft, model, financials: estimateExpectedFlightProfit(route, model, aircraft.cabinLayout, game.difficultyConfig) }))
     .sort((a, b) => b.financials.profit - a.financials.profit)[0];
   const bestAircraftSeats = bestEstimate
     ? bestEstimate.aircraft.cabinLayout.first +
@@ -586,7 +586,7 @@ function buildRoutePricingPreview(route: Route, game: GameState): RoutePricingPr
       aircraft.weeklySchedules
         .filter((schedule) => schedule.routeId === route.id)
         .forEach((schedule) => {
-          const financials = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft);
+          const financials = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft, game.difficultyConfig);
           totals.revenue += financials.weeklyRevenue;
           totals.profit += financials.weeklyProfit;
           totals.flights += financials.weeklyFlights;

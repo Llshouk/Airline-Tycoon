@@ -81,7 +81,7 @@ export function CloudSavePanel() {
   async function refreshCloudMetadata() {
     if (!configured) return;
     try {
-      const metadata = await getCloudSaveMetadata();
+      const metadata = await getCloudSaveMetadata(game?.difficulty ?? "easy");
       setCloudMetadata(metadata);
       setMessage(metadata ? null : t("cloud.noCloudSaveFound"));
     } catch (error) {
@@ -149,7 +149,7 @@ export function CloudSavePanel() {
 
   async function handleLoadCloudSave() {
     await runCloudAction(async () => {
-      const result = await loadCloudSaveIntoGame((cloudGame) => {
+      const result = await loadCloudSaveIntoGame(game?.difficulty ?? "easy", (cloudGame) => {
         const loaded = loadGameStateFromCloud(cloudGame);
         if (!loaded.ok) throw new Error(loaded.message);
       });

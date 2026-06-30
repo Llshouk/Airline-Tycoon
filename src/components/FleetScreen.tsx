@@ -129,7 +129,7 @@ export function FleetScreen() {
                                 {aircraft.weeklySchedules.map((schedule) => {
                                   const route = game.routes.find((item) => item.id === schedule.routeId);
                                   if (!route) return null;
-                                  const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft);
+                                  const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft, game.difficultyConfig);
                                   return (
                                     <div key={schedule.id} className="rounded-md bg-runway px-3 py-2 text-sm">
                                       <p className="font-bold text-ink">

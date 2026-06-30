@@ -78,7 +78,7 @@ export function MapScreen() {
   const selectedFlightModel = selectedFlight ? aircraftById[selectedFlight.aircraft.modelId] : null;
   const selectedFlightFinancials =
     selectedFlight && selectedFlightRoute && selectedFlightModel
-      ? estimateFlightFinancials(selectedFlightRoute, selectedFlightModel, selectedFlight.aircraft, selectedFlight.item.departureGameTime)
+      ? estimateFlightFinancials(selectedFlightRoute, selectedFlightModel, selectedFlight.aircraft, selectedFlight.item.departureGameTime, game.difficultyConfig)
       : null;
   const selectedFlightImageModel =
     selectedFlight && selectedFlightModel
@@ -429,7 +429,7 @@ function bestRoutePreview(route: Route, game: GameState) {
     .map((aircraft) => {
       const model = aircraftById[aircraft.modelId];
       if (!model || model.rangeKm < route.distanceKm) return null;
-      return estimateExpectedFlightProfit(route, model, aircraft.cabinLayout);
+      return estimateExpectedFlightProfit(route, model, aircraft.cabinLayout, game.difficultyConfig);
     })
     .filter(Boolean)
     .sort((a, b) => (b?.profit ?? 0) - (a?.profit ?? 0))[0] ?? null;

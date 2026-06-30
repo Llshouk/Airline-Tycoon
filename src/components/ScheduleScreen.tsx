@@ -62,7 +62,8 @@ export function ScheduleScreen() {
       model,
       aircraft: selectedAircraft,
       daysOfWeek: selectedDays,
-      isRoundTrip
+      isRoundTrip,
+      difficultyConfig: game.difficultyConfig
     });
     return {
       oneWayMs,
@@ -367,7 +368,7 @@ export function ScheduleScreen() {
                   const route = game.routes.find((item) => item.id === service.routeId);
                   const serviceModel = aircraftById[selectedAircraft.modelId];
                   if (!route || !serviceModel) return null;
-                  const estimate = estimateWeeklyScheduleFinancials(service, route, serviceModel, selectedAircraft);
+                  const estimate = estimateWeeklyScheduleFinancials(service, route, serviceModel, selectedAircraft, game.difficultyConfig);
                   return (
                     <div key={service.id} className="rounded-md border border-slate-200 p-3">
                       <p className="font-bold text-ink">

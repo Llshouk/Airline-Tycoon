@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { aircraftById } from "@/data/aircraft";
+import { getDifficultyConfig, type GameDifficulty } from "@/config/difficulty";
 import { airports, airportsById } from "@/data/airports";
 import { validateCabinLayout } from "@/lib/cabin";
 import { addCash, canAfford, getCurrentCash, spendCash, updateCash } from "@/lib/cash";
@@ -52,7 +53,7 @@ type GameStore = {
   game: GameState | null;
   notice: string | null;
   isAdminUser: boolean;
-  startGame: (airlineName: string, baseAirportId: string) => void;
+  startGame: (airlineName: string, baseAirportId: string, difficulty: GameDifficulty) => void;
   resetGame: () => void;
   setAdminUser: (isAdminUser: boolean) => void;
   clearNotice: () => void;
@@ -86,17 +87,23 @@ export const useGameStore = create<GameStore>()(
       game: null,
       notice: null,
       isAdminUser: false,
-      startGame: (airlineName, baseAirportId) => {
+      startGame: (airlineName, baseAirportId, difficulty) => {
         const now = Date.now();
+        const difficultyConfig = getDifficultyConfig(difficulty);
+        const startingCapital = STARTING_CAPITAL * difficultyConfig.startingCashMultiplier;
         const game: GameState = {
           airlineName: airlineName.trim() || "Skyline Airways",
+          difficulty: difficultyConfig.difficulty,
+          difficultyConfig,
+          gameStatus: "active",
+          bailoutsUsed: 0,
           baseAirportId,
           expandedAirportIds: [baseAirportId],
-          money: STARTING_CAPITAL - BASE_AIRPORT_COST,
+          money: startingCapital - BASE_AIRPORT_COST,
           startedAtRealMs: now,
           baseGameTimeMs: INITIAL_GAME_TIME,
           currentGameTimeMs: INITIAL_GAME_TIME,
-          timeMultiplier: DEFAULT_GAME_SPEED,
+          timeMultiplier: difficultyConfig.speedMultiplier,
           isPaused: false,
           fleet: [],
           routes: [],
@@ -122,7 +129,10 @@ export const useGameStore = create<GameStore>()(
       setTimeMultiplier: (speed) => {
         const game = normalizeGame(get().game);
         if (!game) return;
-        set({ game: { ...game, timeMultiplier: speed, lastTickRealMs: Date.now() } });
+        set({
+          game: { ...game, timeMultiplier: game.difficultyConfig.speedMultiplier, lastTickRealMs: Date.now() },
+          notice: "Speed is locked by difficulty."
+        });
       },
       togglePause: () => {
         const normalized = normalizeGame(get().game);
@@ -552,6 +562,10 @@ export const useGameStore = create<GameStore>()(
 
 function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: GameState | null, nowRealMs: number) {
   if (!game) return;
+  if (game.gameStatus !== "active") {
+    set({ game: { ...game, lastTickRealMs: nowRealMs } });
+    return;
+  }
   if (game.isPaused) {
     set({ game: { ...game, lastTickRealMs: nowRealMs } });
     return;
@@ -583,7 +597,7 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
       if (currentGameTimeMs >= item.arrivalGameTime) {
         const route = nextGame.routes.find((candidate) => candidate.id === item.routeId);
         if (!route) return item;
-        const financials = estimateFlightFinancials(route, model, aircraft, item.departureGameTime + item.arrivalGameTime);
+        const financials = estimateFlightFinancials(route, model, aircraft, item.departureGameTime + item.arrivalGameTime, nextGame.difficultyConfig);
         money += financials.profit;
         totalProfit += financials.profit;
         completedFlights += 1;
@@ -635,7 +649,7 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
   });
 
   const completedNotice = completedFlights > nextGame.completedFlights ? "Flight completed. Finance log updated." : null;
-  const finalGame: GameState = {
+  const beforeBankruptcyGame: GameState = {
     ...nextGame,
     money,
     totalProfit,
@@ -646,8 +660,10 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
     expandedAirportIds: unique(expandedAirportIds),
     fleet
   };
+  const finalGame = applyBankruptcyRules(beforeBankruptcyGame);
+  const bankruptcyNotice = bankruptcyMessage(beforeBankruptcyGame, finalGame);
   updateLeaderboard(finalGame);
-  set({ game: finalGame, notice: completedNotice });
+  set({ game: finalGame, notice: bankruptcyNotice ?? completedNotice });
 }
 
 function instantiateRecurringFlights(game: GameState) {
@@ -799,10 +815,15 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
   };
   const { cash: _cash, capital: _capital, playerMoney: _playerMoney, airline: _airline, ...cleanGame } = rawGame;
   const money = getCurrentCash(rawGame);
+  const difficultyConfig = getDifficultyConfig(game.difficulty);
   return {
     ...cleanGame,
+    difficulty: difficultyConfig.difficulty,
+    difficultyConfig,
+    gameStatus: game.gameStatus ?? "active",
+    bailoutsUsed: game.bailoutsUsed ?? 0,
     money,
-    timeMultiplier: game.timeMultiplier ?? DEFAULT_GAME_SPEED,
+    timeMultiplier: difficultyConfig.speedMultiplier,
     isPaused: game.isPaused ?? false,
     routes: game.routes.map((route) => {
       const estimatedTicketPrices = route.estimatedTicketPrices ?? estimateTicketPrices(route.distanceKm);
@@ -862,6 +883,47 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
     cargoTransportedTons: game.cargoTransportedTons ?? 0,
     flightLog: game.flightLog.map((entry) => ({ ...entry, passengerCount: entry.passengerCount ?? 0, cargoTons: entry.cargoTons ?? 0 }))
   };
+}
+
+function applyBankruptcyRules(game: GameState): GameState {
+  if (game.money >= 0 || game.gameStatus === "gameOver") return game;
+  const config = game.difficultyConfig;
+  if (config.difficulty === "simulation") {
+    return {
+      ...game,
+      money: game.money + config.bankruptcyBailoutAmount,
+      bailoutsUsed: game.bailoutsUsed + 1,
+      gameStatus: "active"
+    };
+  }
+  if (config.difficulty === "easy" && (config.bankruptcyBailoutLimit === "unlimited" || game.bailoutsUsed < config.bankruptcyBailoutLimit)) {
+    return {
+      ...game,
+      money: game.money + config.bankruptcyBailoutAmount,
+      bailoutsUsed: game.bailoutsUsed + 1,
+      gameStatus: "active"
+    };
+  }
+  return {
+    ...game,
+    gameStatus: config.gameOverOnBankruptcy ? "gameOver" : "bankrupt"
+  };
+}
+
+function bankruptcyMessage(before: GameState, after: GameState) {
+  if (before.bailoutsUsed !== after.bailoutsUsed && after.difficulty === "simulation") {
+    return "Government simulation subsidy received: £10,000,000,000.";
+  }
+  if (before.bailoutsUsed !== after.bailoutsUsed && after.difficulty === "easy") {
+    return "Emergency bailout received: £1,000,000,000.";
+  }
+  if (before.gameStatus !== after.gameStatus && after.gameStatus === "gameOver") {
+    return "Airline bankrupt. Game over.";
+  }
+  if (before.gameStatus !== after.gameStatus && after.gameStatus === "bankrupt") {
+    return "Airline bankrupt. No bailout remains.";
+  }
+  return null;
 }
 
 function withUpdatedAt(game: GameState | null): GameState | null {

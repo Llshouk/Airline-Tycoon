@@ -12,7 +12,7 @@ A browser-based airline management simulation game where players build and manag
 - Create weekly flight schedules
 - View aircraft movement on a map
 - Manage owned fleet and aircraft registrations
-- Control game speed
+- Choose Simulation, Easy, or Realistic difficulty with locked game speed
 - Save progress locally in the browser
 - Switch between English and Chinese
 - Use a developer console for testing
@@ -70,6 +70,16 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY
 ```
 
 Do not commit `.env.local` or any Supabase keys.
+
+Difficulty-based cloud saves use one row per user and difficulty. If your Supabase `game_saves` table was created before this feature, run:
+
+```sql
+alter table public.game_saves
+add column if not exists difficulty text not null default 'easy';
+
+create unique index if not exists game_saves_user_difficulty_unique
+on public.game_saves(user_id, difficulty);
+```
 
 ## Future Improvements
 
