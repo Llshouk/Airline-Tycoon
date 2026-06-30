@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, supabaseConfigError } from "@/lib/supabaseClient";
 import type { GameState } from "@/types/game";
 
 const SAVE_NAME = "Main Save";
@@ -118,8 +118,12 @@ export function isSupabaseConfigured() {
   return Boolean(supabase);
 }
 
+export function getSupabaseConfigurationMessage() {
+  return supabaseConfigError;
+}
+
 async function requireUser(): Promise<User> {
-  if (!supabase) throw new Error("Supabase is not configured.");
+  if (!supabase) throw new Error(getSupabaseConfigurationMessage() ?? "Supabase is not configured.");
   const user = await getCurrentUser();
   if (!user) throw new Error("Please log in to use cloud save.");
   return user;

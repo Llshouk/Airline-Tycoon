@@ -7,6 +7,7 @@ import { useTranslation } from "@/i18n";
 import {
   getCloudSaveMetadata,
   getLocalSaveMetadata,
+  getSupabaseConfigurationMessage,
   isSupabaseConfigured,
   loadCloudSaveIntoGame,
   saveGameToCloud,
@@ -29,11 +30,12 @@ export function CloudSavePanel() {
   const [localMetadata, setLocalMetadata] = useState<LocalSaveMetadata>({ hasSave: false, updatedAt: null });
   const [isBusy, setIsBusy] = useState(false);
   const configured = isSupabaseConfigured();
+  const configurationMessage = getSupabaseConfigurationMessage();
 
   useEffect(() => {
     setLocalMetadata(getLocalSaveMetadata());
     if (!supabase) {
-      setMessage(t("cloud.supabaseNotConfigured"));
+      setMessage(configurationMessage ?? t("cloud.supabaseNotConfigured"));
       return;
     }
 
@@ -90,7 +92,7 @@ export function CloudSavePanel() {
   async function handleSignUp() {
     const client = supabase;
     if (!client) {
-      setMessage(t("cloud.supabaseNotConfigured"));
+      setMessage(configurationMessage ?? t("cloud.supabaseNotConfigured"));
       return;
     }
     await runCloudAction(async () => {
@@ -103,7 +105,7 @@ export function CloudSavePanel() {
   async function handleLogIn() {
     const client = supabase;
     if (!client) {
-      setMessage(t("cloud.supabaseNotConfigured"));
+      setMessage(configurationMessage ?? t("cloud.supabaseNotConfigured"));
       return;
     }
     await runCloudAction(async () => {
@@ -182,7 +184,7 @@ export function CloudSavePanel() {
       <p className="mb-4 text-sm text-slate-600">{t("cloud.description")}</p>
 
       {!configured ? (
-        <StatusMessage>{t("cloud.supabaseNotConfigured")}</StatusMessage>
+        <StatusMessage>{configurationMessage ?? t("cloud.supabaseNotConfigured")}</StatusMessage>
       ) : userEmail ? (
         <div className="space-y-4">
           <div className="rounded-md border border-mint/30 bg-mint/5 p-3 text-sm">
