@@ -2,7 +2,7 @@
 
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
-import { isSupabaseConfigured, saveGameToCloud } from "@/lib/cloudSave";
+import { getCloudSaveErrorDetails, isSupabaseConfigured, saveGameToCloud } from "@/lib/cloudSave";
 import type { GameState } from "@/types/game";
 
 const AUTO_SAVE_INTERVAL_MS = 60_000;
@@ -51,7 +51,8 @@ export function useCloudAutoSave(gameState: GameState | null, user: User | null)
           lastSavedAt: metadata.updatedAt,
           message: null
         });
-      } catch {
+      } catch (error) {
+        console.error("[cloud-save] Auto-save failed. Local browser save is still preserved.", getCloudSaveErrorDetails(error));
         setStatus((current) => ({ ...current, state: "failed", message: null }));
       } finally {
         isSavingRef.current = false;

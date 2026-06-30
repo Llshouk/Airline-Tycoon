@@ -7,6 +7,7 @@ import { DIFFICULTY_CONFIGS, DIFFICULTY_ORDER, type GameDifficulty } from "@/con
 import { useTranslation } from "@/i18n";
 import {
   getCloudSaveSlots,
+  getCloudSaveErrorMessage,
   getLocalSaveMetadata,
   getSupabaseConfigurationMessage,
   isSupabaseConfigured,
@@ -417,7 +418,7 @@ function formatDate(value: string | null) {
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  return getCloudSaveErrorMessage(error, fallback);
 }
 
 function isSessionGateFresh() {

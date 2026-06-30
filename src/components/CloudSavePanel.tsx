@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "@/i18n";
 import {
   getCloudSaveMetadata,
+  getCloudSaveErrorMessage,
   getLocalSaveMetadata,
   getSupabaseConfigurationMessage,
   isSupabaseConfigured,
@@ -289,5 +290,5 @@ function formatDate(value: string | null) {
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  return getCloudSaveErrorMessage(error, fallback);
 }

@@ -81,6 +81,42 @@ create unique index if not exists game_saves_user_difficulty_unique
 on public.game_saves(user_id, difficulty);
 ```
 
+If row level security is enabled on `game_saves`, authenticated users also need policies for their own rows:
+
+```sql
+alter table public.game_saves enable row level security;
+
+drop policy if exists "Users can read their own saves" on public.game_saves;
+drop policy if exists "Users can insert their own saves" on public.game_saves;
+drop policy if exists "Users can update their own saves" on public.game_saves;
+drop policy if exists "Users can delete their own saves" on public.game_saves;
+
+create policy "Users can read their own saves"
+on public.game_saves
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+create policy "Users can insert their own saves"
+on public.game_saves
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+create policy "Users can update their own saves"
+on public.game_saves
+for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "Users can delete their own saves"
+on public.game_saves
+for delete
+to authenticated
+using (auth.uid() = user_id);
+```
+
 ## Future Improvements
 
 - More aircraft models

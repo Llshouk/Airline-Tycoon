@@ -84,10 +84,46 @@ export type LocalSaveMetadata = {
   updatedAt: string | null;
 };
 
+type CloudSaveStep =
+  | "configuration"
+  | "auth.getUser"
+  | "compactSave.validate"
+  | "game_saves.select"
+  | "game_saves.upsert";
+
+type SupabaseErrorLike = {
+  message?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+  status?: number;
+  name?: string;
+};
+
+export class CloudSaveError extends Error {
+  step: CloudSaveStep;
+  code?: string;
+  status?: number;
+  details?: string;
+  hint?: string;
+  userMessage: string;
+
+  constructor(step: CloudSaveStep, message: string, options: { code?: string; status?: number; details?: string; hint?: string; userMessage?: string } = {}) {
+    super(message);
+    this.name = "CloudSaveError";
+    this.step = step;
+    this.code = options.code;
+    this.status = options.status;
+    this.details = options.details;
+    this.hint = options.hint;
+    this.userMessage = options.userMessage ?? message;
+  }
+}
+
 export async function getCurrentUser(): Promise<User | null> {
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser();
-  if (error) return null;
+  if (error) throw createCloudSaveError("auth.getUser", error);
   return data.user;
 }
 
@@ -95,6 +131,7 @@ export async function saveGameToCloud(gameState: GameState): Promise<CloudSaveMe
   const user = await requireUser();
   const updatedAt = new Date().toISOString();
   const compactSave = createCompactSaveState(gameState, updatedAt);
+  validateCompactSaveState(compactSave, user);
   const { error } = await supabase!.from("game_saves").upsert(
     {
       user_id: user.id,
@@ -108,7 +145,7 @@ export async function saveGameToCloud(gameState: GameState): Promise<CloudSaveMe
     }
   );
 
-  if (error) throw error;
+  if (error) throw createCloudSaveError("game_saves.upsert", error, { user, difficulty: compactSave.difficulty });
   return {
     saveName: `${compactSave.difficulty}-save`,
     difficulty: compactSave.difficulty,
@@ -184,7 +221,7 @@ export async function loadGameFromCloud(difficulty: GameDifficulty): Promise<Clo
     .eq("difficulty", difficulty)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) throw createCloudSaveError("game_saves.select", error, { user, difficulty });
   if (!data) return null;
 
   return {
@@ -215,7 +252,7 @@ export async function getCloudSaveSlots(): Promise<Record<GameDifficulty, CloudS
     .eq("user_id", user.id)
     .in("difficulty", DIFFICULTY_ORDER);
 
-  if (error) throw error;
+  if (error) throw createCloudSaveError("game_saves.select", error, { user });
   const slots: Record<GameDifficulty, CloudSaveMetadata | null> = { simulation: null, easy: null, realistic: null };
   (data ?? []).forEach((row) => {
     const compact = normalizeCloudPayload(row.game_state, row.difficulty);
@@ -286,10 +323,135 @@ export function getSupabaseConfigurationMessage() {
 }
 
 async function requireUser(): Promise<User> {
-  if (!supabase) throw new Error(getSupabaseConfigurationMessage() ?? "Supabase is not configured.");
+  if (!supabase) {
+    const message = getSupabaseConfigurationMessage() ?? "Supabase is not configured.";
+    const error = new CloudSaveError("configuration", message, { userMessage: message });
+    logCloudSaveError(error);
+    throw error;
+  }
   const user = await getCurrentUser();
-  if (!user) throw new Error("Please log in to use cloud save.");
+  if (!user) {
+    const error = new CloudSaveError("auth.getUser", "No authenticated Supabase user was returned.", {
+      userMessage: "Please log in to use cloud save."
+    });
+    logCloudSaveError(error);
+    throw error;
+  }
   return user;
+}
+
+function validateCompactSaveState(compactSave: CompactGameSave, user: User) {
+  try {
+    const json = JSON.stringify(compactSave);
+    const sizeBytes = typeof TextEncoder === "undefined" ? json.length : new TextEncoder().encode(json).length;
+    if (sizeBytes > 900_000) {
+      console.error("[cloud-save] Compact save is unusually large.", {
+        step: "compactSave.validate",
+        sizeBytes,
+        difficulty: compactSave.difficulty,
+        user: safeUserContext(user)
+      });
+    }
+  } catch (error) {
+    const cloudError = createCloudSaveError("compactSave.validate", error, { user, difficulty: compactSave.difficulty });
+    throw cloudError;
+  }
+}
+
+function createCloudSaveError(step: CloudSaveStep, error: unknown, context: { user?: User; difficulty?: GameDifficulty } = {}) {
+  const parsed = parseSupabaseError(error);
+  const diagnostic = diagnosticMessage(step, parsed);
+  const cloudError = new CloudSaveError(step, parsed.message, {
+    code: parsed.code,
+    status: parsed.status,
+    details: parsed.details,
+    hint: parsed.hint,
+    userMessage: diagnostic
+  });
+  logCloudSaveError(cloudError, context);
+  return cloudError;
+}
+
+export function getCloudSaveErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof CloudSaveError) return error.userMessage;
+  if (error instanceof Error) return error.message;
+  return fallback;
+}
+
+export function getCloudSaveErrorDetails(error: unknown) {
+  const parsed = parseSupabaseError(error);
+  const step = error instanceof CloudSaveError ? error.step : undefined;
+  return {
+    step,
+    message: parsed.message,
+    code: parsed.code,
+    status: parsed.status,
+    details: parsed.details,
+    hint: parsed.hint
+  };
+}
+
+function logCloudSaveError(error: CloudSaveError, context: { user?: User; difficulty?: GameDifficulty } = {}) {
+  console.error("[cloud-save] Supabase cloud save failed.", {
+    step: error.step,
+    message: error.message,
+    code: error.code,
+    status: error.status,
+    details: error.details,
+    hint: error.hint,
+    difficulty: context.difficulty,
+    user: context.user ? safeUserContext(context.user) : undefined
+  });
+}
+
+function parseSupabaseError(error: unknown): Required<Pick<SupabaseErrorLike, "message">> & Omit<SupabaseErrorLike, "message"> {
+  if (error instanceof Error) {
+    const maybe = error as Error & SupabaseErrorLike;
+    return {
+      message: maybe.message,
+      code: maybe.code,
+      details: maybe.details,
+      hint: maybe.hint,
+      status: maybe.status,
+      name: maybe.name
+    };
+  }
+  if (error && typeof error === "object") {
+    const maybe = error as SupabaseErrorLike;
+    return {
+      message: maybe.message ?? "Unknown Supabase error.",
+      code: maybe.code,
+      details: maybe.details,
+      hint: maybe.hint,
+      status: maybe.status,
+      name: maybe.name
+    };
+  }
+  return { message: String(error || "Unknown Supabase error.") };
+}
+
+function diagnosticMessage(step: CloudSaveStep, error: SupabaseErrorLike) {
+  const text = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+  if (step === "game_saves.upsert" && (error.code === "42P10" || text.includes("unique") || text.includes("on conflict"))) {
+    return "Cloud save failed because Supabase needs a unique index on user_id + difficulty. Run the game_saves difficulty migration SQL.";
+  }
+  if ((step === "game_saves.upsert" || step === "game_saves.select") && (error.code === "42703" || text.includes("difficulty"))) {
+    return "Cloud save failed because the game_saves table is missing the difficulty column. Run the game_saves difficulty migration SQL.";
+  }
+  if (error.code === "42501" || text.includes("row-level security") || text.includes("violates row-level security")) {
+    return "Cloud save failed because Supabase RLS is blocking this user. Add policies that allow authenticated users to select, insert, update, and delete their own game_saves rows.";
+  }
+  if (step === "auth.getUser") return "Cloud save failed because no valid logged-in Supabase user could be confirmed.";
+  if (step === "compactSave.validate") return "Cloud save failed because the compact save could not be converted to valid JSON.";
+  return error.message ?? "Cloud save failed.";
+}
+
+function safeUserContext(user: User) {
+  return {
+    hasUserId: Boolean(user.id),
+    userIdSuffix: user.id ? user.id.slice(-6) : null,
+    emailPresent: Boolean(user.email)
+  };
 }
 
 function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): CompactGameSave {
