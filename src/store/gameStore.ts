@@ -67,6 +67,7 @@ type GameStore = {
   unlockAllAirportsForTesting: () => void;
   clearAllSchedulesForTesting: () => void;
   importGameStateForTesting: (game: GameState) => { ok: boolean; message: string };
+  loadGameStateFromCloud: (game: GameState) => { ok: boolean; message: string };
   scheduleFlight: (aircraftId: string, routeId: string, departureGameTime: number) => void;
   createWeeklySchedule: (
     input: Omit<WeeklySchedule, "id" | "createdGameTime" | "recurrenceRule" | "createdAt" | "updatedAt" | "blockMinutes" | "turnaroundMinutes"> & {
@@ -101,7 +102,8 @@ export const useGameStore = create<GameStore>()(
           completedFlights: 0,
           passengerCount: 0,
           cargoTransportedTons: 0,
-          lastTickRealMs: now
+          lastTickRealMs: now,
+          updatedAt: new Date(now).toISOString()
         };
         updateLeaderboard(game);
         set({ game, notice: "Base airport purchased. Your airline is cleared for startup." });
@@ -332,6 +334,16 @@ export const useGameStore = create<GameStore>()(
         updateLeaderboard(normalized);
         set({ game: normalized, notice: "Testing console: save imported." });
         return { ok: true, message: "Save imported." };
+      },
+      loadGameStateFromCloud: (cloudGame) => {
+        const normalized = normalizeGame(cloudGame);
+        if (!normalized || !Array.isArray(normalized.fleet) || !Array.isArray(normalized.routes)) {
+          return { ok: false, message: "Invalid cloud save." };
+        }
+        const nextGame = { ...normalized, updatedAt: cloudGame.updatedAt ?? new Date().toISOString() };
+        updateLeaderboard(nextGame);
+        set({ game: nextGame, notice: "Cloud save loaded." });
+        return { ok: true, message: "Cloud save loaded." };
       },
       scheduleFlight: (aircraftId, routeId, departureGameTime) => {
         const game = normalizeGame(get().game);

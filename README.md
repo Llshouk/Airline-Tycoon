@@ -24,6 +24,7 @@ A browser-based airline management simulation game where players build and manag
 - TypeScript
 - Tailwind CSS
 - LocalStorage for save data
+- Supabase for optional cloud save
 - Map-based airline network display
 
 ## Getting Started
@@ -56,6 +57,19 @@ npm run dev
 ## Current Status
 
 This is a first playable prototype. Some data, economy calculations, route demand, and scheduling systems are simplified for gameplay balance.
+
+## Cloud Save
+
+Supabase is used for optional account login and cloud save. LocalStorage still works without login, so the game can be played offline or without a cloud account.
+
+Required environment variables:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+```
+
+Do not commit `.env.local` or any Supabase keys.
 
 ## Future Improvements
 

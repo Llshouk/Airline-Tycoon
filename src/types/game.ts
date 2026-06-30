@@ -180,6 +180,7 @@ export interface GameState {
   passengerCount: number;
   cargoTransportedTons: number;
   lastTickRealMs: number;
+  updatedAt?: string;
 }
 
 export interface ActiveFlightInfo {

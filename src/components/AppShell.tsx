@@ -4,6 +4,7 @@ import { BarChart3, CalendarClock, CircleDollarSign, Gauge, Map, Pause, Plane, P
 import { useState } from "react";
 import { Dashboard } from "@/components/Dashboard";
 import { AircraftMarketScreen } from "@/components/AircraftMarketScreen";
+import { CloudSavePanel } from "@/components/CloudSavePanel";
 import { FinanceScreen } from "@/components/FinanceScreen";
 import { LeaderboardScreen } from "@/components/LeaderboardScreen";
 import { FleetScreen } from "@/components/FleetScreen";
@@ -248,6 +249,9 @@ function SettingsPanel({
           <option value="zh">简体中文</option>
         </select>
       </section>
+      <div>
+        <CloudSavePanel />
+      </div>
       <div>
         <p className="mb-2 text-xs font-black uppercase tracking-normal text-slate-500">Developer Tools</p>
         <GameConsole />
