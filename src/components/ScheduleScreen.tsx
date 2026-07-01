@@ -11,6 +11,8 @@ import { useTranslation } from "@/i18n";
 import { estimateScheduleFinancials, estimateWeeklyScheduleFinancials } from "@/lib/economy";
 import { formatGBP, formatNumber } from "@/lib/format";
 import {
+  createUniqueFlightNumber,
+  findDuplicateFlightNumber,
   generateDefaultFlightNumber,
   hasScheduleConflict,
   nextFlightNumber,
@@ -47,11 +49,30 @@ export function ScheduleScreen() {
 
   useEffect(() => {
     if (!game || !selectedAircraft || editingScheduleId) return;
-    const index = selectedAircraft.weeklySchedules.length;
-    const outbound = generateDefaultFlightNumber(game.airlineName, index);
+    const allSchedules = game.fleet.flatMap((aircraft) => aircraft.weeklySchedules);
+    const index = allSchedules.length;
+    const outbound = createUniqueFlightNumber(generateDefaultFlightNumber(game.airlineName, index), allSchedules);
+    const inbound = createUniqueFlightNumber(nextFlightNumber(outbound), [
+      ...allSchedules,
+      {
+        id: "draft-outbound",
+        aircraftId: selectedAircraft.id,
+        routeId: selectedRoute?.id ?? "",
+        outboundFlightNumber: outbound,
+        daysOfWeek: [],
+        departureTimeLocal: "00:00",
+        isRoundTrip: false,
+        blockMinutes: 0,
+        turnaroundMinutes: 0,
+        recurrenceRule: "",
+        createdGameTime: 0,
+        createdAt: "",
+        updatedAt: ""
+      }
+    ]);
     setOutboundFlightNumber(outbound);
-    setReturnFlightNumber(nextFlightNumber(outbound));
-  }, [editingScheduleId, game, selectedAircraft?.id, selectedAircraft?.weeklySchedules.length]);
+    setReturnFlightNumber(inbound);
+  }, [editingScheduleId, game, selectedAircraft?.id, selectedAircraft?.weeklySchedules.length, selectedRoute?.id]);
 
   const projection = useMemo(() => {
     if (!selectedRoute || !model || !selectedAircraft || !game) return null;
@@ -79,7 +100,16 @@ export function ScheduleScreen() {
       schedule: selectedAircraft.schedule.filter((item) => item.weeklyScheduleId !== editingScheduleId)
     };
     const existingBlocks = weeklyEventBlocksFromSchedule(baselineAircraft, game.routes);
-    const error = validateWeeklySchedule({
+    const duplicateFlightNumber = findDuplicateFlightNumber({
+      outboundFlightNumber,
+      returnFlightNumber,
+      isRoundTrip,
+      schedules: game.fleet.flatMap((aircraft) => aircraft.weeklySchedules),
+      currentScheduleId: editingScheduleId ?? undefined
+    });
+    const error = duplicateFlightNumber
+      ? t("schedule.flightNumberDuplicateFull")
+      : validateWeeklySchedule({
       aircraft: selectedAircraft,
       route: selectedRoute,
       daysOfWeek: selectedDays,
@@ -111,7 +141,7 @@ export function ScheduleScreen() {
       conflict
     });
     return { blocks, conflict, error: error ?? (conflict ? "Schedule conflict: preview overlaps existing aircraft timetable." : null) };
-  }, [departureTimeLocal, editingScheduleId, game, isRoundTrip, outboundFlightNumber, returnFlightNumber, selectedAircraft, selectedDays, selectedRoute]);
+  }, [departureTimeLocal, editingScheduleId, game, isRoundTrip, outboundFlightNumber, returnFlightNumber, selectedAircraft, selectedDays, selectedRoute, t]);
 
   const demandPreview = useMemo(() => {
     if (!game || !selectedAircraft || !selectedRoute) return null;
@@ -156,7 +186,7 @@ export function ScheduleScreen() {
       replaceWeeklyScheduleId: editingScheduleId ?? undefined
     });
     if (!result.ok) {
-      setLocalError(result.message);
+      setLocalError(localizeScheduleError(result.message, t));
       return;
     }
     setAircraftId(selectedAircraft.id);
@@ -518,4 +548,11 @@ function RemainingDemandPreview({ summary }: { summary: ScheduleDemandPreview })
 
 function formatScheduleDemand(value: number, suffix: string) {
   return suffix ? `${value.toFixed(1)}${suffix}` : formatNumber.format(Math.round(value));
+}
+
+function localizeScheduleError(message: string, t: ReturnType<typeof useTranslation>["t"]) {
+  if (message === "Flight number already exists. Please use a unique flight number.") {
+    return t("schedule.flightNumberDuplicateFull");
+  }
+  return message;
 }

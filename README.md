@@ -12,7 +12,7 @@ A browser-based airline management simulation game where players build and manag
 - Create weekly flight schedules
 - View aircraft movement on a map
 - Manage owned fleet and aircraft registrations
-- Choose Simulation, Easy, or Realistic difficulty with locked game speed
+- Choose Simulation, Easy, or Realistic difficulty with adjustable game speed
 - Save progress locally in the browser
 - Switch between English and Chinese
 - Use a developer console for testing

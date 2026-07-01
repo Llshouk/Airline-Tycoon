@@ -15,11 +15,11 @@ import { RoutesScreen } from "@/components/RoutesScreen";
 import { ScheduleScreen } from "@/components/ScheduleScreen";
 import { getCurrentCash } from "@/lib/cash";
 import { formatGBP } from "@/lib/format";
-import { formatGameDate } from "@/lib/time";
+import { formatGameDate, GAME_SPEED_OPTIONS } from "@/lib/time";
 import { useCloudAutoSave } from "@/hooks/useCloudAutoSave";
 import { useTranslation } from "@/i18n";
 import { useGameStore } from "@/store/gameStore";
-import type { GameState } from "@/types/game";
+import type { GameState, TimeMultiplier } from "@/types/game";
 
 type Screen = "dashboard" | "map" | "fleet" | "market" | "routes" | "schedule" | "finance" | "leaderboard" | "settings";
 type NavItem = {
@@ -50,6 +50,7 @@ export function AppShell() {
   const notice = useGameStore((state) => state.notice);
   const clearNotice = useGameStore((state) => state.clearNotice);
   const resetGame = useGameStore((state) => state.resetGame);
+  const setTimeMultiplier = useGameStore((state) => state.setTimeMultiplier);
   const togglePause = useGameStore((state) => state.togglePause);
   const autoSaveStatus = useCloudAutoSave(game, user);
 
@@ -84,9 +85,7 @@ export function AppShell() {
             >
               {game.isPaused ? <Play size={17} /> : <Pause size={17} />}
             </button>
-            <span className="rounded-md bg-white px-3 py-2 text-xs font-black text-slate-600">
-              {game.timeMultiplier}x - {t("difficulty.lockedByDifficulty")}
-            </span>
+            <SpeedSelector value={game.timeMultiplier} onChange={setTimeMultiplier} compact label={t("settings.timeSpeed")} />
             <select
               value={language}
               onChange={(event) => setLanguage(event.target.value === "zh" ? "zh" : "en")}
@@ -156,6 +155,7 @@ export function AppShell() {
               setLanguage={setLanguage}
               timeMultiplier={game.timeMultiplier}
               isPaused={game.isPaused}
+              setTimeMultiplier={setTimeMultiplier}
               togglePause={togglePause}
               isAdmin={isAdmin}
             />
@@ -222,13 +222,15 @@ function SettingsPanel({
   setLanguage,
   timeMultiplier,
   isPaused,
+  setTimeMultiplier,
   togglePause,
   isAdmin
 }: {
   language: string;
   setLanguage: (language: "en" | "zh") => void;
-  timeMultiplier: number;
+  timeMultiplier: TimeMultiplier;
   isPaused: boolean;
+  setTimeMultiplier: (speed: TimeMultiplier) => void;
   togglePause: () => void;
   isAdmin: boolean;
 }) {
@@ -252,9 +254,7 @@ function SettingsPanel({
           >
             {isPaused ? "Resume" : "Pause"}
           </button>
-          <span className="rounded-md bg-runway px-3 py-2 text-sm font-black text-slate-600">
-            {timeMultiplier}x - {t("difficulty.lockedByDifficulty")}
-          </span>
+          <SpeedSelector value={timeMultiplier} onChange={setTimeMultiplier} label={t("settings.timeSpeed")} />
         </div>
       </section>
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
@@ -275,6 +275,36 @@ function SettingsPanel({
         <p className="mb-2 text-xs font-black uppercase tracking-normal text-slate-500">Developer Tools</p>
         {isAdmin ? <GameConsole /> : null}
       </div>
+    </div>
+  );
+}
+
+function SpeedSelector({
+  value,
+  onChange,
+  label,
+  compact = false
+}: {
+  value: TimeMultiplier;
+  onChange: (speed: TimeMultiplier) => void;
+  label: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`flex items-center gap-1 rounded-md bg-white ${compact ? "p-1" : "bg-runway p-1"}`}>
+      <span className="px-2 text-xs font-black text-slate-500">{label}</span>
+      {GAME_SPEED_OPTIONS.map((speed) => (
+        <button
+          key={speed}
+          type="button"
+          onClick={() => onChange(speed)}
+          className={`h-8 min-w-9 rounded px-2 text-xs font-black transition ${
+            value === speed ? "bg-mint text-white" : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          {speed}x
+        </button>
+      ))}
     </div>
   );
 }

@@ -17,14 +17,17 @@ import { distanceKm, routeIdFor } from "@/lib/geo";
 import { createId, createRegistration } from "@/lib/ids";
 import {
   calculateScheduleBlock,
+  createUniqueFlightNumber,
+  findDuplicateFlightNumber,
   generateDefaultFlightNumber,
   nextFlightNumber,
+  normalizeFlightNumber,
   validateFlightNumber,
   validateWeeklySchedule
 } from "@/lib/schedule";
 import {
   DAY_MS,
-  DEFAULT_GAME_SPEED,
+  GAME_SPEED_OPTIONS,
   flightWaitMs,
   timeOfDayMs,
   turnaroundWaitMs,
@@ -60,7 +63,7 @@ type GameStore = {
   hydrateGameTime: () => void;
   setTimeMultiplier: (speed: TimeMultiplier) => void;
   togglePause: () => void;
-  buyAircraft: (modelId: string, cabinLayout: CabinLayout, registration: string) => void;
+  buyAircraft: (modelId: string, cabinLayout: CabinLayout, registration: string) => { ok: boolean; message: string; aircraft?: AircraftInstance };
   openRoute: (originAirportId: string, destinationAirportId: string, pricing?: Route["pricing"]) => { ok: boolean; message: string; route?: Route };
   updateRoutePricing: (routeId: string, pricing: RoutePricing) => void;
   updateAircraftRegistration: (aircraftId: string, registration: string) => { ok: boolean; message: string };
@@ -129,9 +132,13 @@ export const useGameStore = create<GameStore>()(
       setTimeMultiplier: (speed) => {
         const game = normalizeGame(get().game);
         if (!game) return;
+        if (!isTimeMultiplier(speed)) {
+          set({ notice: "Invalid time speed." });
+          return;
+        }
         set({
-          game: { ...game, timeMultiplier: game.difficultyConfig.speedMultiplier, lastTickRealMs: Date.now() },
-          notice: "Speed is locked by difficulty."
+          game: { ...game, timeMultiplier: speed, lastTickRealMs: Date.now() },
+          notice: `Time speed set to ${speed}x.`
         });
       },
       togglePause: () => {
@@ -149,20 +156,22 @@ export const useGameStore = create<GameStore>()(
       buyAircraft: (modelId, cabinLayout, registration) => {
         const game = normalizeGame(get().game);
         const model = aircraftById[modelId];
-        if (!game || !model) return;
+        if (!game || !model) return { ok: false, message: "Start or load a game first." };
         const registrationValidation = validateRegistration(registration, game.fleet);
         if (!registrationValidation.isValid) {
           set({ notice: registrationValidation.message });
-          return;
+          return { ok: false, message: registrationValidation.message };
         }
         const validation = validateCabinLayout(model, cabinLayout);
         if (!validation.isValid) {
-          set({ notice: validation.errors[0] ?? "Invalid cabin layout." });
-          return;
+          const message = validation.errors[0] ?? "Invalid cabin layout.";
+          set({ notice: message });
+          return { ok: false, message };
         }
         if (!canAfford(game, validation.purchasePriceGBP)) {
-          set({ notice: "Not enough cash to buy that aircraft." });
-          return;
+          const message = "Not enough cash to buy that aircraft.";
+          set({ notice: message });
+          return { ok: false, message };
         }
 
         const gameAfterPurchase = spendCash(game, validation.purchasePriceGBP);
@@ -186,10 +195,12 @@ export const useGameStore = create<GameStore>()(
           fleet: [...game.fleet, aircraft]
         };
         updateLeaderboard(nextGame);
+        const message = `${aircraft.registration} ${model.manufacturer} ${model.model} joined the fleet with a custom cabin.`;
         set({
           game: nextGame,
-          notice: `${aircraft.registration} ${model.manufacturer} ${model.model} joined the fleet with a custom cabin.`
+          notice: message
         });
+        return { ok: true, message, aircraft };
       },
       openRoute: (originAirportId, destinationAirportId, pricing) => {
         const game = normalizeGame(get().game);
@@ -437,6 +448,19 @@ export const useGameStore = create<GameStore>()(
         const normalizedOutbound = validateFlightNumber(input.outboundFlightNumber);
         const normalizedReturn = input.isRoundTrip ? validateFlightNumber(input.returnFlightNumber ?? "") : null;
         const existingForValidation = aircraft.schedule.filter((item) => item.weeklyScheduleId !== input.replaceWeeklyScheduleId);
+        const allWeeklySchedules = game.fleet.flatMap((fleetAircraft) => fleetAircraft.weeklySchedules);
+        const duplicateFlightNumber = findDuplicateFlightNumber({
+          outboundFlightNumber: input.outboundFlightNumber,
+          returnFlightNumber: input.returnFlightNumber,
+          isRoundTrip: input.isRoundTrip,
+          schedules: allWeeklySchedules,
+          currentScheduleId: input.replaceWeeklyScheduleId
+        });
+        if (duplicateFlightNumber) {
+          const message = "Flight number already exists. Please use a unique flight number.";
+          set({ notice: message });
+          return { ok: false, message };
+        }
         const validationMessage = validateWeeklySchedule({
           aircraft,
           route,
@@ -816,6 +840,7 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
   const { cash: _cash, capital: _capital, playerMoney: _playerMoney, airline: _airline, ...cleanGame } = rawGame;
   const money = getCurrentCash(rawGame);
   const difficultyConfig = getDifficultyConfig(game.difficulty);
+  const timeMultiplier = isTimeMultiplier(game.timeMultiplier) ? game.timeMultiplier : difficultyConfig.speedMultiplier;
   return {
     ...cleanGame,
     difficulty: difficultyConfig.difficulty,
@@ -823,7 +848,7 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
     gameStatus: game.gameStatus ?? "active",
     bailoutsUsed: game.bailoutsUsed ?? 0,
     money,
-    timeMultiplier: difficultyConfig.speedMultiplier,
+    timeMultiplier,
     isPaused: game.isPaused ?? false,
     routes: game.routes.map((route) => {
       const estimatedTicketPrices = route.estimatedTicketPrices ?? estimateTicketPrices(route.distanceKm);
@@ -850,16 +875,16 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
         pricing: route.pricing ?? recommendedPricing
       };
     }),
-    fleet: game.fleet.map((aircraft) => {
+    fleet: normalizeDuplicateWeeklyFlightNumbers(game.fleet.map((aircraft) => {
       const model = aircraftById[aircraft.modelId];
       const weeklySchedules = (aircraft.weeklySchedules ?? []).map((schedule, index) => {
         const route = game.routes.find((item) => item.id === schedule.routeId);
         const block = route && model
           ? calculateScheduleBlock(route, aircraft)
           : { oneWayBlockMinutes: 0, roundTripBlockMinutes: 0, turnaroundMinutes: model?.turnaroundMinutes ?? 0 };
-        const outboundFlightNumber = schedule.outboundFlightNumber ?? generateDefaultFlightNumber(game.airlineName, index);
+        const outboundFlightNumber = normalizeFlightNumber(schedule.outboundFlightNumber ?? generateDefaultFlightNumber(game.airlineName, index));
         const returnFlightNumber =
-          schedule.isRoundTrip ? schedule.returnFlightNumber ?? nextFlightNumber(outboundFlightNumber) : undefined;
+          schedule.isRoundTrip ? normalizeFlightNumber(schedule.returnFlightNumber ?? nextFlightNumber(outboundFlightNumber)) : undefined;
         return {
           ...schedule,
           outboundFlightNumber,
@@ -878,7 +903,7 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
         passengerCount: aircraft.passengerCount ?? 0,
         cargoTransportedTons: aircraft.cargoTransportedTons ?? 0
       };
-    }),
+    })),
     passengerCount: game.passengerCount ?? 0,
     cargoTransportedTons: game.cargoTransportedTons ?? 0,
     flightLog: game.flightLog.map((entry) => ({ ...entry, passengerCount: entry.passengerCount ?? 0, cargoTons: entry.cargoTons ?? 0 }))
@@ -908,6 +933,43 @@ function applyBankruptcyRules(game: GameState): GameState {
     ...game,
     gameStatus: config.gameOverOnBankruptcy ? "gameOver" : "bankrupt"
   };
+}
+
+function isTimeMultiplier(value: unknown): value is TimeMultiplier {
+  return GAME_SPEED_OPTIONS.includes(value as TimeMultiplier);
+}
+
+function normalizeDuplicateWeeklyFlightNumbers(fleet: AircraftInstance[]) {
+  let seenSchedules: WeeklySchedule[] = [];
+  return fleet.map((aircraft) => {
+    const weeklySchedules = aircraft.weeklySchedules.map((schedule) => {
+      const outboundFlightNumber = createUniqueFlightNumber(schedule.outboundFlightNumber, seenSchedules, schedule.id);
+      const returnBase = schedule.returnFlightNumber && normalizeFlightNumber(schedule.returnFlightNumber) !== outboundFlightNumber
+        ? schedule.returnFlightNumber
+        : nextFlightNumber(outboundFlightNumber);
+      const returnFlightNumber = schedule.isRoundTrip
+        ? createUniqueFlightNumber(returnBase, [...seenSchedules, { ...schedule, id: `${schedule.id}-outbound`, outboundFlightNumber }])
+        : undefined;
+      const normalizedSchedule = {
+        ...schedule,
+        outboundFlightNumber,
+        returnFlightNumber
+      };
+      seenSchedules = [...seenSchedules, normalizedSchedule];
+      return normalizedSchedule;
+    });
+    return {
+      ...aircraft,
+      weeklySchedules,
+      schedule: aircraft.schedule.map((item) => {
+        if (!item.weeklyScheduleId || !item.flightNumber) return item;
+        const schedule = weeklySchedules.find((candidate) => candidate.id === item.weeklyScheduleId);
+        if (!schedule) return item;
+        const flightNumber = item.legType === "return" ? schedule.returnFlightNumber ?? item.flightNumber : schedule.outboundFlightNumber;
+        return { ...item, flightNumber };
+      })
+    };
+  });
 }
 
 function bankruptcyMessage(before: GameState, after: GameState) {

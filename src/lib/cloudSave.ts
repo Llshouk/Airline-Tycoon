@@ -1,7 +1,8 @@
 import type { User } from "@supabase/supabase-js";
 import { DIFFICULTY_ORDER, getDifficultyConfig, type GameDifficulty } from "@/config/difficulty";
 import { supabase, supabaseConfigError } from "@/lib/supabaseClient";
-import type { AircraftInstance, GameState, Route } from "@/types/game";
+import { GAME_SPEED_OPTIONS } from "@/lib/time";
+import type { AircraftInstance, GameState, Route, TimeMultiplier } from "@/types/game";
 
 const LOCAL_SAVE_KEY = "airline-tycoon-v1";
 
@@ -458,6 +459,9 @@ function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): Comp
   const raw = saveState as Partial<CompactGameSave> & Partial<GameState> & { flightLog?: GameState["flightLog"] };
   const now = new Date().toISOString();
   const difficultyConfig = getDifficultyConfig(raw.difficulty ?? rowDifficulty);
+  const timeMultiplier = GAME_SPEED_OPTIONS.includes(raw.timeMultiplier as TimeMultiplier)
+    ? (raw.timeMultiplier as TimeMultiplier)
+    : difficultyConfig.speedMultiplier;
   return {
     saveVersion: 1,
     airlineName: raw.airlineName ?? "Skyline Airways",
@@ -471,7 +475,7 @@ function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): Comp
     startedAtRealMs: raw.startedAtRealMs ?? Date.now(),
     baseGameTimeMs: raw.baseGameTimeMs ?? Date.UTC(2026, 0, 1, 6, 0, 0),
     currentGameTimeMs: raw.currentGameTimeMs ?? Date.UTC(2026, 0, 1, 6, 0, 0),
-    timeMultiplier: difficultyConfig.speedMultiplier,
+    timeMultiplier,
     isPaused: raw.isPaused ?? false,
     fleet: (raw.fleet ?? []) as CompactAircraftSave[],
     routes: (raw.routes ?? []) as CompactRouteSave[],

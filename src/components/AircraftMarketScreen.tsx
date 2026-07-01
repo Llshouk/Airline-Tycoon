@@ -1,7 +1,7 @@
 "use client";
 
-import { RotateCcw, ShoppingCart } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CheckCircle2, RotateCcw, ShoppingCart, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { AircraftImage } from "@/components/AircraftImage";
 import { SeatConfigurationModal } from "@/components/SeatConfigurationModal";
 import { aircraftById, aircraftModels } from "@/data/aircraft";
@@ -29,6 +29,7 @@ export function AircraftMarketScreen() {
   const [layout, setLayout] = useState<CabinLayout>(() => getDefaultCabinConfig(selectedModel));
   const [registration, setRegistration] = useState(createRegistration(game?.fleet.length ?? 0));
   const [isSeatConfigOpen, setIsSeatConfigOpen] = useState(false);
+  const [purchaseToast, setPurchaseToast] = useState<{ modelLabel: string; registration: string } | null>(null);
   const validation = useMemo(() => validateCabinLayout(selectedModel, layout), [layout, selectedModel]);
   const affordable = game ? canAfford(game, validation.purchasePriceGBP) : false;
   const registrationError = useMemo(() => {
@@ -54,6 +55,12 @@ export function AircraftMarketScreen() {
   const grouped = manufacturers
     .map((maker) => ({ maker, models: filteredModels.filter((model) => model.manufacturer === maker) }))
     .filter((group) => group.models.length > 0);
+
+  useEffect(() => {
+    if (!purchaseToast) return;
+    const timer = window.setTimeout(() => setPurchaseToast(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [purchaseToast]);
 
   function selectModel(model: AircraftModel) {
     setSelectedModelId(model.id);
@@ -112,7 +119,7 @@ export function AircraftMarketScreen() {
             </section>
           ))}
         </div>
-        <div className="h-fit rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+        <div className="h-fit rounded-lg border border-slate-200 bg-white p-4 shadow-soft xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">{selectedModel.manufacturer}</p>
@@ -160,7 +167,12 @@ export function AircraftMarketScreen() {
           <button
             type="button"
             onClick={() => {
-              buyAircraft(selectedModel.id, layout, registration);
+              const result = buyAircraft(selectedModel.id, layout, registration);
+              if (!result.ok || !result.aircraft) return;
+              setPurchaseToast({
+                modelLabel: `${selectedModel.manufacturer} ${selectedModel.model}`,
+                registration: result.aircraft.registration
+              });
               setRegistration(createRegistration(game.fleet.length + 1));
             }}
             disabled={!validation.isValid || !affordable || Boolean(registrationError)}
@@ -185,6 +197,33 @@ export function AircraftMarketScreen() {
           }}
         />
       ) : null}
+      {purchaseToast ? <PurchaseToast toast={purchaseToast} onClose={() => setPurchaseToast(null)} /> : null}
+    </div>
+  );
+}
+
+function PurchaseToast({
+  toast,
+  onClose
+}: {
+  toast: { modelLabel: string; registration: string };
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="fixed bottom-5 right-5 z-[6500] w-[min(360px,calc(100vw-2rem))] rounded-lg border border-mint/30 bg-white p-4 shadow-soft animate-slide-in">
+      <div className="flex items-start gap-3">
+        <CheckCircle2 className="mt-0.5 shrink-0 text-mint" size={22} />
+        <div className="min-w-0 flex-1">
+          <p className="font-black text-ink">{t("market.purchaseSuccessTitle")}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-600">
+            {toast.modelLabel} - {toast.registration} {t("market.purchaseSuccessBody")}
+          </p>
+        </div>
+        <button type="button" onClick={onClose} title="Close" className="rounded-md p-1 text-slate-500 hover:bg-runway">
+          <X size={16} />
+        </button>
+      </div>
     </div>
   );
 }

@@ -66,7 +66,7 @@ export function nextFlightNumber(value: string) {
 }
 
 export function validateFlightNumber(value: string) {
-  const flightNumber = value.trim().toUpperCase();
+  const flightNumber = normalizeFlightNumber(value);
   if (!flightNumber) return { isValid: false, flightNumber, message: "Flight number cannot be empty." };
   if (flightNumber.length < 2 || flightNumber.length > 8) {
     return { isValid: false, flightNumber, message: "Flight number must be 2 to 8 characters." };
@@ -75,6 +75,50 @@ export function validateFlightNumber(value: string) {
     return { isValid: false, flightNumber, message: "Flight number can only use uppercase letters and numbers." };
   }
   return { isValid: true, flightNumber, message: "" };
+}
+
+export function normalizeFlightNumber(value: string) {
+  return value.trim().toUpperCase();
+}
+
+export function flightNumbersForSchedule(schedule: Pick<WeeklySchedule, "outboundFlightNumber" | "returnFlightNumber">) {
+  return [schedule.outboundFlightNumber, schedule.returnFlightNumber].map((value) => normalizeFlightNumber(value ?? "")).filter(Boolean);
+}
+
+export function isFlightNumberDuplicate(flightNumber: string, schedules: WeeklySchedule[], currentScheduleId?: string) {
+  const normalized = normalizeFlightNumber(flightNumber);
+  if (!normalized) return false;
+  return schedules.some((schedule) => {
+    if (schedule.id === currentScheduleId) return false;
+    return flightNumbersForSchedule(schedule).includes(normalized);
+  });
+}
+
+export function findDuplicateFlightNumber(input: {
+  outboundFlightNumber: string;
+  returnFlightNumber?: string;
+  isRoundTrip: boolean;
+  schedules: WeeklySchedule[];
+  currentScheduleId?: string;
+}) {
+  const outbound = normalizeFlightNumber(input.outboundFlightNumber);
+  const inbound = input.isRoundTrip ? normalizeFlightNumber(input.returnFlightNumber ?? "") : "";
+  if (outbound && isFlightNumberDuplicate(outbound, input.schedules, input.currentScheduleId)) return outbound;
+  if (inbound && isFlightNumberDuplicate(inbound, input.schedules, input.currentScheduleId)) return inbound;
+  if (outbound && inbound && outbound === inbound) return inbound;
+  return null;
+}
+
+export function createUniqueFlightNumber(baseValue: string, schedules: WeeklySchedule[], currentScheduleId?: string) {
+  const base = normalizeFlightNumber(baseValue) || "AL101";
+  let candidate = base.slice(0, 8);
+  let counter = 1;
+  while (isFlightNumberDuplicate(candidate, schedules, currentScheduleId)) {
+    const suffix = String(counter);
+    candidate = `${base.slice(0, Math.max(1, 8 - suffix.length))}${suffix}`;
+    counter += 1;
+  }
+  return candidate;
 }
 
 export function calculateScheduleBlock(route: Route, aircraft: AircraftInstance) {
