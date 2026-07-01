@@ -17,9 +17,9 @@ import {
 import { estimateDemand } from "@/lib/demand";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
-import { formatDuration, formatGameDate } from "@/lib/time";
+import { DAY_MS, dayStartMs, formatDuration, formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
-import type { AircraftInstance, AircraftModel, GameState, Route, ScheduleItem } from "@/types/game";
+import type { AircraftInstance, AircraftModel, Airport, GameState, Route, ScheduleItem } from "@/types/game";
 
 const mapDisplayModes = [
   { id: "all", label: "Show All" },
@@ -38,8 +38,12 @@ export function MapScreen() {
   const [displayMode, setDisplayMode] = useState<MapDisplayMode>("all");
   const [routeToConfirm, setRouteToConfirm] = useState<RouteOpeningPreview | null>(null);
   const [openedRoute, setOpenedRoute] = useState<RouteOpeningPreview | null>(null);
+  const [airportActionAirportId, setAirportActionAirportId] = useState<string | null>(null);
+  const [airportBoardAirportId, setAirportBoardAirportId] = useState<string | null>(null);
 
   const selectedAirport = game && selectedAirportId ? airportsById[selectedAirportId] : null;
+  const airportActionAirport = game && airportActionAirportId ? airportsById[airportActionAirportId] : null;
+  const airportBoardAirport = game && airportBoardAirportId ? airportsById[airportBoardAirportId] : null;
   const selectedAirportRoute =
     selectedAirport && game
       ? game.routes.find((route) => routeConnects(route.originAirportId, route.destinationAirportId, game.baseAirportId, selectedAirport.id)) ?? null
@@ -135,6 +139,8 @@ export function MapScreen() {
               setSelectedAirportId(airportId);
               setSelectedRouteId(null);
               setSelectedFlightId(null);
+              setAirportBoardAirportId(null);
+              setAirportActionAirportId(airportId);
             }}
             onSelectRoute={(routeId) => {
               setSelectedRouteId(routeId);
@@ -171,13 +177,12 @@ export function MapScreen() {
                 ) : selectedAirportOpeningPreview ? (
                   <button
                     type="button"
-                    onClick={() => setRouteToConfirm(selectedAirportOpeningPreview)}
+                    onClick={() => setAirportActionAirportId(selectedAirport.id)}
                     className="w-full rounded-md bg-coral px-3 py-2 text-sm font-black text-white transition hover:bg-coral/90"
                   >
                     {t("map.openRoute")}
                   </button>
                 ) : null}
-                <AirportFlightBoard airportId={selectedAirport.id} game={game} />
               </div>
             ) : (
               <p className="mt-3 text-sm text-slate-500">Click airport to view details.</p>
@@ -250,6 +255,30 @@ export function MapScreen() {
           onCancel={() => setRouteToConfirm(null)}
           onConfirm={() => confirmOpenRoute(routeToConfirm)}
         />
+      ) : null}
+      {airportActionAirport ? (
+        <AirportActionModal
+          airport={airportActionAirport}
+          game={game}
+          route={selectedAirportRoute}
+          openingPreview={airportActionAirport.id === selectedAirport?.id ? selectedAirportOpeningPreview : null}
+          onClose={() => setAirportActionAirportId(null)}
+          onViewBoard={() => {
+            setAirportBoardAirportId(airportActionAirport.id);
+            setAirportActionAirportId(null);
+          }}
+          onViewRoute={(routeId) => {
+            setSelectedRouteId(routeId);
+            setAirportActionAirportId(null);
+          }}
+          onOpenRoute={(preview) => {
+            setRouteToConfirm(preview);
+            setAirportActionAirportId(null);
+          }}
+        />
+      ) : null}
+      {airportBoardAirport ? (
+        <AirportBoardModal airportId={airportBoardAirport.id} game={game} onClose={() => setAirportBoardAirportId(null)} />
       ) : null}
       {openedRoute ? (
         <RouteOpenedModal
@@ -497,15 +526,97 @@ function AvailableAircraftForRoute({ route, game, labels }: { route: Route; game
   );
 }
 
+function AirportActionModal({
+  airport,
+  game,
+  route,
+  openingPreview,
+  onClose,
+  onViewBoard,
+  onViewRoute,
+  onOpenRoute
+}: {
+  airport: Airport;
+  game: GameState;
+  route: Route | null;
+  openingPreview: RouteOpeningPreview | null;
+  onClose: () => void;
+  onViewBoard: () => void;
+  onViewRoute: (routeId: string) => void;
+  onOpenRoute: (preview: RouteOpeningPreview) => void;
+}) {
+  const { t } = useTranslation();
+  const isBase = airport.id === game.baseAirportId;
+  return (
+    <div className="fixed inset-0 z-[6100] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-soft animate-modal-in">
+        <p className="text-xs font-black uppercase tracking-normal text-coral">{t("airport.actions")}</p>
+        <h3 className="mt-1 text-2xl font-black text-ink">
+          {airport.iata} {airport.name}
+        </h3>
+        <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+          <Info label="IATA" value={airport.iata} />
+          <Info label="ICAO" value={airport.icao} />
+          <Info label="City" value={`${airport.city}, ${airport.country}`} />
+          <Info label="Base airport" value={isBase ? "Yes" : "No"} />
+          <Info label="Network status" value={game.expandedAirportIds.includes(airport.id) ? "Connected" : "Not connected"} />
+          <Info label="Route status" value={route ? t("map.routeAlreadyOpened") : openingPreview ? t("map.openRoute") : "Unavailable"} />
+        </div>
+        <div className="mt-5 grid gap-2">
+          <button type="button" onClick={onViewBoard} className="rounded-md bg-jet px-4 py-3 text-sm font-black text-white hover:bg-ink">
+            {t("airport.viewBoard")}
+          </button>
+          {route ? (
+            <button type="button" onClick={() => onViewRoute(route.id)} className="rounded-md bg-runway px-4 py-3 text-sm font-black text-jet hover:bg-slate-100">
+              {t("map.viewRoute")}
+            </button>
+          ) : openingPreview ? (
+            <button type="button" onClick={() => onOpenRoute(openingPreview)} className="rounded-md bg-coral px-4 py-3 text-sm font-black text-white hover:bg-coral/90">
+              {t("map.openRoute")}
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} className="rounded-md border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-runway">
+            {t("common.close")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AirportBoardModal({ airportId, game, onClose }: { airportId: string; game: GameState; onClose: () => void }) {
+  const { t } = useTranslation();
+  const airport = airportsById[airportId];
+  return (
+    <div className="fixed inset-0 z-[6150] flex items-center justify-center bg-ink/55 p-4 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-slate-800 bg-ink p-5 text-white shadow-soft animate-modal-in">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/15 pb-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-normal text-amber-200">{t("airport.viewBoard")}</p>
+            <h3 className="mt-1 text-2xl font-black">
+              {airport.iata} {airport.city}
+            </h3>
+            <p className="mt-1 text-sm font-semibold text-slate-300">{formatGameDate(game.currentGameTimeMs)}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-md bg-white/10 px-3 py-2 text-sm font-black text-white hover:bg-white/15">
+            {t("common.close")}
+          </button>
+        </div>
+        <AirportFlightBoard airportId={airportId} game={game} />
+      </div>
+    </div>
+  );
+}
+
 function AirportFlightBoard({ airportId, game }: { airportId: string; game: GameState }) {
   const { t } = useTranslation();
   const departures = airportBoardRows(airportId, game, "departure");
   const arrivals = airportBoardRows(airportId, game, "arrival");
   return (
-    <section className="mt-4 rounded-md border border-slate-800 bg-ink p-3 text-white">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
-        <FlightBoardColumn title={t("airport.departures")} rows={departures} emptyLabel="No scheduled departures" type="departure" />
-        <FlightBoardColumn title={t("airport.arrivals")} rows={arrivals} emptyLabel="No scheduled arrivals" type="arrival" />
+    <section className="mt-4 rounded-md border border-white/15 bg-black/20 p-3 text-white">
+      <div className="grid gap-3 md:grid-cols-2">
+        <FlightBoardColumn title={t("airport.departures")} rows={departures} emptyLabel={t("airport.noScheduledFlightsToday")} type="departure" />
+        <FlightBoardColumn title={t("airport.arrivals")} rows={arrivals} emptyLabel={t("airport.noScheduledFlightsToday")} type="arrival" />
       </div>
     </section>
   );
@@ -533,14 +644,18 @@ function FlightBoardColumn({
         <p className="rounded bg-white/5 px-2 py-3 text-xs font-semibold text-slate-300">{emptyLabel}</p>
       ) : (
         <div className="space-y-1">
-          {rows.slice(0, 8).map((row) => (
-            <div key={`${type}-${row.item.id}`} className={`grid grid-cols-[54px_1fr_62px] gap-2 rounded px-2 py-2 text-xs ${row.delayMinutes > 0 ? "bg-amber-300/15 text-amber-100" : "bg-white/5 text-slate-100"}`}>
-              <span className="font-black">{formatBoardTime(row.scheduledTime)}</span>
+          {rows.map((row) => (
+            <div key={`${type}-${row.item.id}`} className={`grid grid-cols-[52px_1fr_64px_72px] gap-2 rounded px-2 py-2 text-xs ${row.delayMinutes > 0 ? "bg-amber-300/15 text-amber-100" : "bg-white/5 text-slate-100"}`}>
+              <span className="font-mono font-black tabular-nums">{formatBoardTime(row.scheduledTime)}</span>
               <span className="min-w-0">
                 <span className="block truncate font-black">{row.flightNumber}</span>
                 <span className="block truncate text-slate-300">
                   {type === "departure" ? t("airport.destination") : t("airport.origin")}: {row.counterparty}
                 </span>
+                <span className="block truncate text-slate-400">{row.aircraft.registration}</span>
+              </span>
+              <span className="text-right font-mono font-black tabular-nums">
+                {row.delayMinutes > 0 ? formatBoardTime(row.actualTime) : "-"}
               </span>
               <span className="text-right font-black">
                 {row.delayMinutes > 0 ? `${t("airport.delayed")} ${row.delayMinutes}m` : airportStatusLabel(row.statusKey, t)}
@@ -565,8 +680,8 @@ type AirportBoardRow = {
 };
 
 function airportBoardRows(airportId: string, game: GameState, type: "departure" | "arrival"): AirportBoardRow[] {
-  const windowStart = game.currentGameTimeMs - 6 * 60 * 60 * 1000;
-  const windowEnd = game.currentGameTimeMs + 7 * 24 * 60 * 60 * 1000;
+  const windowStart = dayStartMs(game.currentGameTimeMs);
+  const windowEnd = windowStart + DAY_MS;
   return game.fleet
     .flatMap((aircraft) =>
       aircraft.schedule.map((item) => {
@@ -581,7 +696,7 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
           type === "departure"
             ? item.actualDepartureGameTime ?? item.departureGameTime
             : item.actualArrivalGameTime ?? item.arrivalGameTime;
-        if (actualTime < windowStart || scheduledTime > windowEnd) return null;
+        if (scheduledTime < windowStart || scheduledTime >= windowEnd) return null;
         const counterpartyAirport = airportsById[type === "departure" ? item.destinationAirportId : item.originAirportId];
         const delayMinutes = Math.max(0, Math.round((actualTime - scheduledTime) / 60_000));
         const statusKey = item.status === "completed" ? "arrived" : item.status === "in-flight" ? "departed" : "onTime";

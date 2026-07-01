@@ -290,5 +290,9 @@ export const zh = {
   "airport.destination": "Destination",
   "airport.origin": "Origin",
   "airport.scheduled": "Scheduled",
-  "airport.actual": "Actual"
+  "airport.actual": "Actual",
+  "common.close": "关闭",
+  "airport.actions": "机场操作",
+  "airport.viewBoard": "查看机场大屏",
+  "airport.noScheduledFlightsToday": "今日暂无计划航班。"
 } as const;

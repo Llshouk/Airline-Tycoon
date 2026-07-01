@@ -4,35 +4,39 @@ import { weekDays, weeklyEventBlocksFromSchedule, type ScheduleBlock } from "@/l
 import type { AircraftInstance, Route } from "@/types/game";
 
 const PIXELS_PER_HOUR = 36;
-const GRID_HEIGHT = 24 * PIXELS_PER_HOUR;
 
 export function AircraftWeeklyTimetableGrid({
   aircraft,
   routes,
-  previewBlocks = []
+  previewBlocks = [],
+  compact = false
 }: {
   aircraft?: AircraftInstance;
   routes: Route[];
   previewBlocks?: ScheduleBlock[];
+  compact?: boolean;
 }) {
   const persistedBlocks = aircraft ? weeklyEventBlocksFromSchedule(aircraft, routes) : [];
   const blocks = [...persistedBlocks, ...previewBlocks];
+  const pixelsPerHour = compact ? 42 : PIXELS_PER_HOUR;
+  const gridHeight = 24 * pixelsPerHour;
+  const columns = compact ? "58px repeat(7, minmax(96px, 1fr))" : "58px repeat(7, minmax(110px, 1fr))";
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white shadow-soft">
-      <div className="grid grid-cols-[58px_repeat(7,minmax(110px,1fr))] border-b border-slate-200 bg-runway text-xs font-black text-ink">
-        <div className="px-2 py-3">Time</div>
+      <div className={`grid border-b border-slate-200 bg-runway text-xs font-black text-ink ${compact ? "min-w-[760px]" : ""}`} style={{ gridTemplateColumns: columns }}>
+        <div className={compact ? "px-2 py-2" : "px-2 py-3"}>Time</div>
         {weekDays.map((day) => (
-          <div key={day.id} className="border-l border-slate-200 px-2 py-3 text-center">
-            {day.label}
+          <div key={day.id} className={`border-l border-slate-200 px-2 text-center ${compact ? "py-2" : "py-3"}`}>
+            {compact ? day.short : day.label}
           </div>
         ))}
       </div>
-      <div className="max-h-[720px] overflow-auto">
-        <div className="grid grid-cols-[58px_repeat(7,minmax(110px,1fr))]">
-          <div className="relative bg-runway" style={{ height: GRID_HEIGHT }}>
+      <div className={compact ? "max-h-[58vh] overflow-auto" : "max-h-[720px] overflow-auto"}>
+        <div className={`grid ${compact ? "min-w-[760px]" : ""}`} style={{ gridTemplateColumns: columns }}>
+          <div className="relative bg-runway" style={{ height: gridHeight }}>
             {Array.from({ length: 25 }, (_, hour) => (
-              <div key={hour} className="absolute left-0 right-0 -translate-y-2 px-2 text-[11px] font-semibold text-slate-500" style={{ top: hour * PIXELS_PER_HOUR }}>
+              <div key={hour} className="absolute left-0 right-0 -translate-y-2 px-2 text-[11px] font-semibold tabular-nums text-slate-500" style={{ top: hour * pixelsPerHour }}>
                 {String(hour).padStart(2, "0")}:00
               </div>
             ))}
@@ -40,22 +44,22 @@ export function AircraftWeeklyTimetableGrid({
           {weekDays.map((day) => {
             const dayBlocks = blocks.filter((block) => block.day === day.id);
             return (
-              <div key={day.id} className="relative border-l border-slate-200 bg-white" style={{ height: GRID_HEIGHT }}>
+              <div key={day.id} className="relative border-l border-slate-200 bg-white" style={{ height: gridHeight }}>
                 {Array.from({ length: 25 }, (_, hour) => (
-                  <div key={hour} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: hour * PIXELS_PER_HOUR }} />
+                  <div key={hour} className="absolute left-0 right-0 border-t border-slate-100" style={{ top: hour * pixelsPerHour }} />
                 ))}
                 {dayBlocks.map((block) => (
                   <div
                     key={block.id}
                     title={block.tooltip}
-                    className={`absolute left-1 right-1 overflow-hidden rounded-md border px-2 py-1 text-[11px] font-bold leading-tight shadow-sm ${blockStyle(block.kind)}`}
+                    className={`absolute left-1 right-1 overflow-hidden rounded-md border px-2 py-1 shadow-sm ${compact ? "text-[10px]" : "text-[11px]"} ${blockStyle(block.kind)}`}
                     style={{
-                      top: (block.startMinute / 60) * PIXELS_PER_HOUR,
-                      height: Math.max(18, ((block.endMinute - block.startMinute) / 60) * PIXELS_PER_HOUR)
+                      top: (block.startMinute / 60) * pixelsPerHour,
+                      height: Math.max(compact ? 20 : 18, ((block.endMinute - block.startMinute) / 60) * pixelsPerHour)
                     }}
                   >
-                    <div className="truncate">{block.title}</div>
-                    <div className="truncate opacity-80">{block.subtitle}</div>
+                    <div className="h-4 truncate whitespace-nowrap font-semibold leading-4 tabular-nums">{block.title}</div>
+                    <div className="h-4 truncate whitespace-nowrap font-mono text-[10px] leading-4 opacity-80 tabular-nums">{block.subtitle}</div>
                   </div>
                 ))}
               </div>

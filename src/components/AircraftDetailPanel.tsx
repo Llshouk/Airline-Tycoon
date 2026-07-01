@@ -1,25 +1,13 @@
 "use client";
 
 import { X } from "lucide-react";
+import { AircraftWeeklyTimetableGrid } from "@/components/AircraftWeeklyTimetableGrid";
 import { AircraftImage } from "@/components/AircraftImage";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
-import { estimateWeeklyScheduleFinancials } from "@/lib/economy";
 import { formatGBP } from "@/lib/format";
-import { weeklyScheduleLabel } from "@/lib/schedule";
-import { dayOfWeekForGameTime, formatDuration, formatTimeOfDay } from "@/lib/time";
-import type { AircraftInstance, DayOfWeek, FlightStatus, GameState, ScheduleItem } from "@/types/game";
-
-const days = [
-  { id: 0, key: "Monday" },
-  { id: 1, key: "Tuesday" },
-  { id: 2, key: "Wednesday" },
-  { id: 3, key: "Thursday" },
-  { id: 4, key: "Friday" },
-  { id: 5, key: "Saturday" },
-  { id: 6, key: "Sunday" }
-] satisfies { id: DayOfWeek; key: string }[];
+import type { AircraftInstance, FlightStatus, GameState } from "@/types/game";
 
 export function AircraftDetailPanel({
   aircraft,
@@ -82,111 +70,18 @@ export function AircraftDetailPanel({
 
           <div>
             <h4 className="mb-3 font-black text-ink">{t("detail.weeklyTimetable")}</h4>
-            {aircraft.weeklySchedules.length > 0 ? (
-              <div className="mb-4 grid gap-2 md:grid-cols-2">
-                {aircraft.weeklySchedules.map((schedule) => {
-                  const route = game.routes.find((item) => item.id === schedule.routeId);
-                  if (!route) return null;
-                  const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft, game.difficultyConfig);
-                  return (
-                    <div key={schedule.id} className="rounded-md border border-slate-200 bg-runway p-3">
-                      <p className="font-bold text-ink">
-                        {weeklyScheduleLabel(schedule)} {airportsById[route.originAirportId].iata}-{airportsById[route.destinationAirportId].iata}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        Weekly revenue {formatGBP.format(estimate.weeklyRevenue)} | Profit {formatGBP.format(estimate.weeklyProfit)}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-            <div className="grid gap-3">
-              {days.map((day) => {
-                const items = aircraft.schedule
-                  .filter((item) => (item.operatingDay ?? dayOfWeekForGameTime(item.departureGameTime)) === day.id)
-                  .sort((a, b) => a.departureGameTime - b.departureGameTime);
-                return (
-                  <section key={day.id} className="rounded-md border border-slate-200">
-                    <div className="border-b border-slate-200 bg-runway px-3 py-2 font-black text-ink">{day.key}</div>
-                    <div className="grid gap-2 p-3">
-                      {items.length === 0 ? (
-                        <p className="text-sm text-slate-500">{t("detail.noSchedule")}</p>
-                      ) : (
-                        items.map((item, index) => (
-                          <FlightRow
-                            key={item.id}
-                            item={item}
-                            previous={items[index - 1]}
-                            modelTurnaroundMinutes={model.turnaroundMinutes}
-                          />
-                        ))
-                      )}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
+            {aircraft.schedule.length > 0 ? (
+              <AircraftWeeklyTimetableGrid aircraft={aircraft} routes={game.routes} compact />
+            ) : (
+              <p className="rounded-md border border-dashed border-slate-300 bg-runway px-3 py-6 text-center text-sm text-slate-500">
+                {t("detail.noSchedule")}
+              </p>
+            )}
           </div>
         </div>
       </section>
     </div>
   );
-}
-
-function FlightRow({
-  item,
-  previous,
-  modelTurnaroundMinutes
-}: {
-  item: ScheduleItem;
-  previous?: ScheduleItem;
-  modelTurnaroundMinutes: number;
-}) {
-  const { t } = useTranslation();
-  const conflict = Boolean(previous && item.departureGameTime < previous.readyGameTime);
-  const routeDirection = item.legType === "return" ? t("detail.return") : t("detail.outbound");
-  const scheduledDeparture = item.scheduledDepartureGameTime ?? item.departureGameTime;
-  const scheduledArrival = item.scheduledArrivalGameTime ?? item.arrivalGameTime;
-  const actualDeparture = item.actualDepartureGameTime ?? item.departureGameTime;
-  const actualArrival = item.actualArrivalGameTime ?? item.arrivalGameTime;
-  const delayMinutes = item.delayMinutes ?? Math.max(0, Math.round((actualDeparture - scheduledDeparture) / 60000));
-  return (
-    <div className={`rounded-md border p-3 ${conflict ? "border-coral bg-coral/10" : "border-slate-200 bg-white"}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-bold text-ink">
-          {item.flightNumber ? `${item.flightNumber} ` : ""}
-          {airportsById[item.originAirportId].iata} to {airportsById[item.destinationAirportId].iata}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Badge status={conflict ? "conflict" : item.status} />
-          {delayMinutes > 0 ? <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-black text-amber-700">{t("schedule.delayed")} {delayMinutes}m</span> : null}
-          <span className="rounded-md bg-runway px-2 py-1 text-xs font-bold text-jet">{routeDirection}</span>
-        </div>
-      </div>
-      <div className="mt-2 grid gap-2 text-sm md:grid-cols-4">
-        <Info label="Departure" value={formatTimeOfDay(scheduledDeparture)} />
-        <Info label="Arrival" value={formatTimeOfDay(scheduledArrival)} />
-        <Info label={t("schedule.actualDeparture")} value={formatTimeOfDay(actualDeparture)} />
-        <Info label={t("schedule.actualArrival")} value={formatTimeOfDay(actualArrival)} />
-        <Info label={t("detail.duration")} value={formatDuration(actualArrival - actualDeparture)} />
-        <Info label={t("detail.turnaround")} value={`${modelTurnaroundMinutes}m`} />
-      </div>
-    </div>
-  );
-}
-
-function Badge({ status }: { status: FlightStatus | "conflict" }) {
-  const { t } = useTranslation();
-  const color =
-    status === "conflict"
-      ? "bg-coral/10 text-coral"
-      : status === "in-flight"
-        ? "bg-sky/20 text-jet"
-        : status === "completed"
-          ? "bg-mint/15 text-mint"
-          : "bg-runway text-jet";
-  return <span className={`rounded-md px-2 py-1 text-xs font-black ${color}`}>{statusLabel(status, t)}</span>;
 }
 
 function statusLabel(status: FlightStatus | AircraftInstance["status"] | "conflict", t: ReturnType<typeof useTranslation>["t"]) {
