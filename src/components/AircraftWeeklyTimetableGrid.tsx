@@ -65,6 +65,7 @@ export function AircraftWeeklyTimetableGrid({
       </div>
       <div className="flex flex-wrap gap-3 border-t border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">
         <Legend color="bg-slate-300" label="Flight" />
+        <Legend color="bg-amber-200" label="Delayed" />
         <Legend color="bg-slate-100 bg-[repeating-linear-gradient(45deg,#f1f5f9_0,#f1f5f9_4px,#e2e8f0_4px,#e2e8f0_8px)]" label="Turnaround" />
         <Legend color="bg-sky/30" label="Preview" />
         <Legend color="bg-coral/30" label="Conflict" />
@@ -76,6 +77,7 @@ export function AircraftWeeklyTimetableGrid({
 function blockStyle(kind: ScheduleBlock["kind"]) {
   if (kind === "conflict") return "border-coral bg-coral/25 text-ink";
   if (kind === "preview") return "border-sky bg-sky/30 text-ink";
+  if (kind === "delayed") return "border-amber-400 bg-amber-200 text-ink";
   if (kind === "turnaround") {
     return "border-slate-300 bg-[repeating-linear-gradient(45deg,#f8fafc_0,#f8fafc_4px,#e2e8f0_4px,#e2e8f0_8px)] text-slate-700";
   }

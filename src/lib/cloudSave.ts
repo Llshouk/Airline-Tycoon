@@ -70,6 +70,10 @@ export type CloudSaveMetadata = {
   saveName: string;
   difficulty: GameDifficulty;
   gameStatus?: GameState["gameStatus"];
+  airlineName?: string;
+  money?: number;
+  fleetSize?: number;
+  routeCount?: number;
   updatedAt: string;
   createdAt?: string;
 };
@@ -151,6 +155,10 @@ export async function saveGameToCloud(gameState: GameState): Promise<CloudSaveMe
     saveName: `${compactSave.difficulty}-save`,
     difficulty: compactSave.difficulty,
     gameStatus: compactSave.gameStatus,
+    airlineName: compactSave.airlineName,
+    money: compactSave.money,
+    fleetSize: compactSave.fleet.length,
+    routeCount: compactSave.routes.length,
     updatedAt
   };
 }
@@ -232,6 +240,10 @@ export async function loadGameFromCloud(difficulty: GameDifficulty): Promise<Clo
       saveName: data.save_name,
       difficulty: normalizeCloudPayload(data.game_state, data.difficulty).difficulty,
       gameStatus: normalizeCloudPayload(data.game_state, data.difficulty).gameStatus,
+      airlineName: normalizeCloudPayload(data.game_state, data.difficulty).airlineName,
+      money: normalizeCloudPayload(data.game_state, data.difficulty).money,
+      fleetSize: normalizeCloudPayload(data.game_state, data.difficulty).fleet.length,
+      routeCount: normalizeCloudPayload(data.game_state, data.difficulty).routes.length,
       updatedAt: data.updated_at,
       createdAt: data.created_at
     }
@@ -261,6 +273,10 @@ export async function getCloudSaveSlots(): Promise<Record<GameDifficulty, CloudS
       saveName: row.save_name,
       difficulty: compact.difficulty,
       gameStatus: compact.gameStatus,
+      airlineName: compact.airlineName,
+      money: compact.money,
+      fleetSize: compact.fleet.length,
+      routeCount: compact.routes.length,
       updatedAt: row.updated_at,
       createdAt: row.created_at
     };

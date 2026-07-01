@@ -22,6 +22,7 @@ import {
   generateDefaultFlightNumber,
   nextFlightNumber,
   normalizeFlightNumber,
+  normalizeScheduleTime,
   validateFlightNumber,
   validateWeeklySchedule
 } from "@/lib/schedule";
@@ -51,6 +52,9 @@ const STARTING_CAPITAL = 1000000000;
 const BASE_AIRPORT_COST = 100000000;
 const INITIAL_GAME_TIME = Date.UTC(2026, 0, 1, 6, 0, 0);
 const LEADERBOARD_KEY = "airline-tycoon-v1-leaderboard";
+const BASE_DELAY_PROBABILITY = 0.3;
+const DELAY_PROBABILITY_JITTER = 0.05;
+const MAX_DELAY_MINUTES = 180;
 
 type GameStore = {
   game: GameState | null;
@@ -447,6 +451,7 @@ export const useGameStore = create<GameStore>()(
         }
         const normalizedOutbound = validateFlightNumber(input.outboundFlightNumber);
         const normalizedReturn = input.isRoundTrip ? validateFlightNumber(input.returnFlightNumber ?? "") : null;
+        const normalizedDepartureTime = normalizeScheduleTime(input.departureTimeLocal);
         const existingForValidation = aircraft.schedule.filter((item) => item.weeklyScheduleId !== input.replaceWeeklyScheduleId);
         const allWeeklySchedules = game.fleet.flatMap((fleetAircraft) => fleetAircraft.weeklySchedules);
         const duplicateFlightNumber = findDuplicateFlightNumber({
@@ -465,7 +470,7 @@ export const useGameStore = create<GameStore>()(
           aircraft,
           route,
           daysOfWeek: input.daysOfWeek,
-          departureTimeLocal: input.departureTimeLocal,
+          departureTimeLocal: normalizedDepartureTime,
           outboundFlightNumber: input.outboundFlightNumber,
           returnFlightNumber: input.returnFlightNumber,
           isRoundTrip: input.isRoundTrip,
@@ -475,11 +480,6 @@ export const useGameStore = create<GameStore>()(
           set({ notice: validationMessage });
           return { ok: false, message: validationMessage };
         }
-        console.debug("Selected aircraft:", aircraft);
-        console.debug("Selected route:", route);
-        console.debug("Selected days:", input.daysOfWeek);
-        console.debug("Departure time:", input.departureTimeLocal);
-        console.debug("Validation result:", validationMessage);
         const retainedWeeklySchedules = aircraft.weeklySchedules.filter((item) => item.id !== input.replaceWeeklyScheduleId);
         const retainedSchedule = aircraft.schedule.filter((item) => item.weeklyScheduleId !== input.replaceWeeklyScheduleId || item.status === "completed");
         if (!input.replaceWeeklyScheduleId && retainedWeeklySchedules.length === 0 && aircraft.currentAirportId !== route.originAirportId) {
@@ -499,17 +499,16 @@ export const useGameStore = create<GameStore>()(
           outboundFlightNumber: normalizedOutbound.flightNumber,
           returnFlightNumber: input.isRoundTrip ? normalizedReturn?.flightNumber ?? nextFlightNumber(normalizedOutbound.flightNumber) : undefined,
           daysOfWeek: input.daysOfWeek,
-          departureTimeLocal: input.departureTimeLocal,
+          departureTimeLocal: normalizedDepartureTime,
           isRoundTrip: input.isRoundTrip,
           blockMinutes: input.isRoundTrip ? block.roundTripBlockMinutes : block.oneWayBlockMinutes,
           turnaroundMinutes: block.turnaroundMinutes,
           id: existingSchedule?.id ?? createId("weekly"),
           createdGameTime: game.currentGameTimeMs,
-          recurrenceRule: `WEEKLY:${input.daysOfWeek.join(",")}@${input.departureTimeLocal}`,
+          recurrenceRule: `WEEKLY:${input.daysOfWeek.join(",")}@${normalizedDepartureTime}`,
           createdAt: existingSchedule?.createdAt ?? nowIso,
           updatedAt: nowIso
         };
-        console.debug("Generated schedule item:", weeklySchedule);
         const testAircraft = {
           ...aircraft,
           schedule: retainedSchedule,
@@ -530,12 +529,11 @@ export const useGameStore = create<GameStore>()(
           item.id === aircraft.id
             ? {
                 ...testAircraft,
-                schedule: mergeGeneratedEvents(retainedSchedule, generated)
+                schedule: applyOperationalDelays(mergeGeneratedEvents(retainedSchedule, generated), testAircraft, game.routes)
               }
             : item
         );
         const updatedGame = { ...game, fleet: nextFleet };
-        console.debug("Updated game state:", updatedGame);
         set({ game: updatedGame, notice: "Timetable saved." });
         return { ok: true, message: "Timetable saved." };
       },
@@ -648,11 +646,11 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
           passengerCount: financials.passengerCount,
           cargoTons: financials.cargoTons
         });
-        return { ...item, status: "completed" as const, ...financials };
+        return { ...item, status: "completed" as const, operationalStatus: "arrived" as const, ...financials };
       }
 
       if (currentGameTimeMs >= item.departureGameTime) {
-        return { ...item, status: "in-flight" as const };
+        return { ...item, status: "in-flight" as const, operationalStatus: item.delayMinutes && item.delayMinutes > 0 ? ("delayed" as const) : ("departed" as const) };
       }
       return item;
     });
@@ -694,14 +692,67 @@ function instantiateRecurringFlights(game: GameState) {
   const horizonEnd = game.currentGameTimeMs + WEEK_MS * 2;
   return {
     ...game,
-    fleet: game.fleet.map((aircraft) => ({
-      ...aircraft,
-      schedule: mergeGeneratedEvents(
+    fleet: game.fleet.map((aircraft) => {
+      const merged = mergeGeneratedEvents(
         aircraft.schedule,
         generateWeeklyEvents(aircraft, game.routes, game.currentGameTimeMs - DAY_MS, horizonEnd)
-      )
-    }))
+      );
+      return {
+        ...aircraft,
+        schedule: applyOperationalDelays(merged, aircraft, game.routes)
+      };
+    })
   };
+}
+
+function applyOperationalDelays(items: ScheduleItem[], aircraft: AircraftInstance, routes: Route[]) {
+  let readyGameTime = 0;
+  return [...items]
+    .sort((a, b) => (a.scheduledDepartureGameTime ?? a.departureGameTime) - (b.scheduledDepartureGameTime ?? b.departureGameTime))
+    .map((item) => {
+      if (item.status === "completed") {
+        readyGameTime = Math.max(readyGameTime, item.readyGameTime);
+        return item;
+      }
+      const route = routes.find((candidate) => candidate.id === item.routeId);
+      const model = aircraftById[aircraft.modelId];
+      if (!route || !model) return item;
+      const scheduledDepartureGameTime = item.scheduledDepartureGameTime ?? item.departureGameTime;
+      const flightDuration = flightWaitMs(route.distanceKm, model.cruiseSpeedKmh);
+      const delayMinutes = item.delayMinutes ?? generateDelayMinutes(item.id);
+      const baseDelayedDeparture = scheduledDepartureGameTime + delayMinutes * 60_000;
+      const actualDepartureGameTime = Math.max(baseDelayedDeparture, readyGameTime);
+      const actualArrivalGameTime = actualDepartureGameTime + flightDuration;
+      const nextReadyGameTime = actualArrivalGameTime + turnaroundWaitMs(model.turnaroundMinutes);
+      readyGameTime = nextReadyGameTime;
+      return {
+        ...item,
+        scheduledDepartureGameTime,
+        scheduledArrivalGameTime: item.scheduledArrivalGameTime ?? scheduledDepartureGameTime + flightDuration,
+        actualDepartureGameTime,
+        actualArrivalGameTime,
+        delayMinutes: Math.round((actualDepartureGameTime - scheduledDepartureGameTime) / 60_000),
+        operationalStatus: actualDepartureGameTime > scheduledDepartureGameTime ? ("delayed" as const) : ("onTime" as const),
+        departureGameTime: actualDepartureGameTime,
+        arrivalGameTime: actualArrivalGameTime,
+        readyGameTime: nextReadyGameTime
+      };
+    });
+}
+
+function generateDelayMinutes(seedText: string) {
+  const probabilityNoise = deterministicNoise(seedText, 17);
+  const delayProbability = BASE_DELAY_PROBABILITY + (probabilityNoise * 2 - 1) * DELAY_PROBABILITY_JITTER;
+  if (deterministicNoise(seedText, 29) > delayProbability) return 0;
+  return Math.round(deterministicNoise(seedText, 41) * MAX_DELAY_MINUTES);
+}
+
+function deterministicNoise(seedText: string, salt: number) {
+  let hash = salt;
+  for (let index = 0; index < seedText.length; index += 1) {
+    hash = (hash * 31 + seedText.charCodeAt(index)) % 1_000_003;
+  }
+  return (Math.sin(hash) + 1) / 2;
 }
 
 function generateWeeklyEvents(aircraft: AircraftInstance, routes: Route[], fromGameTime: number, toGameTime: number) {
@@ -778,6 +829,12 @@ function createFlightItem(input: {
     legType: input.legType,
     originAirportId: input.originAirportId,
     destinationAirportId: input.destinationAirportId,
+    scheduledDepartureGameTime: input.departureGameTime,
+    scheduledArrivalGameTime: arrivalGameTime,
+    actualDepartureGameTime: input.departureGameTime,
+    actualArrivalGameTime: arrivalGameTime,
+    delayMinutes: 0,
+    operationalStatus: "onTime",
     departureGameTime: input.departureGameTime,
     arrivalGameTime,
     readyGameTime: arrivalGameTime + turnaroundWaitMs(input.model.turnaroundMinutes),
@@ -889,6 +946,7 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
           ...schedule,
           outboundFlightNumber,
           returnFlightNumber,
+          departureTimeLocal: normalizeScheduleTime(schedule.departureTimeLocal),
           blockMinutes: schedule.blockMinutes ?? (schedule.isRoundTrip ? block.roundTripBlockMinutes : block.oneWayBlockMinutes),
           turnaroundMinutes: schedule.turnaroundMinutes ?? block.turnaroundMinutes,
           createdAt: schedule.createdAt ?? new Date(game.startedAtRealMs).toISOString(),
@@ -898,6 +956,15 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
       return {
         ...aircraft,
         weeklySchedules,
+        schedule: aircraft.schedule.map((item) => ({
+          ...item,
+          scheduledDepartureGameTime: item.scheduledDepartureGameTime ?? item.departureGameTime,
+          scheduledArrivalGameTime: item.scheduledArrivalGameTime ?? item.arrivalGameTime,
+          actualDepartureGameTime: item.actualDepartureGameTime ?? item.departureGameTime,
+          actualArrivalGameTime: item.actualArrivalGameTime ?? item.arrivalGameTime,
+          delayMinutes: item.delayMinutes ?? 0,
+          operationalStatus: item.operationalStatus ?? (item.status === "completed" ? "arrived" : item.status === "in-flight" ? "departed" : "onTime")
+        })),
         cabinLayout: aircraft.cabinLayout ?? model?.suggestedLayout ?? { first: 0, business: 0, premiumEconomy: 0, economy: 100, cargoTons: 0 },
         purchasePriceGBP: aircraft.purchasePriceGBP ?? model?.estimatedPriceGBP ?? 0,
         passengerCount: aircraft.passengerCount ?? 0,

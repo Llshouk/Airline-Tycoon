@@ -16,6 +16,7 @@ import {
   generateDefaultFlightNumber,
   hasScheduleConflict,
   nextFlightNumber,
+  normalizeScheduleTime,
   previewBlocksForWeeklySchedule,
   validateWeeklySchedule,
   weekDays,
@@ -158,11 +159,6 @@ export function ScheduleScreen() {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLocalError(null);
-    console.debug("Selected aircraft:", selectedAircraft);
-    console.debug("Selected route:", selectedRoute);
-    console.debug("Selected days:", selectedDays);
-    console.debug("Departure time:", departureTimeLocal);
-    console.debug("Validation result:", preview.error);
     if (!selectedAircraft) {
       setLocalError("Select an aircraft.");
       return;
@@ -175,13 +171,14 @@ export function ScheduleScreen() {
       setLocalError(preview.error);
       return;
     }
+    const normalizedDepartureTime = normalizeScheduleTime(departureTimeLocal);
     const result = createWeeklySchedule({
       aircraftId: selectedAircraft.id,
       routeId: selectedRoute.id,
       outboundFlightNumber: outboundFlightNumber.trim().toUpperCase(),
       returnFlightNumber: isRoundTrip ? returnFlightNumber.trim().toUpperCase() : undefined,
       daysOfWeek: selectedDays,
-      departureTimeLocal,
+      departureTimeLocal: normalizedDepartureTime,
       isRoundTrip,
       replaceWeeklyScheduleId: editingScheduleId ?? undefined
     });
@@ -298,8 +295,10 @@ export function ScheduleScreen() {
             <span className="text-sm font-semibold text-slate-700">{t("schedule.departureTime")}</span>
             <input
               type="time"
+              step={300}
               value={departureTimeLocal}
               onChange={(event) => setDepartureTimeLocal(event.target.value)}
+              onBlur={(event) => setDepartureTimeLocal(normalizeScheduleTime(event.target.value))}
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
             />
           </label>
@@ -350,7 +349,7 @@ export function ScheduleScreen() {
           ) : null}
           {demandPreview ? <RemainingDemandPreview summary={demandPreview} /> : null}
           {localError || preview.error ? (
-            <p className="mt-4 rounded-md bg-coral/10 px-3 py-2 text-sm font-bold text-coral">{localError ?? preview.error}</p>
+            <p className="mt-4 rounded-md bg-coral/10 px-3 py-2 text-sm font-bold text-coral">{localError ?? localizeScheduleError(preview.error ?? "", t)}</p>
           ) : null}
           <button
             type="submit"
@@ -553,6 +552,9 @@ function formatScheduleDemand(value: number, suffix: string) {
 function localizeScheduleError(message: string, t: ReturnType<typeof useTranslation>["t"]) {
   if (message === "Flight number already exists. Please use a unique flight number.") {
     return t("schedule.flightNumberDuplicateFull");
+  }
+  if (message === "Departure minutes must be in 5-minute intervals.") {
+    return t("schedule.departureMinuteInterval");
   }
   return message;
 }

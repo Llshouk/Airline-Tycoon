@@ -17,9 +17,9 @@ import {
 import { estimateDemand } from "@/lib/demand";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
-import { formatGameDate } from "@/lib/time";
+import { formatDuration, formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
-import type { AircraftModel, GameState, Route } from "@/types/game";
+import type { AircraftInstance, AircraftModel, GameState, Route, ScheduleItem } from "@/types/game";
 
 const mapDisplayModes = [
   { id: "all", label: "Show All" },
@@ -177,6 +177,7 @@ export function MapScreen() {
                     {t("map.openRoute")}
                   </button>
                 ) : null}
+                <AirportFlightBoard airportId={selectedAirport.id} game={game} />
               </div>
             ) : (
               <p className="mt-3 text-sm text-slate-500">Click airport to view details.</p>
@@ -240,7 +241,11 @@ export function MapScreen() {
             openRoute: t("map.openRoute"),
             routeLaunchVideoPlaceholder: t("map.routeLaunchVideoPlaceholder"),
             routeOpened: t("map.routeOpened"),
-            viewRoute: t("map.viewRoute")
+            viewRoute: t("map.viewRoute"),
+            availableAircraft: t("map.availableAircraftForRoute"),
+            noAircraft: t("map.noAircraftForRoute"),
+            available: t("map.available"),
+            rangeTooShort: t("map.rangeTooShort")
           }}
           onCancel={() => setRouteToConfirm(null)}
           onConfirm={() => confirmOpenRoute(routeToConfirm)}
@@ -259,7 +264,11 @@ export function MapScreen() {
             openRoute: t("map.openRoute"),
             routeLaunchVideoPlaceholder: t("map.routeLaunchVideoPlaceholder"),
             routeOpened: t("map.routeOpened"),
-            viewRoute: t("map.viewRoute")
+            viewRoute: t("map.viewRoute"),
+            availableAircraft: t("map.availableAircraftForRoute"),
+            noAircraft: t("map.noAircraftForRoute"),
+            available: t("map.available"),
+            rangeTooShort: t("map.rangeTooShort")
           }}
           onClose={() => setOpenedRoute(null)}
           onViewRoute={() => {
@@ -303,6 +312,10 @@ type MapModalLabels = {
   routeLaunchVideoPlaceholder: string;
   routeOpened: string;
   viewRoute: string;
+  availableAircraft: string;
+  noAircraft: string;
+  available: string;
+  rangeTooShort: string;
 };
 
 function RouteOpeningConfirmModal({
@@ -343,6 +356,7 @@ function RouteOpeningConfirmModal({
             <Info label="Profit/flight" value={formatGBP.format(revenuePreview.profit)} />
           </div>
         ) : null}
+        <AvailableAircraftForRoute route={preview.route} game={game} labels={labels} />
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" onClick={onCancel} className="rounded-md border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-runway">
             {labels.cancel}
@@ -422,6 +436,184 @@ function DemandSummary({ route }: { route: Route }) {
       </div>
     </div>
   );
+}
+
+function AvailableAircraftForRoute({ route, game, labels }: { route: Route; game: GameState; labels: MapModalLabels }) {
+  const aircraftRows = game.fleet
+    .map((aircraft) => {
+      const model = aircraftById[aircraft.modelId];
+      if (!model) return null;
+      const canFly = model.rangeKm >= route.distanceKm;
+      const activeWeeklySchedules = aircraft.weeklySchedules.length;
+      const seatCount =
+        aircraft.cabinLayout.first +
+        aircraft.cabinLayout.business +
+        aircraft.cabinLayout.premiumEconomy +
+        aircraft.cabinLayout.economy;
+      return {
+        aircraft,
+        model,
+        canFly,
+        activeWeeklySchedules,
+        seatCount,
+        flightTime: formatDuration((route.distanceKm / model.cruiseSpeedKmh) * 60 * 60 * 1000)
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => Number(b?.canFly) - Number(a?.canFly));
+
+  return (
+    <div className="mt-4 rounded-md border border-slate-200 p-3">
+      <p className="mb-2 text-sm font-black text-ink">{labels.availableAircraft}</p>
+      {aircraftRows.length === 0 ? (
+        <p className="rounded-md bg-runway px-3 py-3 text-sm font-semibold text-slate-500">{labels.noAircraft}</p>
+      ) : (
+        <div className="grid gap-2">
+          {aircraftRows.map((row) => {
+            if (!row) return null;
+            return (
+              <div key={row.aircraft.id} className={`rounded-md border px-3 py-2 text-sm ${row.canFly ? "border-mint/30 bg-mint/5" : "border-coral/20 bg-coral/5"}`}>
+                <div className="flex flex-wrap justify-between gap-2">
+                  <p className="font-black text-ink">
+                    {row.aircraft.registration} - {row.model.manufacturer} {row.model.model}
+                  </p>
+                  <span className={`rounded px-2 py-1 text-xs font-black ${row.canFly ? "bg-mint/15 text-mint" : "bg-coral/10 text-coral"}`}>
+                    {row.canFly ? labels.available : labels.rangeTooShort}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600 md:grid-cols-4">
+                  <span>Range {formatNumber.format(row.model.rangeKm)} km</span>
+                  <span>{row.seatCount} seats</span>
+                  <span>{row.aircraft.cabinLayout.cargoTons.toFixed(1)} t cargo</span>
+                  <span>{row.flightTime}</span>
+                  <span className="md:col-span-4">{row.activeWeeklySchedules} weekly services already assigned</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AirportFlightBoard({ airportId, game }: { airportId: string; game: GameState }) {
+  const { t } = useTranslation();
+  const departures = airportBoardRows(airportId, game, "departure");
+  const arrivals = airportBoardRows(airportId, game, "arrival");
+  return (
+    <section className="mt-4 rounded-md border border-slate-800 bg-ink p-3 text-white">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+        <FlightBoardColumn title={t("airport.departures")} rows={departures} emptyLabel="No scheduled departures" type="departure" />
+        <FlightBoardColumn title={t("airport.arrivals")} rows={arrivals} emptyLabel="No scheduled arrivals" type="arrival" />
+      </div>
+    </section>
+  );
+}
+
+function FlightBoardColumn({
+  title,
+  rows,
+  emptyLabel,
+  type
+}: {
+  title: string;
+  rows: AirportBoardRow[];
+  emptyLabel: string;
+  type: "departure" | "arrival";
+}) {
+  const { t } = useTranslation();
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-2 border-b border-white/15 pb-2">
+        <p className="text-xs font-black uppercase tracking-normal text-amber-200">{title}</p>
+        <span className="text-[11px] font-bold text-slate-300">{rows.length}</span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="rounded bg-white/5 px-2 py-3 text-xs font-semibold text-slate-300">{emptyLabel}</p>
+      ) : (
+        <div className="space-y-1">
+          {rows.slice(0, 8).map((row) => (
+            <div key={`${type}-${row.item.id}`} className={`grid grid-cols-[54px_1fr_62px] gap-2 rounded px-2 py-2 text-xs ${row.delayMinutes > 0 ? "bg-amber-300/15 text-amber-100" : "bg-white/5 text-slate-100"}`}>
+              <span className="font-black">{formatBoardTime(row.scheduledTime)}</span>
+              <span className="min-w-0">
+                <span className="block truncate font-black">{row.flightNumber}</span>
+                <span className="block truncate text-slate-300">
+                  {type === "departure" ? t("airport.destination") : t("airport.origin")}: {row.counterparty}
+                </span>
+              </span>
+              <span className="text-right font-black">
+                {row.delayMinutes > 0 ? `${t("airport.delayed")} ${row.delayMinutes}m` : airportStatusLabel(row.statusKey, t)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type AirportBoardRow = {
+  item: ScheduleItem;
+  aircraft: AircraftInstance;
+  flightNumber: string;
+  counterparty: string;
+  scheduledTime: number;
+  actualTime: number;
+  delayMinutes: number;
+  statusKey: "onTime" | "departed" | "arrived";
+};
+
+function airportBoardRows(airportId: string, game: GameState, type: "departure" | "arrival"): AirportBoardRow[] {
+  const windowStart = game.currentGameTimeMs - 6 * 60 * 60 * 1000;
+  const windowEnd = game.currentGameTimeMs + 7 * 24 * 60 * 60 * 1000;
+  return game.fleet
+    .flatMap((aircraft) =>
+      aircraft.schedule.map((item) => {
+        const isDeparture = item.originAirportId === airportId;
+        const isArrival = item.destinationAirportId === airportId;
+        if ((type === "departure" && !isDeparture) || (type === "arrival" && !isArrival)) return null;
+        const scheduledTime =
+          type === "departure"
+            ? item.scheduledDepartureGameTime ?? item.departureGameTime
+            : item.scheduledArrivalGameTime ?? item.arrivalGameTime;
+        const actualTime =
+          type === "departure"
+            ? item.actualDepartureGameTime ?? item.departureGameTime
+            : item.actualArrivalGameTime ?? item.arrivalGameTime;
+        if (actualTime < windowStart || scheduledTime > windowEnd) return null;
+        const counterpartyAirport = airportsById[type === "departure" ? item.destinationAirportId : item.originAirportId];
+        const delayMinutes = Math.max(0, Math.round((actualTime - scheduledTime) / 60_000));
+        const statusKey = item.status === "completed" ? "arrived" : item.status === "in-flight" ? "departed" : "onTime";
+        return {
+          item,
+          aircraft,
+          flightNumber: item.flightNumber ?? aircraft.registration,
+          counterparty: `${counterpartyAirport.iata} ${counterpartyAirport.city}`,
+          scheduledTime,
+          actualTime,
+          delayMinutes,
+          statusKey
+        } satisfies AirportBoardRow;
+      })
+    )
+    .filter((row): row is AirportBoardRow => Boolean(row))
+    .sort((a, b) => a.scheduledTime - b.scheduledTime);
+}
+
+function formatBoardTime(value: number) {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC"
+  }).format(new Date(value));
+}
+
+function airportStatusLabel(status: AirportBoardRow["statusKey"], t: ReturnType<typeof useTranslation>["t"]) {
+  if (status === "arrived") return t("airport.arrived");
+  if (status === "departed") return t("airport.departed");
+  return t("airport.onTime");
 }
 
 function bestRoutePreview(route: Route, game: GameState) {

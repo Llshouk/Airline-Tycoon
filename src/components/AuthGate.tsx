@@ -12,6 +12,7 @@ import {
   getSupabaseConfigurationMessage,
   isSupabaseConfigured,
   loadCloudSaveIntoGame,
+  saveGameToCloud,
   uploadLocalSaveToCloud,
   type CloudSaveMetadata,
   type LocalSaveMetadata
@@ -30,6 +31,8 @@ type AuthContextValue = {
   isAuthLoading: boolean;
   isAdmin: boolean;
   selectedDifficulty: GameDifficulty;
+  isSwitchingAirline: boolean;
+  switchAirline: () => void;
 };
 
 const emptySlots: Record<GameDifficulty, CloudSaveMetadata | null> = {
@@ -54,6 +57,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [localMetadata, setLocalMetadata] = useState<LocalSaveMetadata>({ hasSave: false, updatedAt: null });
   const [message, setMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [isSwitchingAirline, setIsSwitchingAirline] = useState(false);
   const configured = isSupabaseConfigured();
   const configurationMessage = getSupabaseConfigurationMessage();
   const user = session?.user ?? null;
@@ -114,9 +118,32 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, [configurationMessage, t]);
 
   const contextValue = useMemo<AuthContextValue>(
-    () => ({ user, isAuthLoading, isAdmin, selectedDifficulty }),
-    [isAdmin, isAuthLoading, selectedDifficulty, user]
+    () => ({ user, isAuthLoading, isAdmin, selectedDifficulty, isSwitchingAirline, switchAirline: () => void handleSwitchAirline() }),
+    [isAdmin, isAuthLoading, isSwitchingAirline, selectedDifficulty, user]
   );
+
+  async function saveCurrentBeforeSwitch() {
+    const currentGame = useGameStore.getState().game;
+    if (!currentGame || !configured || !user) return;
+    await saveGameToCloud(currentGame);
+  }
+
+  async function handleSwitchAirline() {
+    setIsSwitchingAirline(true);
+    setMessage(t("save.switching"));
+    try {
+      await saveCurrentBeforeSwitch();
+      await refreshCloudSlots();
+      setLocalMetadata(getLocalSaveMetadata());
+      setCanEnterGame(false);
+      setMessage(t("save.savedBeforeSwitching"));
+    } catch (error) {
+      setMessage(errorMessage(error, t("cloud.cloudSaveFailed")));
+      setCanEnterGame(false);
+    } finally {
+      setIsSwitchingAirline(false);
+    }
+  }
 
   async function refreshCloudSlots() {
     if (!configured) return;
@@ -131,6 +158,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   async function handleLoadCloudSave(difficulty: GameDifficulty) {
     await runAction(async () => {
+      await saveCurrentBeforeSwitch();
       const result = await loadCloudSaveIntoGame(difficulty, (cloudGame) => {
         const loaded = loadGameStateFromCloud(cloudGame);
         if (!loaded.ok) throw new Error(loaded.message);
@@ -163,15 +191,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   function handleStartNewGame(difficulty: GameDifficulty, resetExisting = false) {
-    if (cloudSlots[difficulty] && !resetExisting) {
-      setMessage(t("difficulty.alreadyHasAirline"));
-      return;
-    }
-    if (cloudSlots[difficulty] && resetExisting && !window.confirm(t("difficulty.resetConfirm"))) return;
-    resetGame();
-    setSelectedDifficulty(difficulty);
-    markEnteredSession();
-    setCanEnterGame(true);
+    void runAction(async () => {
+      await saveCurrentBeforeSwitch();
+      if (cloudSlots[difficulty] && !resetExisting) {
+        setMessage(t("difficulty.alreadyHasAirline"));
+        return;
+      }
+      if (cloudSlots[difficulty] && resetExisting && !window.confirm(t("difficulty.resetConfirm"))) return;
+      resetGame();
+      setSelectedDifficulty(difficulty);
+      markEnteredSession();
+      setCanEnterGame(true);
+    });
   }
 
   async function runAction(action: () => Promise<void>) {
@@ -324,6 +355,10 @@ function DifficultyEntryScreen({
               <h2 className="text-xl font-black text-ink">{t(`difficulty.${difficulty}`)}</h2>
               <div className="mt-3 space-y-2 text-sm text-slate-600">
                 <Info label={t("difficulty.speed")} value={`${config.speedMultiplier}x`} />
+                {save?.airlineName ? <Info label={t("save.currentAirline")} value={save.airlineName} /> : null}
+                {save?.money !== undefined ? <Info label={t("top.cash")} value={formatGBP.format(save.money)} /> : null}
+                {save?.fleetSize !== undefined ? <Info label={t("top.aircraft")} value={String(save.fleetSize)} /> : null}
+                {save?.routeCount !== undefined ? <Info label={t("top.routes")} value={String(save.routeCount)} /> : null}
                 <Info label={t("difficulty.startingCash")} value={formatGBP.format(STARTING_CAPITAL * config.startingCashMultiplier - BASE_AIRPORT_COST)} />
                 <Info label={t("difficulty.revenueMultiplier")} value={config.difficulty === "realistic" ? "Realistic" : `${config.revenueMultiplier}x`} />
                 <Info label={t("difficulty.bankruptcyRule")} value={bankruptcyLabel(config.difficulty, t)} />
@@ -333,7 +368,7 @@ function DifficultyEntryScreen({
                 {save ? (
                   <>
                     <AuthButton disabled={isBusy} onClick={() => onLoadCloudSave(difficulty)}>
-                      {t("difficulty.continueAirline")}
+                      {t("save.continueThisAirline")}
                     </AuthButton>
                     <AuthButton disabled={isBusy} variant="secondary" onClick={() => onStartNewGame(difficulty, true)}>
                       {t("difficulty.resetSave")}

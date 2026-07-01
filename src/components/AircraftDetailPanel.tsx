@@ -146,6 +146,11 @@ function FlightRow({
   const { t } = useTranslation();
   const conflict = Boolean(previous && item.departureGameTime < previous.readyGameTime);
   const routeDirection = item.legType === "return" ? t("detail.return") : t("detail.outbound");
+  const scheduledDeparture = item.scheduledDepartureGameTime ?? item.departureGameTime;
+  const scheduledArrival = item.scheduledArrivalGameTime ?? item.arrivalGameTime;
+  const actualDeparture = item.actualDepartureGameTime ?? item.departureGameTime;
+  const actualArrival = item.actualArrivalGameTime ?? item.arrivalGameTime;
+  const delayMinutes = item.delayMinutes ?? Math.max(0, Math.round((actualDeparture - scheduledDeparture) / 60000));
   return (
     <div className={`rounded-md border p-3 ${conflict ? "border-coral bg-coral/10" : "border-slate-200 bg-white"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -155,13 +160,16 @@ function FlightRow({
         </p>
         <div className="flex flex-wrap gap-2">
           <Badge status={conflict ? "conflict" : item.status} />
+          {delayMinutes > 0 ? <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-black text-amber-700">{t("schedule.delayed")} {delayMinutes}m</span> : null}
           <span className="rounded-md bg-runway px-2 py-1 text-xs font-bold text-jet">{routeDirection}</span>
         </div>
       </div>
       <div className="mt-2 grid gap-2 text-sm md:grid-cols-4">
-        <Info label="Departure" value={formatTimeOfDay(item.departureGameTime)} />
-        <Info label="Arrival" value={formatTimeOfDay(item.arrivalGameTime)} />
-        <Info label={t("detail.duration")} value={formatDuration(item.arrivalGameTime - item.departureGameTime)} />
+        <Info label="Departure" value={formatTimeOfDay(scheduledDeparture)} />
+        <Info label="Arrival" value={formatTimeOfDay(scheduledArrival)} />
+        <Info label={t("schedule.actualDeparture")} value={formatTimeOfDay(actualDeparture)} />
+        <Info label={t("schedule.actualArrival")} value={formatTimeOfDay(actualArrival)} />
+        <Info label={t("detail.duration")} value={formatDuration(actualArrival - actualDeparture)} />
         <Info label={t("detail.turnaround")} value={`${modelTurnaroundMinutes}m`} />
       </div>
     </div>

@@ -1,10 +1,11 @@
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
-import { DAY_MS, flightWaitMs, timeOfDayMs, turnaroundWaitMs } from "@/lib/time";
+import { dayOfWeekForGameTime, DAY_MS, flightWaitMs, timeOfDayMs, turnaroundWaitMs } from "@/lib/time";
 import type { AircraftInstance, DayOfWeek, Route, ScheduleItem, WeeklySchedule } from "@/types/game";
 
 export const DAY_MINUTES = 24 * 60;
 export const WEEK_MINUTES = 7 * DAY_MINUTES;
+export const ALLOWED_SCHEDULE_MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55] as const;
 
 export const weekDays = [
   { id: 0, label: "Monday", short: "Mon" },
@@ -16,7 +17,7 @@ export const weekDays = [
   { id: 6, label: "Sunday", short: "Sun" }
 ] satisfies { id: DayOfWeek; label: string; short: string }[];
 
-export type ScheduleBlockKind = "flight" | "turnaround" | "preview" | "conflict";
+export type ScheduleBlockKind = "flight" | "delayed" | "turnaround" | "preview" | "conflict";
 
 export interface ScheduleBlock {
   id: string;
@@ -34,6 +35,18 @@ export interface ScheduleBlock {
 export function timeToMinutes(value: string) {
   const [hours = "0", minutes = "0"] = value.split(":");
   return Number(hours) * 60 + Number(minutes);
+}
+
+export function isAllowedScheduleMinute(minute: number) {
+  return ALLOWED_SCHEDULE_MINUTES.includes(minute as (typeof ALLOWED_SCHEDULE_MINUTES)[number]);
+}
+
+export function normalizeScheduleTime(value: string) {
+  if (!/^\d{2}:\d{2}$/.test(value)) return "00:00";
+  const [hours = "0", minutes = "0"] = value.split(":");
+  const hour = Math.min(23, Math.max(0, Number(hours)));
+  const minute = Math.min(55, Math.max(0, Math.round(Number(minutes) / 5) * 5));
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
 export function minutesToTime(totalMinutes: number) {
@@ -177,21 +190,30 @@ export function weeklyEventBlocksFromSchedule(aircraft: AircraftInstance, routes
     .forEach((item) => {
       const route = routes.find((candidate) => candidate.id === item.routeId);
       if (!route) return;
-      const day = item.operatingDay ?? 0;
-      const departureMinute = Math.round(timeOfDayMs(formatUtcTime(item.departureGameTime)) / 60000);
-      const flightMinutes = Math.max(1, Math.round((item.arrivalGameTime - item.departureGameTime) / 60000));
+      const scheduledDeparture = item.scheduledDepartureGameTime ?? item.departureGameTime;
+      const actualDeparture = item.actualDepartureGameTime ?? item.departureGameTime;
+      const actualArrival = item.actualArrivalGameTime ?? item.arrivalGameTime;
+      const scheduledDay = item.operatingDay ?? dayOfWeekForGameTime(scheduledDeparture);
+      const day = dayOfWeekForGameTime(actualDeparture);
+      const departureMinute = Math.round(timeOfDayMs(formatUtcTime(actualDeparture)) / 60000);
+      const scheduledMinute = Math.round(timeOfDayMs(formatUtcTime(scheduledDeparture)) / 60000);
+      const flightMinutes = Math.max(1, Math.round((actualArrival - actualDeparture) / 60000));
       const turnaroundMinutes = model.turnaroundMinutes;
       const start = day * DAY_MINUTES + departureMinute;
       const title = `${item.flightNumber ?? "FL"} ${airportsById[item.originAirportId].iata}-${airportsById[item.destinationAirportId].iata}`;
+      const delayMinutes = item.delayMinutes ?? Math.max(0, Math.round((actualDeparture - scheduledDeparture) / 60000));
+      const statusLine = delayMinutes > 0
+        ? `Scheduled ${getDayName(scheduledDay)} ${minutesToTime(scheduledMinute)}\nActual ${getDayName(day)} ${minutesToTime(departureMinute)}\nDelay ${delayMinutes}m`
+        : `${getDayName(day)} ${minutesToTime(departureMinute)}`;
       blocks.push(
         ...splitBlockAcrossDays({
           id: `${item.id}-flight`,
           startMinuteOfWeek: start,
           endMinuteOfWeek: start + flightMinutes,
-          kind: "flight",
+          kind: delayMinutes > 0 ? "delayed" : "flight",
           title,
           subtitle: `${minutesToTime(departureMinute)}-${minutesToTime(departureMinute + flightMinutes)}`,
-          tooltip: `${title}\n${aircraft.registration}\n${getDayName(day)} ${minutesToTime(departureMinute)}\nDuration ${flightMinutes}m`,
+          tooltip: `${title}\n${aircraft.registration}\n${statusLine}\nDuration ${flightMinutes}m`,
           sourceId: item.id,
           flightNumber: item.flightNumber
         })
@@ -305,6 +327,9 @@ export function validateWeeklySchedule(input: {
   if (!input.aircraft) return "Select an aircraft.";
   if (!input.route) return "Select a route.";
   if (!/^\d{2}:\d{2}$/.test(input.departureTimeLocal)) return "Choose a valid departure time.";
+  if (!isAllowedScheduleMinute(Number(input.departureTimeLocal.split(":")[1] ?? 0))) {
+    return "Departure minutes must be in 5-minute intervals.";
+  }
   if (input.daysOfWeek.length === 0) return "Select at least one operating day.";
   const outbound = validateFlightNumber(input.outboundFlightNumber);
   if (!outbound.isValid) return outbound.message;

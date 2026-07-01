@@ -43,7 +43,7 @@ const navItems: NavItem[] = [
 
 export function AppShell() {
   const { language, setLanguage, t } = useTranslation();
-  const { user, isAdmin } = useAuthSession();
+  const { user, isAdmin, isSwitchingAirline, switchAirline } = useAuthSession();
   const [screen, setScreen] = useState<Screen>("map");
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const game = useGameStore((state) => state.game);
@@ -77,6 +77,14 @@ export function AppShell() {
             {formatAutoSaveStatus(autoSaveStatus, t) ? (
               <span className="rounded-md bg-white px-2 py-2 text-xs font-bold text-slate-600">{formatAutoSaveStatus(autoSaveStatus, t)}</span>
             ) : null}
+            <button
+              type="button"
+              onClick={switchAirline}
+              disabled={isSwitchingAirline}
+              className="h-9 rounded-md bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60"
+            >
+              {isSwitchingAirline ? t("save.switching") : t("save.switchAirline")}
+            </button>
             <button
               type="button"
               title={game.isPaused ? t("top.resume") : t("top.pause")}
