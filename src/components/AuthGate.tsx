@@ -354,7 +354,6 @@ function DifficultyEntryScreen({
             <section key={difficulty} className="rounded-lg border border-slate-200 bg-white p-4 text-left shadow-soft">
               <h2 className="text-xl font-black text-ink">{t(`difficulty.${difficulty}`)}</h2>
               <div className="mt-3 space-y-2 text-sm text-slate-600">
-                <Info label={t("difficulty.speed")} value={`${config.speedMultiplier}x`} />
                 {save?.airlineName ? <Info label={t("save.currentAirline")} value={save.airlineName} /> : null}
                 {save?.money !== undefined ? <Info label={t("top.cash")} value={formatGBP.format(save.money)} /> : null}
                 {save?.fleetSize !== undefined ? <Info label={t("top.aircraft")} value={String(save.fleetSize)} /> : null}

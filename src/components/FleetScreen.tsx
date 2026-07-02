@@ -9,7 +9,7 @@ import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
 import { estimateWeeklyScheduleFinancials } from "@/lib/economy";
 import { formatGBP, formatNumber } from "@/lib/format";
-import { weeklyScheduleLabel } from "@/lib/schedule";
+import { formatRouteCode, formatScheduleFlightNumbers } from "@/lib/schedule";
 import { useGameStore } from "@/store/gameStore";
 import type { AircraftInstance, FlightLogEntry } from "@/types/game";
 
@@ -133,7 +133,9 @@ export function FleetScreen() {
                                   return (
                                     <div key={schedule.id} className="rounded-md bg-runway px-3 py-2 text-sm">
                                       <p className="font-bold text-ink">
-                                        {weeklyScheduleLabel(schedule)} {airportsById[route.originAirportId].iata}-{airportsById[route.destinationAirportId].iata}
+                                        <span className="block truncate whitespace-nowrap tabular-nums">
+                                          {formatScheduleFlightNumbers(schedule)} {formatRouteCode(route)}
+                                        </span>
                                       </p>
                                       <p className="text-slate-500">
                                         {schedule.daysOfWeek.length} days | {formatGBP.format(estimate.weeklyProfit)} weekly profit

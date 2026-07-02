@@ -353,5 +353,20 @@ export function formatUtcTime(ms: number) {
 }
 
 export function weeklyScheduleLabel(schedule: WeeklySchedule) {
-  return `${schedule.outboundFlightNumber}${schedule.isRoundTrip && schedule.returnFlightNumber ? `/${schedule.returnFlightNumber}` : ""}`;
+  return formatScheduleFlightNumbers(schedule);
+}
+
+export function formatScheduleFlightNumbers(
+  schedule: Pick<WeeklySchedule, "outboundFlightNumber" | "returnFlightNumber"> & { flightNumber?: string }
+) {
+  const outbound = normalizeFlightNumber(schedule.outboundFlightNumber ?? schedule.flightNumber ?? "");
+  const inbound = normalizeFlightNumber(schedule.returnFlightNumber ?? "");
+  if (outbound && inbound && outbound !== inbound) return `${outbound}/${inbound}`;
+  return outbound || inbound || "Unnumbered";
+}
+
+export function formatRouteCode(route: Pick<Route, "originAirportId" | "destinationAirportId">) {
+  const origin = airportsById[route.originAirportId];
+  const destination = airportsById[route.destinationAirportId];
+  return `${origin?.iata ?? route.originAirportId}-${destination?.iata ?? route.destinationAirportId}`;
 }

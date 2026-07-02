@@ -11,8 +11,9 @@ import { useTranslation } from "@/i18n";
 import { estimateScheduleFinancials, estimateWeeklyScheduleFinancials } from "@/lib/economy";
 import { formatGBP, formatNumber } from "@/lib/format";
 import {
-  createUniqueFlightNumber,
   findDuplicateFlightNumber,
+  formatRouteCode,
+  formatScheduleFlightNumbers,
   generateDefaultFlightNumber,
   hasScheduleConflict,
   nextFlightNumber,
@@ -20,8 +21,7 @@ import {
   previewBlocksForWeeklySchedule,
   validateWeeklySchedule,
   weekDays,
-  weeklyEventBlocksFromSchedule,
-  weeklyScheduleLabel
+  weeklyEventBlocksFromSchedule
 } from "@/lib/schedule";
 import { calculateRemainingDemandForSchedulePreview, type ScheduleDemandPreview } from "@/lib/routeDemand";
 import { formatDuration } from "@/lib/time";
@@ -39,10 +39,11 @@ export function ScheduleScreen() {
   const [returnFlightNumber, setReturnFlightNumber] = useState("AL102");
   const [departureTimeLocal, setDepartureTimeLocal] = useState("08:00");
   const [isRoundTrip, setIsRoundTrip] = useState(true);
-  const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>([0, 2, 4]);
+  const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>([]);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [detailAircraftId, setDetailAircraftId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const selectedAircraft = game?.fleet.find((aircraft) => aircraft.id === aircraftId) ?? game?.fleet[0];
   const selectedRoute = game?.routes.find((route) => route.id === routeId) ?? game?.routes[0];
@@ -52,28 +53,17 @@ export function ScheduleScreen() {
     if (!game || !selectedAircraft || editingScheduleId) return;
     const allSchedules = game.fleet.flatMap((aircraft) => aircraft.weeklySchedules);
     const index = allSchedules.length;
-    const outbound = createUniqueFlightNumber(generateDefaultFlightNumber(game.airlineName, index), allSchedules);
-    const inbound = createUniqueFlightNumber(nextFlightNumber(outbound), [
-      ...allSchedules,
-      {
-        id: "draft-outbound",
-        aircraftId: selectedAircraft.id,
-        routeId: selectedRoute?.id ?? "",
-        outboundFlightNumber: outbound,
-        daysOfWeek: [],
-        departureTimeLocal: "00:00",
-        isRoundTrip: false,
-        blockMinutes: 0,
-        turnaroundMinutes: 0,
-        recurrenceRule: "",
-        createdGameTime: 0,
-        createdAt: "",
-        updatedAt: ""
-      }
-    ]);
+    const outbound = generateDefaultFlightNumber(game.airlineName, index);
+    const inbound = nextFlightNumber(outbound);
     setOutboundFlightNumber(outbound);
     setReturnFlightNumber(inbound);
-  }, [editingScheduleId, game, selectedAircraft?.id, selectedAircraft?.weeklySchedules.length, selectedRoute?.id]);
+  }, [editingScheduleId, game?.airlineName, selectedAircraft?.id]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(null), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
 
   const projection = useMemo(() => {
     if (!selectedRoute || !model || !selectedAircraft || !game) return null;
@@ -109,7 +99,7 @@ export function ScheduleScreen() {
       currentScheduleId: editingScheduleId ?? undefined
     });
     const error = duplicateFlightNumber
-      ? t("schedule.flightNumberDuplicateFull")
+      ? "Flight number already exists. Please use a unique flight number."
       : validateWeeklySchedule({
       aircraft: selectedAircraft,
       route: selectedRoute,
@@ -160,15 +150,15 @@ export function ScheduleScreen() {
     event.preventDefault();
     setLocalError(null);
     if (!selectedAircraft) {
-      setLocalError("Select an aircraft.");
+      showScheduleFailure("Select an aircraft.");
       return;
     }
     if (!selectedRoute) {
-      setLocalError("Select a route.");
+      showScheduleFailure("Select a route.");
       return;
     }
     if (preview.error) {
-      setLocalError(preview.error);
+      showScheduleFailure(preview.error);
       return;
     }
     const normalizedDepartureTime = normalizeScheduleTime(departureTimeLocal);
@@ -183,12 +173,20 @@ export function ScheduleScreen() {
       replaceWeeklyScheduleId: editingScheduleId ?? undefined
     });
     if (!result.ok) {
-      setLocalError(localizeScheduleError(result.message, t));
+      showScheduleFailure(result.message);
       return;
     }
+    setToast({ type: "success", message: t("schedule.saveSuccess") });
     setAircraftId(selectedAircraft.id);
     setRouteId(selectedRoute.id);
     setEditingScheduleId(null);
+    setSelectedDays([]);
+  }
+
+  function showScheduleFailure(message: string) {
+    const localized = localizeScheduleError(message, t);
+    setLocalError(localized);
+    setToast({ type: "error", message: `${t("schedule.saveFailed")}\n${localized}` });
   }
 
   function toggleDay(day: DayOfWeek) {
@@ -339,7 +337,7 @@ export function ScheduleScreen() {
             <ScheduleFinancialSummary
               routeLabel={`${airportsById[selectedRoute.originAirportId].iata} - ${airportsById[selectedRoute.destinationAirportId].iata}`}
               aircraftLabel={selectedAircraft?.registration ?? "-"}
-              flightLabel={isRoundTrip ? `${outboundFlightNumber}/${returnFlightNumber}` : outboundFlightNumber}
+              flightLabel={formatScheduleFlightNumbers({ outboundFlightNumber, returnFlightNumber: isRoundTrip ? returnFlightNumber : undefined })}
               daysLabel={selectedDays.map((day) => weekDays.find((item) => item.id === day)?.short).join(", ") || "-"}
               tripType={isRoundTrip ? "Round-trip" : "One-way"}
               distance={`${formatNumber.format(selectedRoute.distanceKm)} km`}
@@ -348,12 +346,12 @@ export function ScheduleScreen() {
             />
           ) : null}
           {demandPreview ? <RemainingDemandPreview summary={demandPreview} /> : null}
-          {localError || preview.error ? (
-            <p className="mt-4 rounded-md bg-coral/10 px-3 py-2 text-sm font-bold text-coral">{localError ?? localizeScheduleError(preview.error ?? "", t)}</p>
+          {localError ? (
+            <p className="mt-4 whitespace-pre-line rounded-md bg-coral/10 px-3 py-2 text-sm font-bold text-coral">{localError}</p>
           ) : null}
           <button
             type="submit"
-            disabled={!selectedAircraft || !selectedRoute || selectedDays.length === 0 || Boolean(preview.error)}
+            disabled={false}
             className="mt-4 w-full rounded-md bg-coral px-4 py-3 font-bold text-white transition hover:bg-coral/90 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {t("schedule.save")}
@@ -401,7 +399,9 @@ export function ScheduleScreen() {
                   return (
                     <div key={service.id} className="rounded-md border border-slate-200 p-3">
                       <p className="font-bold text-ink">
-                        {weeklyScheduleLabel(service)} {airportsById[route.originAirportId].iata} - {airportsById[route.destinationAirportId].iata}
+                        <span className="block truncate whitespace-nowrap tabular-nums">
+                          {formatScheduleFlightNumbers(service)} {formatRouteCode(route)}
+                        </span>
                       </p>
                       <p className="text-sm text-slate-500">
                         {service.daysOfWeek.map((day) => weekDays.find((item) => item.id === day)?.short).join(", ")} at {service.departureTimeLocal}
@@ -436,7 +436,21 @@ export function ScheduleScreen() {
           </div>
         </div>
       </section>
+      {toast ? <ScheduleToast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       {detailAircraft ? <AircraftDetailPanel aircraft={detailAircraft} game={game} onClose={() => setDetailAircraftId(null)} /> : null}
+    </div>
+  );
+}
+
+function ScheduleToast({ type, message, onClose }: { type: "success" | "error"; message: string; onClose: () => void }) {
+  return (
+    <div className="fixed bottom-5 right-5 z-[6500] max-w-sm rounded-lg border border-slate-200 bg-white p-4 text-sm shadow-soft animate-slide-in">
+      <div className="flex items-start justify-between gap-3">
+        <p className={`whitespace-pre-line font-black ${type === "success" ? "text-mint" : "text-coral"}`}>{message}</p>
+        <button type="button" onClick={onClose} className="rounded px-2 py-1 text-xs font-black text-slate-500 hover:bg-runway">
+          x
+        </button>
+      </div>
     </div>
   );
 }
@@ -555,6 +569,9 @@ function localizeScheduleError(message: string, t: ReturnType<typeof useTranslat
   }
   if (message === "Departure minutes must be in 5-minute intervals.") {
     return t("schedule.departureMinuteInterval");
+  }
+  if (message === "Select at least one operating day.") {
+    return t("schedule.selectOperatingDay");
   }
   return message;
 }

@@ -130,13 +130,6 @@ export function AppShell() {
               );
             })}
           </nav>
-          <button
-            type="button"
-            onClick={resetGame}
-            className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-          >
-            {t("common.newGame")}
-          </button>
         </aside>
 
         <section className="min-w-0">

@@ -17,7 +17,6 @@ import { distanceKm, routeIdFor } from "@/lib/geo";
 import { createId, createRegistration } from "@/lib/ids";
 import {
   calculateScheduleBlock,
-  createUniqueFlightNumber,
   findDuplicateFlightNumber,
   generateDefaultFlightNumber,
   nextFlightNumber,
@@ -932,14 +931,15 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
         pricing: route.pricing ?? recommendedPricing
       };
     }),
-    fleet: normalizeDuplicateWeeklyFlightNumbers(game.fleet.map((aircraft) => {
+    fleet: syncWeeklyFlightNumbers(game.fleet.map((aircraft) => {
       const model = aircraftById[aircraft.modelId];
       const weeklySchedules = (aircraft.weeklySchedules ?? []).map((schedule, index) => {
         const route = game.routes.find((item) => item.id === schedule.routeId);
         const block = route && model
           ? calculateScheduleBlock(route, aircraft)
           : { oneWayBlockMinutes: 0, roundTripBlockMinutes: 0, turnaroundMinutes: model?.turnaroundMinutes ?? 0 };
-        const outboundFlightNumber = normalizeFlightNumber(schedule.outboundFlightNumber ?? generateDefaultFlightNumber(game.airlineName, index));
+        const legacyFlightNumber = (schedule as WeeklySchedule & { flightNumber?: string }).flightNumber;
+        const outboundFlightNumber = normalizeFlightNumber(schedule.outboundFlightNumber ?? legacyFlightNumber ?? generateDefaultFlightNumber(game.airlineName, index));
         const returnFlightNumber =
           schedule.isRoundTrip ? normalizeFlightNumber(schedule.returnFlightNumber ?? nextFlightNumber(outboundFlightNumber)) : undefined;
         return {
@@ -1006,25 +1006,13 @@ function isTimeMultiplier(value: unknown): value is TimeMultiplier {
   return GAME_SPEED_OPTIONS.includes(value as TimeMultiplier);
 }
 
-function normalizeDuplicateWeeklyFlightNumbers(fleet: AircraftInstance[]) {
-  let seenSchedules: WeeklySchedule[] = [];
+function syncWeeklyFlightNumbers(fleet: AircraftInstance[]) {
   return fleet.map((aircraft) => {
-    const weeklySchedules = aircraft.weeklySchedules.map((schedule) => {
-      const outboundFlightNumber = createUniqueFlightNumber(schedule.outboundFlightNumber, seenSchedules, schedule.id);
-      const returnBase = schedule.returnFlightNumber && normalizeFlightNumber(schedule.returnFlightNumber) !== outboundFlightNumber
-        ? schedule.returnFlightNumber
-        : nextFlightNumber(outboundFlightNumber);
-      const returnFlightNumber = schedule.isRoundTrip
-        ? createUniqueFlightNumber(returnBase, [...seenSchedules, { ...schedule, id: `${schedule.id}-outbound`, outboundFlightNumber }])
-        : undefined;
-      const normalizedSchedule = {
-        ...schedule,
-        outboundFlightNumber,
-        returnFlightNumber
-      };
-      seenSchedules = [...seenSchedules, normalizedSchedule];
-      return normalizedSchedule;
-    });
+    const weeklySchedules = aircraft.weeklySchedules.map((schedule) => ({
+      ...schedule,
+      outboundFlightNumber: normalizeFlightNumber(schedule.outboundFlightNumber),
+      returnFlightNumber: schedule.isRoundTrip && schedule.returnFlightNumber ? normalizeFlightNumber(schedule.returnFlightNumber) : undefined
+    }));
     return {
       ...aircraft,
       weeklySchedules,

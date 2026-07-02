@@ -6,7 +6,7 @@ import { useTranslation } from "@/i18n";
 import { estimateExpectedFlightProfit, estimateWeeklyScheduleFinancials, routePricingFromDefaults } from "@/lib/economy";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { calculateRemainingDemand, type RemainingDemandSummary } from "@/lib/routeDemand";
-import { weeklyScheduleLabel } from "@/lib/schedule";
+import { formatRouteCode, formatScheduleFlightNumbers } from "@/lib/schedule";
 import { useGameStore } from "@/store/gameStore";
 import type { CabinDemand, GameState, Route } from "@/types/game";
 
@@ -101,7 +101,9 @@ function ActiveSchedules({ route, game }: { route: Route; game: GameState }) {
             return (
               <div key={`${aircraft.id}-${schedule.id}`} className="rounded-md bg-runway px-3 py-2 text-sm">
                 <p className="font-bold text-ink">
-                  {weeklyScheduleLabel(schedule)} - {aircraft.registration} - {model.model}
+                  <span className="block truncate whitespace-nowrap tabular-nums">
+                    {formatScheduleFlightNumbers(schedule)} {formatRouteCode(route)} - {aircraft.registration} - {model.model}
+                  </span>
                 </p>
                 <p className="text-slate-500">
                   {schedule.daysOfWeek.length} days - {formatGBP.format(estimate.weeklyRevenue)} revenue - {formatGBP.format(estimate.weeklyProfit)} profit

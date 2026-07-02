@@ -48,7 +48,6 @@ export function StartScreen() {
             <Metric label="Difficulty" value={difficultyConfig.label} />
             <Metric label="Starting capital" value={formatGBP.format(STARTING_CAPITAL * difficultyConfig.startingCashMultiplier)} />
             <Metric label="Base cost" value={formatGBP.format(BASE_AIRPORT_COST)} />
-            <Metric label="Speed" value={`${difficultyConfig.speedMultiplier}x`} />
           </div>
         </div>
 
