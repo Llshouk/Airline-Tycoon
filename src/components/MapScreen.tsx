@@ -645,20 +645,20 @@ function FlightBoardColumn({
       ) : (
         <div className="space-y-1">
           {rows.map((row) => (
-            <div key={`${type}-${row.item.id}`} className={`grid grid-cols-[52px_1fr_64px_72px] gap-2 rounded px-2 py-2 text-xs ${row.delayMinutes > 0 ? "bg-amber-300/15 text-amber-100" : "bg-white/5 text-slate-100"}`}>
+            <div key={`${type}-${row.item.id}`} className={`grid grid-cols-[52px_1fr_64px_72px] gap-2 rounded px-2 py-2 text-xs ${row.isDelayed ? "bg-amber-300/15 text-amber-100" : "bg-white/5 text-slate-100"}`}>
               <span className="font-mono font-black tabular-nums">{formatBoardTime(row.scheduledTime)}</span>
               <span className="min-w-0">
-                <span className="block truncate font-black">{row.flightNumber}</span>
+                <span className={`block truncate font-black ${row.isDelayed ? "text-yellow-400" : "text-white"}`}>{row.flightNumber}</span>
                 <span className="block truncate text-slate-300">
                   {type === "departure" ? t("airport.destination") : t("airport.origin")}: {row.counterparty}
                 </span>
                 <span className="block truncate text-slate-400">{row.aircraft.registration}</span>
               </span>
               <span className="text-right font-mono font-black tabular-nums">
-                {row.delayMinutes > 0 ? formatBoardTime(row.actualTime) : "-"}
+                {row.isDelayed ? formatBoardTime(row.actualTime) : "-"}
               </span>
               <span className="text-right font-black">
-                {row.delayMinutes > 0 ? `${t("airport.delayed")} ${row.delayMinutes}m` : airportStatusLabel(row.statusKey, t)}
+                {row.isDelayed ? `${t("airport.delayed")} ${row.delayMinutes}m` : airportStatusLabel(row.statusKey, t)}
               </span>
             </div>
           ))}
@@ -676,6 +676,7 @@ type AirportBoardRow = {
   scheduledTime: number;
   actualTime: number;
   delayMinutes: number;
+  isDelayed: boolean;
   statusKey: "onTime" | "departed" | "arrived";
 };
 
@@ -699,6 +700,7 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
         if (scheduledTime < windowStart || scheduledTime >= windowEnd) return null;
         const counterpartyAirport = airportsById[type === "departure" ? item.destinationAirportId : item.originAirportId];
         const delayMinutes = Math.max(0, Math.round((actualTime - scheduledTime) / 60_000));
+        const isDelayed = item.operationalStatus === "delayed" || delayMinutes > 0 || actualTime > scheduledTime;
         const statusKey = item.status === "completed" ? "arrived" : item.status === "in-flight" ? "departed" : "onTime";
         return {
           item,
@@ -708,6 +710,7 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
           scheduledTime,
           actualTime,
           delayMinutes,
+          isDelayed,
           statusKey
         } satisfies AirportBoardRow;
       })
