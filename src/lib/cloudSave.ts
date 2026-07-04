@@ -45,6 +45,8 @@ export type CompactGameSave = Pick<
   | "gameStatus"
   | "bailoutsUsed"
   | "baseAirportId"
+  | "baseAirports"
+  | "primaryBaseAirport"
   | "expandedAirportIds"
   | "money"
   | "startedAtRealMs"
@@ -172,6 +174,8 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
     gameStatus: gameState.gameStatus,
     bailoutsUsed: gameState.bailoutsUsed,
     baseAirportId: gameState.baseAirportId,
+    baseAirports: gameState.baseAirports,
+    primaryBaseAirport: gameState.primaryBaseAirport,
     expandedAirportIds: gameState.expandedAirportIds,
     money: gameState.money,
     startedAtRealMs: gameState.startedAtRealMs,
@@ -312,6 +316,8 @@ export function restoreGameStateFromCloudSave(saveState: unknown, rowDifficulty?
     gameStatus: compact.gameStatus,
     bailoutsUsed: compact.bailoutsUsed,
     baseAirportId: compact.baseAirportId,
+    baseAirports: compact.baseAirports,
+    primaryBaseAirport: compact.primaryBaseAirport,
     expandedAirportIds: compact.expandedAirportIds,
     money: compact.money,
     startedAtRealMs: compact.startedAtRealMs,
@@ -472,12 +478,24 @@ function safeUserContext(user: User) {
 }
 
 function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): CompactGameSave {
-  const raw = saveState as Partial<CompactGameSave> & Partial<GameState> & { flightLog?: GameState["flightLog"] };
+  const raw = saveState as Partial<CompactGameSave> & Partial<GameState> & { baseAirport?: unknown; flightLog?: GameState["flightLog"] };
   const now = new Date().toISOString();
   const difficultyConfig = getDifficultyConfig(raw.difficulty ?? rowDifficulty);
   const timeMultiplier = GAME_SPEED_OPTIONS.includes(raw.timeMultiplier as TimeMultiplier)
     ? (raw.timeMultiplier as TimeMultiplier)
     : difficultyConfig.speedMultiplier;
+  const legacyBaseAirport =
+    typeof raw.baseAirportId === "string"
+      ? raw.baseAirportId
+      : typeof raw.baseAirport === "string"
+        ? raw.baseAirport
+        : "lhr";
+  const rawBaseAirports = Array.isArray(raw.baseAirports)
+    ? raw.baseAirports.filter((airportId): airportId is string => typeof airportId === "string")
+    : [];
+  const requestedPrimary = typeof raw.primaryBaseAirport === "string" ? raw.primaryBaseAirport : legacyBaseAirport;
+  const baseAirports = Array.from(new Set([requestedPrimary, legacyBaseAirport, ...rawBaseAirports].filter(Boolean)));
+  const primaryBaseAirport = baseAirports.includes(requestedPrimary) ? requestedPrimary : baseAirports[0] ?? "lhr";
   return {
     saveVersion: 1,
     airlineName: raw.airlineName ?? "Skyline Airways",
@@ -485,8 +503,10 @@ function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): Comp
     difficultyConfig,
     gameStatus: raw.gameStatus ?? "active",
     bailoutsUsed: raw.bailoutsUsed ?? 0,
-    baseAirportId: raw.baseAirportId ?? "lhr",
-    expandedAirportIds: raw.expandedAirportIds ?? (raw.baseAirportId ? [raw.baseAirportId] : ["lhr"]),
+    baseAirportId: primaryBaseAirport,
+    baseAirports,
+    primaryBaseAirport,
+    expandedAirportIds: Array.from(new Set([...(raw.expandedAirportIds ?? []), ...baseAirports])),
     money: raw.money ?? 0,
     startedAtRealMs: raw.startedAtRealMs ?? Date.now(),
     baseGameTimeMs: raw.baseGameTimeMs ?? Date.UTC(2026, 0, 1, 6, 0, 0),

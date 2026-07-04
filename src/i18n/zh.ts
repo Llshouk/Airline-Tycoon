@@ -298,4 +298,18 @@ export const zh = {
   "airport.actions": "机场操作",
   "airport.viewBoard": "查看机场大屏",
   "airport.noScheduledFlightsToday": "今日暂无计划航班。"
+, "base.baseAirportBoard": "åŸºåœ°æœºåœºå¤§å±",
+  "base.selectBase": "é€‰æ‹©åŸºåœ°",
+  "base.noBaseSelected": "å°šæœªé€‰æ‹©åŸºåœ°æœºåœºã€‚",
+  "base.buyAsBase": "è´­ä¹°ä¸ºåŸºåœ°",
+  "base.basePurchased": "åŸºåœ°æœºåœºè´­ä¹°æˆåŠŸã€‚",
+  "base.ownedBase": "å·²æ‹¥æœ‰åŸºåœ°",
+  "base.setPrimaryBase": "è®¾ä¸ºä¸»åŸºåœ°",
+  "base.primaryBase": "ä¸»åŸºåœ°",
+  "base.secondaryBase": "å‰¯åŸºåœ°",
+  "base.insufficientCash": "çŽ°é‡‘ä¸è¶³ï¼Œæ— æ³•è´­ä¹°åŸºåœ°",
+  "airport.upcomingFlights": "å³å°†æ‰§è¡Œçš„èˆªç­",
+  "airport.noUpcomingFlights": "æš‚æ— å³å°†æ‰§è¡Œçš„èˆªç­ã€‚",
+  "airport.within30Minutes": "30åˆ†é’Ÿå†…",
+  "market.aircraftFamily": "é£žæœºå®¶æ—"
 } as const;

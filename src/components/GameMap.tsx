@@ -11,6 +11,8 @@ type AircraftIconCategory = "regional" | "narrowBodyTwin" | "wideBodyTwin" | "wi
 
 type Props = {
   baseAirportId: string;
+  baseAirportIds?: string[];
+  primaryBaseAirportId?: string;
   expandedAirportIds: string[];
   routes: Route[];
   fleet: AircraftInstance[];
@@ -155,16 +157,20 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
 
   if (shouldShowAirports(props.displayMode)) {
     const networkAirportIds = getNetworkAirportIds(props);
+    const baseAirportIds = props.baseAirportIds ?? [props.baseAirportId];
+    const primaryBaseAirportId = props.primaryBaseAirportId ?? props.baseAirportId;
     airports.forEach((airport) => {
-      const isBase = airport.id === props.baseAirportId;
+      const isPrimaryBase = airport.id === primaryBaseAirportId;
+      const isSecondaryBase = baseAirportIds.includes(airport.id) && !isPrimaryBase;
+      const isBase = isPrimaryBase || isSecondaryBase;
       if (props.displayMode === "network" && !networkAirportIds.has(airport.id)) return;
       if (props.displayMode === "aircraft" && !isBase) return;
       const isExpanded = props.expandedAirportIds.includes(airport.id);
-      const pinSize = airportPinSize(isBase, isExpanded);
+      const pinSize = airportPinSize(isPrimaryBase, isSecondaryBase, isExpanded);
       const marker = L.marker([airport.lat, airport.lng], {
         icon: L.divIcon({
-          html: airportPinHtml(isBase, isExpanded),
-          className: `airport-marker ${isBase ? "airport-marker-base" : isExpanded ? "airport-marker-expanded" : ""}`,
+          html: airportPinHtml(isPrimaryBase, isSecondaryBase, isExpanded),
+          className: `airport-marker ${isPrimaryBase ? "airport-marker-base" : isSecondaryBase ? "airport-marker-secondary-base" : isExpanded ? "airport-marker-expanded" : ""}`,
           iconSize: [pinSize.width, pinSize.height],
           iconAnchor: [pinSize.width / 2, pinSize.height - 1]
         }),
@@ -175,7 +181,7 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
         window.setTimeout(() => {
           L.popup({ offset: [0, -26] })
             .setLatLng([airport.lat, airport.lng])
-            .setContent(airportDetailsHtml(airport, isBase, isExpanded))
+            .setContent(airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded))
             .openOn(map);
         }, 0);
       });
@@ -262,24 +268,28 @@ function drawGoogleLayers(props: Props, map: any, layersRef: MutableRefObject<an
 
   if (shouldShowAirports(props.displayMode)) {
     const networkAirportIds = getNetworkAirportIds(props);
+    const baseAirportIds = props.baseAirportIds ?? [props.baseAirportId];
+    const primaryBaseAirportId = props.primaryBaseAirportId ?? props.baseAirportId;
     airports.forEach((airport) => {
-      const isBase = airport.id === props.baseAirportId;
+      const isPrimaryBase = airport.id === primaryBaseAirportId;
+      const isSecondaryBase = baseAirportIds.includes(airport.id) && !isPrimaryBase;
+      const isBase = isPrimaryBase || isSecondaryBase;
       if (props.displayMode === "network" && !networkAirportIds.has(airport.id)) return;
       if (props.displayMode === "aircraft" && !isBase) return;
       const isExpanded = props.expandedAirportIds.includes(airport.id);
       const infoWindow = new window.google.maps.InfoWindow({
-        content: airportDetailsHtml(airport, isBase, isExpanded)
+        content: airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded)
       });
-      const pinScale = isBase ? 1 : isExpanded ? 0.9 : 0.78;
+      const pinScale = isPrimaryBase ? 1 : isSecondaryBase ? 0.94 : isExpanded ? 0.9 : 0.78;
       const marker = new window.google.maps.Marker({
         position: { lat: airport.lat, lng: airport.lng },
         map,
         title: `${airport.iata} ${airport.name}`,
         icon: {
           path: "M12 2C7.6 2 4 5.6 4 10c0 5.6 8 12 8 12s8-6.4 8-12c0-4.4-3.6-8-8-8Zm0 11.2A3.2 3.2 0 1 1 12 6.8a3.2 3.2 0 0 1 0 6.4Z",
-          fillColor: isBase ? "#d76745" : isExpanded ? "#4f9d7e" : "#ffffff",
+          fillColor: isPrimaryBase ? "#d76745" : isSecondaryBase ? "#f6c945" : isExpanded ? "#4f9d7e" : "#ffffff",
           fillOpacity: 1,
-          strokeColor: isBase || isExpanded ? "#102026" : "#18545c",
+          strokeColor: isPrimaryBase || isSecondaryBase || isExpanded ? "#102026" : "#18545c",
           strokeWeight: 2,
           scale: pinScale,
           anchor: new window.google.maps.Point(12, 22)
@@ -307,7 +317,7 @@ function shouldShowAircraft(mode: MapDisplayMode) {
 }
 
 function getNetworkAirportIds(props: Props) {
-  const ids = new Set<string>([props.baseAirportId]);
+  const ids = new Set<string>(props.baseAirportIds ?? [props.baseAirportId]);
   props.routes.forEach((route) => {
     ids.add(route.originAirportId);
     ids.add(route.destinationAirportId);
@@ -315,8 +325,8 @@ function getNetworkAirportIds(props: Props) {
   return ids;
 }
 
-function airportPinHtml(isBase: boolean, isExpanded: boolean) {
-  const fill = isBase ? "#d76745" : isExpanded ? "#4f9d7e" : "#ffffff";
+function airportPinHtml(isPrimaryBase: boolean, isSecondaryBase: boolean, isExpanded: boolean) {
+  const fill = isPrimaryBase ? "#d76745" : isSecondaryBase ? "#f6c945" : isExpanded ? "#4f9d7e" : "#ffffff";
   return `
     <span class="airport-pin">
       <svg viewBox="0 0 34 40" aria-hidden="true" focusable="false">
@@ -341,14 +351,15 @@ function aircraftIconHtml(bearing: number, category: AircraftIconCategory) {
   `;
 }
 
-function airportDetailsHtml(airport: (typeof airports)[number], isBase: boolean, isExpanded: boolean) {
+function airportDetailsHtml(airport: (typeof airports)[number], isPrimaryBase: boolean, isSecondaryBase: boolean, isExpanded: boolean) {
+  const baseLabel = isPrimaryBase ? "Primary Base" : isSecondaryBase ? "Secondary Base" : "Not base airport";
   return `
     <div class="airport-popup">
       <strong>${airport.name}</strong>
       <span>${airport.iata} / ${airport.icao}</span>
       <span>${airport.city}, ${airport.country}</span>
       <span>Size: ${airport.sizeTier}</span>
-      <span>${isBase ? "Base airport" : "Not base airport"}</span>
+      <span>${baseLabel}</span>
       <span>${isExpanded ? "Connected to network" : "Not connected yet"}</span>
     </div>
   `;
@@ -427,8 +438,9 @@ function aircraftIconSize(category: AircraftIconCategory) {
   return 46;
 }
 
-function airportPinSize(isBase: boolean, isExpanded: boolean) {
-  if (isBase) return { width: 22, height: 28 };
+function airportPinSize(isPrimaryBase: boolean, isSecondaryBase: boolean, isExpanded: boolean) {
+  if (isPrimaryBase) return { width: 22, height: 28 };
+  if (isSecondaryBase) return { width: 20, height: 26 };
   if (isExpanded) return { width: 19, height: 24 };
   return { width: 17, height: 22 };
 }

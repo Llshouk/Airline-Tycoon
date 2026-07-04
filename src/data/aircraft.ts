@@ -175,6 +175,7 @@ function model(
     id,
     manufacturer,
     model: aircraftModel,
+    ...aircraftFamily(manufacturer, aircraftModel),
     imageUrl,
     imageAlt: image?.imageAlt ?? imageAlt,
     ...(image?.imageCredit ? { imageCredit: image.imageCredit } : {}),
@@ -211,4 +212,22 @@ function model(
     premiumEconomySeats: suggestedLayout.premiumEconomy,
     economySeats: suggestedLayout.economy
   };
+}
+
+function aircraftFamily(manufacturer: string, aircraftModel: string) {
+  const label = `${manufacturer} ${aircraftModel}`.toLowerCase();
+  if (label.includes("a220")) return { family: "airbus-a220", familyDisplayName: "Airbus A220 Family" };
+  if (label.includes("a319") || label.includes("a320") || label.includes("a321")) return { family: "airbus-a320", familyDisplayName: "Airbus A320 Family" };
+  if (label.includes("a330")) return { family: "airbus-a330", familyDisplayName: "Airbus A330 Family" };
+  if (label.includes("a350")) return { family: "airbus-a350", familyDisplayName: "Airbus A350 Family" };
+  if (label.includes("a380")) return { family: "airbus-a380", familyDisplayName: "Airbus A380 Family" };
+  if (label.includes("737")) return { family: "boeing-737", familyDisplayName: "Boeing 737 Family" };
+  if (label.includes("747")) return { family: "boeing-747", familyDisplayName: "Boeing 747 Family" };
+  if (label.includes("777")) return { family: "boeing-777", familyDisplayName: "Boeing 777 Family" };
+  if (label.includes("787")) return { family: "boeing-787", familyDisplayName: "Boeing 787 Family" };
+  if (label.includes("embraer") || label.includes("e170") || label.includes("e175") || label.includes("e190") || label.includes("e195")) {
+    return { family: "embraer-e-jet", familyDisplayName: "Embraer E-Jet Family" };
+  }
+  if (label.includes("atr")) return { family: "atr", familyDisplayName: "ATR Family" };
+  return { family: "other-regional", familyDisplayName: "Other Aircraft" };
 }

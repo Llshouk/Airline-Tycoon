@@ -29,6 +29,8 @@ export interface AircraftModel {
   id: string;
   manufacturer: string;
   model: string;
+  family: string;
+  familyDisplayName: string;
   imageUrl?: string;
   imageAlt: string;
   imageCredit?: string;
@@ -179,6 +181,8 @@ export interface GameState {
   gameStatus: GameStatus;
   bailoutsUsed: number;
   baseAirportId: string;
+  baseAirports: string[];
+  primaryBaseAirport: string;
   expandedAirportIds: string[];
   money: number;
   startedAtRealMs: number;

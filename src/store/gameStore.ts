@@ -68,6 +68,8 @@ type GameStore = {
   togglePause: () => void;
   buyAircraft: (modelId: string, cabinLayout: CabinLayout, registration: string) => { ok: boolean; message: string; aircraft?: AircraftInstance };
   openRoute: (originAirportId: string, destinationAirportId: string, pricing?: Route["pricing"]) => { ok: boolean; message: string; route?: Route };
+  buyBaseAirport: (airportId: string) => { ok: boolean; message: string };
+  setPrimaryBaseAirport: (airportId: string) => { ok: boolean; message: string };
   updateRoutePricing: (routeId: string, pricing: RoutePricing) => void;
   updateAircraftRegistration: (aircraftId: string, registration: string) => { ok: boolean; message: string };
   addConsoleMoney: (amount: number) => void;
@@ -104,6 +106,8 @@ export const useGameStore = create<GameStore>()(
           gameStatus: "active",
           bailoutsUsed: 0,
           baseAirportId,
+          baseAirports: [baseAirportId],
+          primaryBaseAirport: baseAirportId,
           expandedAirportIds: [baseAirportId],
           money: startingCapital - BASE_AIRPORT_COST,
           startedAtRealMs: now,
@@ -182,7 +186,7 @@ export const useGameStore = create<GameStore>()(
           id: createId("aircraft"),
           modelId,
           registration: registrationValidation.registration,
-          currentAirportId: game.baseAirportId,
+          currentAirportId: game.primaryBaseAirport,
           status: "idle",
           schedule: [],
           weeklySchedules: [],
@@ -265,6 +269,50 @@ export const useGameStore = create<GameStore>()(
         const message = `${origin.iata}-${destination.iata} is now open.`;
         set({ game: nextGame, notice: message });
         return { ok: true, message, route };
+      },
+      buyBaseAirport: (airportId) => {
+        const game = normalizeGame(get().game);
+        const airport = airportsById[airportId];
+        if (!game || !airport) return { ok: false, message: "Airport not found." };
+        if (game.baseAirports.includes(airportId)) {
+          const message = "Owned Base";
+          set({ notice: message });
+          return { ok: false, message };
+        }
+        if (!canAfford(game, BASE_AIRPORT_COST)) {
+          const message = "Insufficient cash to buy base";
+          set({ notice: message });
+          return { ok: false, message };
+        }
+        const nextGame = {
+          ...spendCash(game, BASE_AIRPORT_COST),
+          baseAirports: unique([...game.baseAirports, airportId]),
+          expandedAirportIds: unique([...game.expandedAirportIds, airportId]),
+          updatedAt: new Date().toISOString()
+        };
+        updateLeaderboard(nextGame);
+        const message = "Base airport purchased.";
+        set({ game: nextGame, notice: message });
+        return { ok: true, message };
+      },
+      setPrimaryBaseAirport: (airportId) => {
+        const game = normalizeGame(get().game);
+        if (!game || !game.baseAirports.includes(airportId)) {
+          const message = "Airport is not an owned base.";
+          set({ notice: message });
+          return { ok: false, message };
+        }
+        const nextGame = {
+          ...game,
+          baseAirportId: airportId,
+          primaryBaseAirport: airportId,
+          expandedAirportIds: unique([...game.expandedAirportIds, airportId]),
+          updatedAt: new Date().toISOString()
+        };
+        updateLeaderboard(nextGame);
+        const message = "Primary base updated.";
+        set({ game: nextGame, notice: message });
+        return { ok: true, message };
       },
       updateRoutePricing: (routeId, pricing) => {
         const game = normalizeGame(get().game);
@@ -891,18 +939,38 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
     cash?: unknown;
     capital?: unknown;
     playerMoney?: unknown;
+    baseAirport?: unknown;
     airline?: { cash?: unknown; money?: unknown };
   };
   const { cash: _cash, capital: _capital, playerMoney: _playerMoney, airline: _airline, ...cleanGame } = rawGame;
   const money = getCurrentCash(rawGame);
   const difficultyConfig = getDifficultyConfig(game.difficulty);
   const timeMultiplier = isTimeMultiplier(game.timeMultiplier) ? game.timeMultiplier : difficultyConfig.speedMultiplier;
+  const legacyBaseAirport =
+    typeof rawGame.baseAirportId === "string"
+      ? rawGame.baseAirportId
+      : typeof rawGame.baseAirport === "string"
+        ? rawGame.baseAirport
+        : "lhr";
+  const rawBaseAirports = Array.isArray(rawGame.baseAirports)
+    ? rawGame.baseAirports.filter((airportId): airportId is string => typeof airportId === "string" && Boolean(airportsById[airportId]))
+    : [];
+  const requestedPrimary =
+    typeof rawGame.primaryBaseAirport === "string" && airportsById[rawGame.primaryBaseAirport]
+      ? rawGame.primaryBaseAirport
+      : legacyBaseAirport;
+  const baseAirports = unique([requestedPrimary, legacyBaseAirport, ...rawBaseAirports].filter((airportId) => Boolean(airportsById[airportId])));
+  const primaryBaseAirport = baseAirports.includes(requestedPrimary) ? requestedPrimary : baseAirports[0] ?? "lhr";
   return {
     ...cleanGame,
     difficulty: difficultyConfig.difficulty,
     difficultyConfig,
     gameStatus: game.gameStatus ?? "active",
     bailoutsUsed: game.bailoutsUsed ?? 0,
+    baseAirportId: primaryBaseAirport,
+    baseAirports,
+    primaryBaseAirport,
+    expandedAirportIds: unique([...(game.expandedAirportIds ?? []), ...baseAirports]),
     money,
     timeMultiplier,
     isPaused: game.isPaused ?? false,

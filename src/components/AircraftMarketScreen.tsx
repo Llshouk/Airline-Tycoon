@@ -52,8 +52,14 @@ export function AircraftMarketScreen() {
       if (sortMode === "capacity") return b.maxPassengerSeats - a.maxPassengerSeats;
       return a.estimatedPriceGBP - b.estimatedPriceGBP;
     });
-  const grouped = manufacturers
-    .map((maker) => ({ maker, models: filteredModels.filter((model) => model.manufacturer === maker) }))
+  const familyOrder = Array.from(new Map(filteredModels.map((model) => [model.family, model.familyDisplayName])).entries());
+  const grouped = familyOrder
+    .map(([family, familyDisplayName]) => ({
+      family,
+      familyDisplayName,
+      manufacturer: filteredModels.find((model) => model.family === family)?.manufacturer ?? "",
+      models: filteredModels.filter((model) => model.family === family)
+    }))
     .filter((group) => group.models.length > 0);
 
   useEffect(() => {
@@ -81,13 +87,21 @@ export function AircraftMarketScreen() {
       <section className="grid gap-4 xl:grid-cols-[1fr_430px]">
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-soft">
-            <Select label="Manufacturer" value={manufacturer} onChange={setManufacturer} options={["all", ...manufacturers]} />
+            <Select label={t("market.manufacturer")} value={manufacturer} onChange={setManufacturer} options={["all", ...manufacturers]} />
             <Select label="Route type" value={routeType} onChange={(value) => setRouteType(value as RouteFilter)} options={["all", "short-haul", "medium-haul", "long-haul"]} />
             <Select label="Sort" value={sortMode} onChange={(value) => setSortMode(value as SortMode)} options={["price", "range", "capacity"]} />
           </div>
           {grouped.map((group) => (
-            <section key={group.maker} className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-              <h3 className="mb-3 font-black text-ink">{group.maker}</h3>
+            <section key={group.family} className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-normal text-slate-500">{t("market.aircraftFamily")}</p>
+                  <h3 className="font-black text-ink">{group.familyDisplayName}</h3>
+                </div>
+                <span className="rounded-md bg-runway px-2 py-1 text-xs font-bold text-jet">
+                  {group.manufacturer} - {group.models.length} {group.models.length === 1 ? "model" : "models"}
+                </span>
+              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {group.models.map((model) => (
                   <article

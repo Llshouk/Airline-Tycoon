@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AircraftImage } from "@/components/AircraftImage";
 import { GameMap, type MapDisplayMode } from "@/components/GameMap";
 import { aircraftById } from "@/data/aircraft";
@@ -32,6 +32,8 @@ export function MapScreen() {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
   const openRoute = useGameStore((state) => state.openRoute);
+  const buyBaseAirport = useGameStore((state) => state.buyBaseAirport);
+  const setPrimaryBaseAirport = useGameStore((state) => state.setPrimaryBaseAirport);
   const [selectedAirportId, setSelectedAirportId] = useState<string | null>(null);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
@@ -40,17 +42,27 @@ export function MapScreen() {
   const [openedRoute, setOpenedRoute] = useState<RouteOpeningPreview | null>(null);
   const [airportActionAirportId, setAirportActionAirportId] = useState<string | null>(null);
   const [airportBoardAirportId, setAirportBoardAirportId] = useState<string | null>(null);
+  const [baseBoardAirportId, setBaseBoardAirportId] = useState<string | null>(null);
+  const [routeOriginAirportId, setRouteOriginAirportId] = useState<string | null>(null);
+  const [basePurchaseAirportId, setBasePurchaseAirportId] = useState<string | null>(null);
 
   const selectedAirport = game && selectedAirportId ? airportsById[selectedAirportId] : null;
   const airportActionAirport = game && airportActionAirportId ? airportsById[airportActionAirportId] : null;
   const airportBoardAirport = game && airportBoardAirportId ? airportsById[airportBoardAirportId] : null;
+  const baseAirportIds = game ? game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId] : [];
+  const primaryBaseAirportId = game ? game.primaryBaseAirport ?? game.baseAirportId : "";
+  const selectedRouteOriginAirportId =
+    routeOriginAirportId && baseAirportIds.includes(routeOriginAirportId) && routeOriginAirportId !== selectedAirport?.id
+      ? routeOriginAirportId
+      : baseAirportIds.find((airportId) => airportId !== selectedAirport?.id) ?? primaryBaseAirportId;
   const selectedAirportRoute =
     selectedAirport && game
-      ? game.routes.find((route) => routeConnects(route.originAirportId, route.destinationAirportId, game.baseAirportId, selectedAirport.id)) ?? null
+      ? game.routes.find((route) => routeConnects(route.originAirportId, route.destinationAirportId, selectedRouteOriginAirportId, selectedAirport.id)) ?? null
       : null;
   const selectedAirportOpeningPreview = useMemo(() => {
-    if (!game || !selectedAirport || selectedAirport.id === game.baseAirportId || selectedAirportRoute) return null;
-    const origin = airportsById[game.baseAirportId];
+    if (!game || !selectedAirport || !selectedRouteOriginAirportId || selectedAirport.id === selectedRouteOriginAirportId || selectedAirportRoute) return null;
+    const origin = airportsById[selectedRouteOriginAirportId];
+    if (!origin) return null;
     const distance = distanceKm(origin, selectedAirport);
     const estimatedTicketPrices = estimateTicketPrices(distance);
     const estimatedCargoRatePerTon = estimateCargoRatePerTon(distance);
@@ -68,7 +80,15 @@ export function MapScreen() {
       isOpen: false
     };
     return { route, cost: estimateRouteOpeningCost(distance) };
-  }, [game, selectedAirport, selectedAirportRoute]);
+  }, [game, selectedAirport, selectedAirportRoute, selectedRouteOriginAirportId]);
+
+  useEffect(() => {
+    if (!game) return;
+    const bases = game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId];
+    const primary = game.primaryBaseAirport ?? game.baseAirportId;
+    if (!baseBoardAirportId || !bases.includes(baseBoardAirportId)) setBaseBoardAirportId(primary);
+    if (!routeOriginAirportId || !bases.includes(routeOriginAirportId)) setRouteOriginAirportId(primary);
+  }, [baseBoardAirportId, game, routeOriginAirportId]);
 
   if (!game) return null;
   const selectedRoute = selectedRouteId ? game.routes.find((route) => route.id === selectedRouteId) : null;
@@ -128,6 +148,8 @@ export function MapScreen() {
         <div className="h-[min(72vh,760px)] min-h-[520px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
           <GameMap
             baseAirportId={game.baseAirportId}
+            baseAirportIds={baseAirportIds}
+            primaryBaseAirportId={primaryBaseAirportId}
             expandedAirportIds={game.expandedAirportIds}
             routes={game.routes}
             fleet={game.fleet}
@@ -150,6 +172,12 @@ export function MapScreen() {
           />
         </div>
         <aside className="space-y-4">
+          <BaseAirportBoardPanel
+            game={game}
+            baseAirportIds={baseAirportIds}
+            selectedAirportId={baseBoardAirportId ?? primaryBaseAirportId}
+            onSelectAirport={setBaseBoardAirportId}
+          />
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
             <h3 className="font-bold text-ink">Airport</h3>
             {selectedAirport ? (
@@ -159,7 +187,7 @@ export function MapScreen() {
                 <Info label="Name" value={selectedAirport.name} />
                 <Info label="City" value={`${selectedAirport.city}, ${selectedAirport.country}`} />
                 <Info label="Tier" value={selectedAirport.sizeTier} />
-                <Info label="Base airport" value={selectedAirport.id === game.baseAirportId ? "Yes" : "No"} />
+                <Info label="Base airport" value={baseAirportIds.includes(selectedAirport.id) ? selectedAirport.id === primaryBaseAirportId ? t("base.primaryBase") : t("base.secondaryBase") : "No"} />
                 <Info label="Network status" value={game.expandedAirportIds.includes(selectedAirport.id) ? "Connected" : "Not connected"} />
                 {selectedAirport.id === game.baseAirportId ? (
                   <p className="rounded-md bg-runway px-3 py-2 text-sm font-bold text-slate-600">This is your base airport.</p>
@@ -262,6 +290,10 @@ export function MapScreen() {
           game={game}
           route={selectedAirportRoute}
           openingPreview={airportActionAirport.id === selectedAirport?.id ? selectedAirportOpeningPreview : null}
+          baseAirportIds={baseAirportIds}
+          primaryBaseAirportId={primaryBaseAirportId}
+          routeOriginAirportId={selectedRouteOriginAirportId}
+          onRouteOriginChange={setRouteOriginAirportId}
           onClose={() => setAirportActionAirportId(null)}
           onViewBoard={() => {
             setAirportBoardAirportId(airportActionAirport.id);
@@ -274,6 +306,27 @@ export function MapScreen() {
           onOpenRoute={(preview) => {
             setRouteToConfirm(preview);
             setAirportActionAirportId(null);
+          }}
+          onBuyBase={(airportId) => {
+            setBasePurchaseAirportId(airportId);
+            setAirportActionAirportId(null);
+          }}
+          onSetPrimaryBase={(airportId) => {
+            setPrimaryBaseAirport(airportId);
+            setBaseBoardAirportId(airportId);
+            setAirportActionAirportId(null);
+          }}
+        />
+      ) : null}
+      {basePurchaseAirportId ? (
+        <BasePurchaseConfirmModal
+          airport={airportsById[basePurchaseAirportId]}
+          canAfford={game.money >= 100000000}
+          onCancel={() => setBasePurchaseAirportId(null)}
+          onConfirm={() => {
+            const result = buyBaseAirport(basePurchaseAirportId);
+            if (result.ok) setBaseBoardAirportId(basePurchaseAirportId);
+            setBasePurchaseAirportId(null);
           }}
         />
       ) : null}
@@ -526,27 +579,125 @@ function AvailableAircraftForRoute({ route, game, labels }: { route: Route; game
   );
 }
 
+function BaseAirportBoardPanel({
+  game,
+  baseAirportIds,
+  selectedAirportId,
+  onSelectAirport
+}: {
+  game: GameState;
+  baseAirportIds: string[];
+  selectedAirportId: string;
+  onSelectAirport: (airportId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const selectedAirport = airportsById[selectedAirportId];
+  return (
+    <section className="rounded-lg border border-slate-800 bg-ink p-4 text-white shadow-soft">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/15 pb-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-amber-200">{t("base.baseAirportBoard")}</p>
+          <h3 className="mt-1 font-black">{selectedAirport ? `${selectedAirport.iata} ${selectedAirport.city}` : t("base.noBaseSelected")}</h3>
+          <p className="mt-1 text-xs font-semibold text-slate-300">{formatGameDate(game.currentGameTimeMs)}</p>
+        </div>
+        {baseAirportIds.length > 1 ? (
+          <label className="text-xs font-black text-slate-300">
+            {t("base.selectBase")}
+            <select
+              value={selectedAirportId}
+              onChange={(event) => onSelectAirport(event.target.value)}
+              className="mt-1 block rounded-md border border-white/15 bg-white/10 px-2 py-1 text-xs font-bold text-white outline-none"
+            >
+              {baseAirportIds.map((airportId) => {
+                const airport = airportsById[airportId];
+                return airport ? (
+                  <option key={airportId} value={airportId} className="text-ink">
+                    {airport.iata} {airport.city}
+                  </option>
+                ) : null;
+              })}
+            </select>
+          </label>
+        ) : null}
+      </div>
+      {selectedAirport ? (
+        <AirportFlightBoard airportId={selectedAirport.id} game={game} compact />
+      ) : (
+        <p className="mt-3 rounded bg-white/5 px-2 py-3 text-xs font-semibold text-slate-300">{t("base.noBaseSelected")}</p>
+      )}
+    </section>
+  );
+}
+
+function BasePurchaseConfirmModal({
+  airport,
+  canAfford,
+  onCancel,
+  onConfirm
+}: {
+  airport: Airport;
+  canAfford: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="fixed inset-0 z-[6250] flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-soft animate-modal-in">
+        <p className="text-xs font-black uppercase tracking-normal text-coral">{t("base.buyAsBase")}</p>
+        <h3 className="mt-1 text-2xl font-black text-ink">
+          {airport.iata} {airport.name}
+        </h3>
+        <p className="mt-2 text-sm font-semibold text-slate-600">{formatGBP.format(100000000)}</p>
+        {!canAfford ? <p className="mt-3 rounded-md bg-coral/10 px-3 py-2 text-sm font-bold text-coral">{t("base.insufficientCash")}</p> : null}
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-md border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-runway">
+            {t("common.close")}
+          </button>
+          <button type="button" onClick={onConfirm} disabled={!canAfford} className="rounded-md bg-coral px-4 py-2 font-black text-white hover:bg-coral/90 disabled:cursor-not-allowed disabled:bg-slate-300">
+            {t("base.buyAsBase")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AirportActionModal({
   airport,
   game,
   route,
   openingPreview,
+  baseAirportIds,
+  primaryBaseAirportId,
+  routeOriginAirportId,
+  onRouteOriginChange,
   onClose,
   onViewBoard,
   onViewRoute,
-  onOpenRoute
+  onOpenRoute,
+  onBuyBase,
+  onSetPrimaryBase
 }: {
   airport: Airport;
   game: GameState;
   route: Route | null;
   openingPreview: RouteOpeningPreview | null;
+  baseAirportIds: string[];
+  primaryBaseAirportId: string;
+  routeOriginAirportId: string;
+  onRouteOriginChange: (airportId: string) => void;
   onClose: () => void;
   onViewBoard: () => void;
   onViewRoute: (routeId: string) => void;
   onOpenRoute: (preview: RouteOpeningPreview) => void;
+  onBuyBase: (airportId: string) => void;
+  onSetPrimaryBase: (airportId: string) => void;
 }) {
   const { t } = useTranslation();
-  const isBase = airport.id === game.baseAirportId;
+  const isOwnedBase = baseAirportIds.includes(airport.id);
+  const isPrimaryBase = airport.id === primaryBaseAirportId;
+  const canBuyBase = game.money >= 100000000;
   return (
     <div className="fixed inset-0 z-[6100] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-soft animate-modal-in">
@@ -558,7 +709,7 @@ function AirportActionModal({
           <Info label="IATA" value={airport.iata} />
           <Info label="ICAO" value={airport.icao} />
           <Info label="City" value={`${airport.city}, ${airport.country}`} />
-          <Info label="Base airport" value={isBase ? "Yes" : "No"} />
+          <Info label="Base airport" value={isPrimaryBase ? t("base.primaryBase") : isOwnedBase ? t("base.secondaryBase") : "No"} />
           <Info label="Network status" value={game.expandedAirportIds.includes(airport.id) ? "Connected" : "Not connected"} />
           <Info label="Route status" value={route ? t("map.routeAlreadyOpened") : openingPreview ? t("map.openRoute") : "Unavailable"} />
         </div>
@@ -566,6 +717,23 @@ function AirportActionModal({
           <button type="button" onClick={onViewBoard} className="rounded-md bg-jet px-4 py-3 text-sm font-black text-white hover:bg-ink">
             {t("airport.viewBoard")}
           </button>
+          {baseAirportIds.some((airportId) => airportId !== airport.id) ? (
+            <label className="rounded-md border border-slate-200 bg-runway px-3 py-2 text-sm font-bold text-slate-700">
+              <span className="mb-1 block text-xs font-black uppercase tracking-normal text-slate-500">{t("base.selectBase")}</span>
+              <select value={routeOriginAirportId} onChange={(event) => onRouteOriginChange(event.target.value)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 font-bold text-jet">
+                {baseAirportIds
+                  .filter((airportId) => airportId !== airport.id)
+                  .map((airportId) => {
+                    const base = airportsById[airportId];
+                    return base ? (
+                      <option key={airportId} value={airportId}>
+                        {base.iata} {base.city}
+                      </option>
+                    ) : null;
+                  })}
+              </select>
+            </label>
+          ) : null}
           {route ? (
             <button type="button" onClick={() => onViewRoute(route.id)} className="rounded-md bg-runway px-4 py-3 text-sm font-black text-jet hover:bg-slate-100">
               {t("map.viewRoute")}
@@ -573,6 +741,23 @@ function AirportActionModal({
           ) : openingPreview ? (
             <button type="button" onClick={() => onOpenRoute(openingPreview)} className="rounded-md bg-coral px-4 py-3 text-sm font-black text-white hover:bg-coral/90">
               {t("map.openRoute")}
+            </button>
+          ) : null}
+          {isOwnedBase ? (
+            <p className="rounded-md bg-mint/10 px-3 py-2 text-sm font-black text-mint">{t("base.ownedBase")}</p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onBuyBase(airport.id)}
+              disabled={!canBuyBase}
+              className="rounded-md bg-mint px-4 py-3 text-sm font-black text-white hover:bg-mint/90 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {canBuyBase ? t("base.buyAsBase") : `${t("base.insufficientCash")} (${formatGBP.format(100000000)})`}
+            </button>
+          )}
+          {isOwnedBase && !isPrimaryBase ? (
+            <button type="button" onClick={() => onSetPrimaryBase(airport.id)} className="rounded-md bg-runway px-4 py-3 text-sm font-black text-jet hover:bg-slate-100">
+              {t("base.setPrimaryBase")}
             </button>
           ) : null}
           <button type="button" onClick={onClose} className="rounded-md border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-runway">
@@ -608,15 +793,16 @@ function AirportBoardModal({ airportId, game, onClose }: { airportId: string; ga
   );
 }
 
-function AirportFlightBoard({ airportId, game }: { airportId: string; game: GameState }) {
+function AirportFlightBoard({ airportId, game, compact = false }: { airportId: string; game: GameState; compact?: boolean }) {
   const { t } = useTranslation();
   const departures = airportBoardRows(airportId, game, "departure");
   const arrivals = airportBoardRows(airportId, game, "arrival");
   return (
-    <section className="mt-4 rounded-md border border-white/15 bg-black/20 p-3 text-white">
-      <div className="grid gap-3 md:grid-cols-2">
-        <FlightBoardColumn title={t("airport.departures")} rows={departures} emptyLabel={t("airport.noScheduledFlightsToday")} type="departure" />
-        <FlightBoardColumn title={t("airport.arrivals")} rows={arrivals} emptyLabel={t("airport.noScheduledFlightsToday")} type="arrival" />
+    <section className={`${compact ? "mt-3" : "mt-4"} rounded-md border border-white/15 bg-black/20 p-3 text-white`}>
+      <p className="mb-3 text-xs font-black uppercase tracking-normal text-slate-300">{t("airport.upcomingFlights")} - {t("airport.within30Minutes")}</p>
+      <div className={`grid gap-3 ${compact ? "" : "md:grid-cols-2"}`}>
+        <FlightBoardColumn title={t("airport.departures")} rows={departures} emptyLabel={t("airport.noUpcomingFlights")} type="departure" />
+        <FlightBoardColumn title={t("airport.arrivals")} rows={arrivals} emptyLabel={t("airport.noUpcomingFlights")} type="arrival" />
       </div>
     </section>
   );
@@ -675,6 +861,7 @@ type AirportBoardRow = {
   counterparty: string;
   scheduledTime: number;
   actualTime: number;
+  sortTime: number;
   delayMinutes: number;
   isDelayed: boolean;
   statusKey: "onTime" | "departed" | "arrived";
@@ -683,6 +870,7 @@ type AirportBoardRow = {
 function airportBoardRows(airportId: string, game: GameState, type: "departure" | "arrival"): AirportBoardRow[] {
   const windowStart = dayStartMs(game.currentGameTimeMs);
   const windowEnd = windowStart + DAY_MS;
+  const now = game.currentGameTimeMs;
   return game.fleet
     .flatMap((aircraft) =>
       aircraft.schedule.map((item) => {
@@ -697,10 +885,10 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
           type === "departure"
             ? item.actualDepartureGameTime ?? item.departureGameTime
             : item.actualArrivalGameTime ?? item.arrivalGameTime;
-        if (scheduledTime < windowStart || scheduledTime >= windowEnd) return null;
         const counterpartyAirport = airportsById[type === "departure" ? item.destinationAirportId : item.originAirportId];
         const delayMinutes = Math.max(0, Math.round((actualTime - scheduledTime) / 60_000));
         const isDelayed = item.operationalStatus === "delayed" || delayMinutes > 0 || actualTime > scheduledTime;
+        if (!shouldShowBoardFlight(type, item, scheduledTime, actualTime, isDelayed, now, windowStart, windowEnd)) return null;
         const statusKey = item.status === "completed" ? "arrived" : item.status === "in-flight" ? "departed" : "onTime";
         return {
           item,
@@ -709,6 +897,7 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
           counterparty: `${counterpartyAirport.iata} ${counterpartyAirport.city}`,
           scheduledTime,
           actualTime,
+          sortTime: isDelayed ? actualTime : scheduledTime,
           delayMinutes,
           isDelayed,
           statusKey
@@ -716,7 +905,35 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
       })
     )
     .filter((row): row is AirportBoardRow => Boolean(row))
-    .sort((a, b) => a.scheduledTime - b.scheduledTime);
+    .sort((a, b) => a.sortTime - b.sortTime);
+}
+
+function shouldShowBoardFlight(
+  type: "departure" | "arrival",
+  item: ScheduleItem,
+  scheduledTime: number,
+  actualTime: number,
+  isDelayed: boolean,
+  now: number,
+  windowStart: number,
+  windowEnd: number
+) {
+  const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
+  const actualToday = actualTime >= windowStart && actualTime < windowEnd;
+  const minutesUntilScheduled = (scheduledTime - now) / 60_000;
+  const minutesUntilActual = (actualTime - now) / 60_000;
+  const dueSoon = (minutesUntilScheduled >= 0 && minutesUntilScheduled <= 30) || (minutesUntilActual >= 0 && minutesUntilActual <= 30);
+
+  if (type === "departure") {
+    const hasNotDeparted = item.status === "scheduled" && actualTime >= now;
+    const delayedNotDeparted = isDelayed && hasNotDeparted;
+    return scheduledToday && (dueSoon || hasNotDeparted || delayedNotDeparted);
+  }
+
+  const inFlight = item.status === "in-flight";
+  const hasNotArrived = item.status !== "completed" && actualTime >= now;
+  const delayedNotArrived = isDelayed && item.status !== "completed";
+  return (scheduledToday || actualToday) && (dueSoon || hasNotArrived || delayedNotArrived || inFlight);
 }
 
 function formatBoardTime(value: number) {
