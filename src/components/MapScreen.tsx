@@ -70,7 +70,10 @@ export function MapScreen() {
     const route: Route = {
       id: `${origin.id}-${selectedAirport.id}`,
       originAirportId: origin.id,
+      originBaseAirportId: origin.id,
+      originIata: origin.iata,
       destinationAirportId: selectedAirport.id,
+      destinationIata: selectedAirport.iata,
       distanceKm: distance,
       estimatedDemand: estimateDemand(origin, selectedAirport, distance),
       estimatedTicketPrices,

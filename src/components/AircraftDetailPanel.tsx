@@ -20,7 +20,8 @@ export function AircraftDetailPanel({
 }) {
   const { t } = useTranslation();
   const model = aircraftById[aircraft.modelId];
-  const airport = airportsById[aircraft.currentAirportId];
+  const homeBase = airportsById[aircraft.homeBaseAirportId];
+  const currentLocation = aircraftCurrentLocationLabel(aircraft);
   const totalProfit = game.flightLog
     .filter((entry) => entry.aircraftId === aircraft.id)
     .reduce((sum, entry) => sum + entry.profit, 0);
@@ -49,7 +50,8 @@ export function AircraftDetailPanel({
           <aside className="space-y-4">
             <AircraftImage model={model} className="h-40" />
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <Info label={t("detail.location")} value={airport.iata} />
+              <Info label={t("fleet.homeBase")} value={homeBase?.iata ?? aircraft.homeBaseAirportId} />
+              <Info label={t("fleet.currentAirport")} value={currentLocation} />
               <Info label={t("detail.status")} value={statusLabel(aircraft.status, t)} />
               <Info label={t("detail.totalFlights")} value={String(aircraft.totalFlights)} />
               <Info label={t("detail.totalRevenue")} value={formatGBP.format(aircraft.totalRevenue)} />
@@ -82,6 +84,17 @@ export function AircraftDetailPanel({
       </section>
     </div>
   );
+}
+
+function aircraftCurrentLocationLabel(aircraft: AircraftInstance) {
+  const activeFlight = aircraft.schedule.find((item) => item.status === "in-flight");
+  if (activeFlight) {
+    const origin = airportsById[activeFlight.originAirportId];
+    const destination = airportsById[activeFlight.destinationAirportId];
+    return `In flight: ${origin?.iata ?? activeFlight.originAirportId} - ${destination?.iata ?? activeFlight.destinationAirportId}`;
+  }
+  const airport = airportsById[aircraft.currentAirportId];
+  return airport?.iata ?? aircraft.currentAirportId;
 }
 
 function statusLabel(status: FlightStatus | AircraftInstance["status"] | "conflict", t: ReturnType<typeof useTranslation>["t"]) {

@@ -312,4 +312,17 @@ export const zh = {
   "airport.noUpcomingFlights": "æš‚æ— å³å°†æ‰§è¡Œçš„èˆªç­ã€‚",
   "airport.within30Minutes": "30åˆ†é’Ÿå†…",
   "market.aircraftFamily": "é£žæœºå®¶æ—"
+, "fleet.aircraftBase": "é£žæœºåŸºåœ°",
+  "fleet.homeBase": "åŸºåœ°æœºåœº",
+  "fleet.currentAirport": "å½“å‰ä½ç½®",
+  "market.selectBase": "é€‰æ‹©åŸºåœ°",
+  "market.parkAircraftAt": "å°†é£žæœºåœæ”¾åœ¨",
+  "market.needBaseBeforeAircraft": "ä½ éœ€è¦å…ˆæ‹¥æœ‰ä¸€ä¸ªåŸºåœ°æœºåœºæ‰èƒ½è´­ä¹°é£žæœºã€‚",
+  "market.purchaseParkedAt": "å·²åœæ”¾åœ¨",
+  "schedule.scheduleBase": "æŽ’ç­åŸºåœ°",
+  "schedule.noBaseAvailable": "æš‚æ— å¯ç”¨åŸºåœ°æœºåœºã€‚",
+  "schedule.routeWrongBase": "ä¿å­˜å¤±è´¥ï¼šè¯¥èˆªçº¿ä¸å±žäºŽå½“å‰é€‰æ‹©çš„åŸºåœ°ã€‚",
+  "schedule.aircraftWrongBase": "ä¿å­˜å¤±è´¥ï¼šè¯¥é£žæœºä¸å±žäºŽå½“å‰é€‰æ‹©çš„åŸºåœ°æœºåœºã€‚",
+  "schedule.routeWrongBaseShort": "è¯¥èˆªçº¿ä¸å±žäºŽå½“å‰é€‰æ‹©çš„åŸºåœ°",
+  "schedule.aircraftWrongBaseShort": "è¯¥é£žæœºä¸å±žäºŽå½“å‰é€‰æ‹©çš„åŸºåœ°æœºåœº"
 } as const;

@@ -66,7 +66,7 @@ type GameStore = {
   hydrateGameTime: () => void;
   setTimeMultiplier: (speed: TimeMultiplier) => void;
   togglePause: () => void;
-  buyAircraft: (modelId: string, cabinLayout: CabinLayout, registration: string) => { ok: boolean; message: string; aircraft?: AircraftInstance };
+  buyAircraft: (modelId: string, cabinLayout: CabinLayout, registration: string, homeBaseAirportId: string) => { ok: boolean; message: string; aircraft?: AircraftInstance };
   openRoute: (originAirportId: string, destinationAirportId: string, pricing?: Route["pricing"]) => { ok: boolean; message: string; route?: Route };
   buyBaseAirport: (airportId: string) => { ok: boolean; message: string };
   setPrimaryBaseAirport: (airportId: string) => { ok: boolean; message: string };
@@ -83,6 +83,7 @@ type GameStore = {
   createWeeklySchedule: (
     input: Omit<WeeklySchedule, "id" | "createdGameTime" | "recurrenceRule" | "createdAt" | "updatedAt" | "blockMinutes" | "turnaroundMinutes"> & {
       replaceWeeklyScheduleId?: string;
+      scheduleBaseAirportId?: string;
     }
   ) => { ok: boolean; message: string };
   deleteWeeklySchedule: (aircraftId: string, weeklyScheduleId: string) => void;
@@ -160,10 +161,15 @@ export const useGameStore = create<GameStore>()(
           notice: normalized.isPaused ? "Simulation resumed." : "Simulation paused."
         });
       },
-      buyAircraft: (modelId, cabinLayout, registration) => {
+      buyAircraft: (modelId, cabinLayout, registration, homeBaseAirportId) => {
         const game = normalizeGame(get().game);
         const model = aircraftById[modelId];
         if (!game || !model) return { ok: false, message: "Start or load a game first." };
+        if (!homeBaseAirportId || !game.baseAirports.includes(homeBaseAirportId)) {
+          const message = "You need to own a base airport before buying aircraft.";
+          set({ notice: message });
+          return { ok: false, message };
+        }
         const registrationValidation = validateRegistration(registration, game.fleet);
         if (!registrationValidation.isValid) {
           set({ notice: registrationValidation.message });
@@ -186,7 +192,8 @@ export const useGameStore = create<GameStore>()(
           id: createId("aircraft"),
           modelId,
           registration: registrationValidation.registration,
-          currentAirportId: game.primaryBaseAirport,
+          homeBaseAirportId,
+          currentAirportId: homeBaseAirportId,
           status: "idle",
           schedule: [],
           weeklySchedules: [],
@@ -251,7 +258,10 @@ export const useGameStore = create<GameStore>()(
         const route: Route = {
           id: routeIdFor(origin.id, destination.id),
           originAirportId: origin.id,
+          originBaseAirportId: origin.id,
+          originIata: origin.iata,
           destinationAirportId: destination.id,
+          destinationIata: destination.iata,
           distanceKm: distance,
           estimatedDemand: estimateDemand(origin, destination, distance),
           estimatedTicketPrices,
@@ -493,6 +503,22 @@ export const useGameStore = create<GameStore>()(
         const model = aircraftById[aircraft.modelId];
         if (!model) {
           const message = "Aircraft model data is missing.";
+          set({ notice: message });
+          return { ok: false, message };
+        }
+        const scheduleBaseAirportId = input.scheduleBaseAirportId ?? route.originAirportId;
+        if (!game.baseAirports.includes(scheduleBaseAirportId)) {
+          const message = "No base airport available.";
+          set({ notice: message });
+          return { ok: false, message };
+        }
+        if (route.originAirportId !== scheduleBaseAirportId) {
+          const message = "Schedule save failed: this route does not belong to the selected base.";
+          set({ notice: message });
+          return { ok: false, message };
+        }
+        if (aircraft.homeBaseAirportId !== scheduleBaseAirportId) {
+          const message = "Schedule save failed: this aircraft is not based at the selected airport.";
           set({ notice: message });
           return { ok: false, message };
         }
@@ -995,6 +1021,9 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
       const recommendedPricing = route.recommendedPricing ?? routePricingFromDefaults(normalizedRoute);
       return {
         ...normalizedRoute,
+        originBaseAirportId: route.originBaseAirportId ?? route.originAirportId,
+        originIata: route.originIata ?? origin?.iata,
+        destinationIata: route.destinationIata ?? destination?.iata,
         recommendedPricing,
         pricing: route.pricing ?? recommendedPricing
       };
@@ -1023,6 +1052,13 @@ function normalizeGame(game: GameState | null | undefined): GameState | null {
       });
       return {
         ...aircraft,
+        homeBaseAirportId:
+          (aircraft.homeBaseAirportId && baseAirports.includes(aircraft.homeBaseAirportId))
+            ? aircraft.homeBaseAirportId
+            : baseAirports.includes(aircraft.currentAirportId)
+              ? aircraft.currentAirportId
+              : primaryBaseAirport,
+        currentAirportId: aircraft.currentAirportId ?? aircraft.homeBaseAirportId ?? primaryBaseAirport,
         weeklySchedules,
         schedule: aircraft.schedule.map((item) => ({
           ...item,

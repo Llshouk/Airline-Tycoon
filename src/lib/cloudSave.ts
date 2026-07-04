@@ -11,6 +11,7 @@ export type CompactAircraftSave = Pick<
   | "id"
   | "modelId"
   | "registration"
+  | "homeBaseAirportId"
   | "currentAirportId"
   | "status"
   | "schedule"
@@ -27,7 +28,10 @@ export type CompactRouteSave = Pick<
   Route,
   | "id"
   | "originAirportId"
+  | "originBaseAirportId"
+  | "originIata"
   | "destinationAirportId"
+  | "destinationIata"
   | "distanceKm"
   | "estimatedDemand"
   | "estimatedTicketPrices"
@@ -187,6 +191,7 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
       id: aircraft.id,
       modelId: aircraft.modelId,
       registration: aircraft.registration,
+      homeBaseAirportId: aircraft.homeBaseAirportId,
       currentAirportId: aircraft.currentAirportId,
       status: aircraft.status,
       schedule: aircraft.schedule,
@@ -201,7 +206,10 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
     routes: gameState.routes.map((route) => ({
       id: route.id,
       originAirportId: route.originAirportId,
+      originBaseAirportId: route.originBaseAirportId,
+      originIata: route.originIata,
       destinationAirportId: route.destinationAirportId,
+      destinationIata: route.destinationIata,
       distanceKm: route.distanceKm,
       estimatedDemand: route.estimatedDemand,
       estimatedTicketPrices: route.estimatedTicketPrices,

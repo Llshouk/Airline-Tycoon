@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AircraftImage } from "@/components/AircraftImage";
 import { SeatConfigurationModal } from "@/components/SeatConfigurationModal";
 import { aircraftById, aircraftModels } from "@/data/aircraft";
+import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
 import { getDefaultCabinConfig, routeSuitabilityHints, validateCabinLayout } from "@/lib/cabin";
 import { canAfford } from "@/lib/cash";
@@ -28,8 +29,9 @@ export function AircraftMarketScreen() {
   const selectedModel = aircraftById[selectedModelId] ?? aircraftModels[0];
   const [layout, setLayout] = useState<CabinLayout>(() => getDefaultCabinConfig(selectedModel));
   const [registration, setRegistration] = useState(createRegistration(game?.fleet.length ?? 0));
+  const [selectedBaseAirportId, setSelectedBaseAirportId] = useState(game?.primaryBaseAirport ?? game?.baseAirportId ?? "");
   const [isSeatConfigOpen, setIsSeatConfigOpen] = useState(false);
-  const [purchaseToast, setPurchaseToast] = useState<{ modelLabel: string; registration: string } | null>(null);
+  const [purchaseToast, setPurchaseToast] = useState<{ modelLabel: string; registration: string; baseIata: string } | null>(null);
   const validation = useMemo(() => validateCabinLayout(selectedModel, layout), [layout, selectedModel]);
   const affordable = game ? canAfford(game, validation.purchasePriceGBP) : false;
   const registrationError = useMemo(() => {
@@ -43,6 +45,9 @@ export function AircraftMarketScreen() {
   }, [game, registration]);
 
   if (!game) return null;
+  const ownedBaseIds = game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId];
+  const hasOwnedBase = ownedBaseIds.length > 0;
+  const selectedBase = airportsById[selectedBaseAirportId] ?? airportsById[game.primaryBaseAirport] ?? airportsById[ownedBaseIds[0]];
 
   const filteredModels = aircraftModels
     .filter((model) => manufacturer === "all" || model.manufacturer === manufacturer)
@@ -67,6 +72,14 @@ export function AircraftMarketScreen() {
     const timer = window.setTimeout(() => setPurchaseToast(null), 3000);
     return () => window.clearTimeout(timer);
   }, [purchaseToast]);
+
+  useEffect(() => {
+    if (!game) return;
+    const bases = game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId];
+    if (!selectedBaseAirportId || !bases.includes(selectedBaseAirportId)) {
+      setSelectedBaseAirportId(game.primaryBaseAirport ?? bases[0] ?? "");
+    }
+  }, [game, selectedBaseAirportId]);
 
   function selectModel(model: AircraftModel) {
     setSelectedModelId(model.id);
@@ -150,6 +163,25 @@ export function AircraftMarketScreen() {
             <input value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} maxLength={12} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-jet focus:ring-2 focus:ring-jet/20" />
           </label>
           {registrationError ? <p className="mt-2 rounded-md bg-coral/10 px-3 py-2 text-sm font-semibold text-coral">{registrationError}</p> : null}
+          <label className="mt-4 block">
+            <span className="text-sm font-semibold text-slate-700">{t("market.parkAircraftAt")}</span>
+            <select
+              value={selectedBaseAirportId}
+              onChange={(event) => setSelectedBaseAirportId(event.target.value)}
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 font-bold text-jet outline-none focus:border-jet focus:ring-2 focus:ring-jet/20"
+            >
+              {!hasOwnedBase ? <option value="">{t("market.needBaseBeforeAircraft")}</option> : null}
+              {ownedBaseIds.map((airportId) => {
+                const airport = airportsById[airportId];
+                return airport ? (
+                  <option key={airportId} value={airportId}>
+                    {airport.iata} {airport.city}
+                  </option>
+                ) : null;
+              })}
+            </select>
+          </label>
+          {!hasOwnedBase ? <p className="mt-2 rounded-md bg-coral/10 px-3 py-2 text-sm font-semibold text-coral">{t("market.needBaseBeforeAircraft")}</p> : null}
           <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
             <Spec label={t("fleet.firstClass")} value={String(layout.first)} />
             <Spec label={t("fleet.business")} value={String(layout.business)} />
@@ -181,15 +213,16 @@ export function AircraftMarketScreen() {
           <button
             type="button"
             onClick={() => {
-              const result = buyAircraft(selectedModel.id, layout, registration);
+              const result = buyAircraft(selectedModel.id, layout, registration, selectedBaseAirportId);
               if (!result.ok || !result.aircraft) return;
               setPurchaseToast({
                 modelLabel: `${selectedModel.manufacturer} ${selectedModel.model}`,
-                registration: result.aircraft.registration
+                registration: result.aircraft.registration,
+                baseIata: selectedBase?.iata ?? selectedBaseAirportId.toUpperCase()
               });
               setRegistration(createRegistration(game.fleet.length + 1));
             }}
-            disabled={!validation.isValid || !affordable || Boolean(registrationError)}
+            disabled={!validation.isValid || !affordable || Boolean(registrationError) || !hasOwnedBase || !selectedBaseAirportId}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-coral px-3 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             <ShoppingCart size={18} />
@@ -220,7 +253,7 @@ function PurchaseToast({
   toast,
   onClose
 }: {
-  toast: { modelLabel: string; registration: string };
+  toast: { modelLabel: string; registration: string; baseIata: string };
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -231,7 +264,7 @@ function PurchaseToast({
         <div className="min-w-0 flex-1">
           <p className="font-black text-ink">{t("market.purchaseSuccessTitle")}</p>
           <p className="mt-1 text-sm font-semibold text-slate-600">
-            {toast.modelLabel} - {toast.registration} {t("market.purchaseSuccessBody")}
+            {toast.modelLabel} - {toast.registration} {t("market.purchaseParkedAt")} {toast.baseIata}.
           </p>
         </div>
         <button type="button" onClick={onClose} title="Close" className="rounded-md p-1 text-slate-500 hover:bg-runway">

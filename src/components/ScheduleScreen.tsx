@@ -33,6 +33,7 @@ export function ScheduleScreen() {
   const game = useGameStore((state) => state.game);
   const createWeeklySchedule = useGameStore((state) => state.createWeeklySchedule);
   const deleteWeeklySchedule = useGameStore((state) => state.deleteWeeklySchedule);
+  const [selectedScheduleBaseId, setSelectedScheduleBaseId] = useState("");
   const [aircraftId, setAircraftId] = useState("");
   const [routeId, setRouteId] = useState("");
   const [outboundFlightNumber, setOutboundFlightNumber] = useState("AL101");
@@ -45,9 +46,39 @@ export function ScheduleScreen() {
   const [detailAircraftId, setDetailAircraftId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  const selectedAircraft = game?.fleet.find((aircraft) => aircraft.id === aircraftId) ?? game?.fleet[0];
-  const selectedRoute = game?.routes.find((route) => route.id === routeId) ?? game?.routes[0];
+  const baseAirportIds = game?.baseAirports ?? (game ? [game.primaryBaseAirport ?? game.baseAirportId] : []);
+  const selectedScheduleBase =
+    selectedScheduleBaseId && baseAirportIds.includes(selectedScheduleBaseId)
+      ? selectedScheduleBaseId
+      : game?.primaryBaseAirport ?? baseAirportIds[0] ?? "";
+  const visibleRoutes = useMemo(
+    () => (game ? game.routes.filter((route) => route.originAirportId === selectedScheduleBase) : []),
+    [game, selectedScheduleBase]
+  );
+  const visibleAircraft = useMemo(
+    () => (game ? game.fleet.filter((aircraft) => aircraft.homeBaseAirportId === selectedScheduleBase) : []),
+    [game, selectedScheduleBase]
+  );
+  const selectedAircraft = visibleAircraft.find((aircraft) => aircraft.id === aircraftId) ?? visibleAircraft[0];
+  const selectedRoute = visibleRoutes.find((route) => route.id === routeId) ?? visibleRoutes[0];
   const model = selectedAircraft ? aircraftById[selectedAircraft.modelId] : null;
+
+  useEffect(() => {
+    if (!game) return;
+    const bases = game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId];
+    const nextBase = selectedScheduleBaseId && bases.includes(selectedScheduleBaseId) ? selectedScheduleBaseId : game.primaryBaseAirport ?? bases[0] ?? "";
+    if (nextBase !== selectedScheduleBaseId) setSelectedScheduleBaseId(nextBase);
+  }, [game, selectedScheduleBaseId]);
+
+  useEffect(() => {
+    if (selectedAircraft && selectedAircraft.id !== aircraftId) setAircraftId(selectedAircraft.id);
+    if (!selectedAircraft && aircraftId) setAircraftId("");
+  }, [aircraftId, selectedAircraft]);
+
+  useEffect(() => {
+    if (selectedRoute && selectedRoute.id !== routeId) setRouteId(selectedRoute.id);
+    if (!selectedRoute && routeId) setRouteId("");
+  }, [routeId, selectedRoute]);
 
   useEffect(() => {
     if (!game || !selectedAircraft || editingScheduleId) return;
@@ -157,6 +188,18 @@ export function ScheduleScreen() {
       showScheduleFailure("Select a route.");
       return;
     }
+    if (!selectedScheduleBase) {
+      showScheduleFailure("No base airport available.");
+      return;
+    }
+    if (selectedRoute.originAirportId !== selectedScheduleBase) {
+      showScheduleFailure("Schedule save failed: this route does not belong to the selected base.");
+      return;
+    }
+    if (selectedAircraft.homeBaseAirportId !== selectedScheduleBase) {
+      showScheduleFailure("Schedule save failed: this aircraft is not based at the selected airport.");
+      return;
+    }
     if (preview.error) {
       showScheduleFailure(preview.error);
       return;
@@ -170,6 +213,7 @@ export function ScheduleScreen() {
       daysOfWeek: selectedDays,
       departureTimeLocal: normalizedDepartureTime,
       isRoundTrip,
+      scheduleBaseAirportId: selectedScheduleBase,
       replaceWeeklyScheduleId: editingScheduleId ?? undefined
     });
     if (!result.ok) {
@@ -198,6 +242,8 @@ export function ScheduleScreen() {
   function editSchedule(aircraftIdValue: string, schedule: WeeklySchedule) {
     setLocalError(null);
     setEditingScheduleId(schedule.id);
+    const route = game?.routes.find((item) => item.id === schedule.routeId);
+    if (route) setSelectedScheduleBaseId(route.originAirportId);
     setAircraftId(aircraftIdValue);
     setRouteId(schedule.routeId);
     setOutboundFlightNumber(schedule.outboundFlightNumber);
@@ -224,6 +270,33 @@ export function ScheduleScreen() {
         <p className="text-slate-600">Build recurring services by day of week, departure time, flight number, and route pattern.</p>
       </div>
 
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+        <label className="block max-w-sm">
+          <span className="text-sm font-semibold text-slate-700">{t("schedule.scheduleBase")}</span>
+          <select
+            value={selectedScheduleBase}
+            onChange={(event) => {
+              setSelectedScheduleBaseId(event.target.value);
+              setAircraftId("");
+              setRouteId("");
+              setEditingScheduleId(null);
+            }}
+            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 font-bold text-jet outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
+          >
+            {baseAirportIds.length === 0 ? <option value="">{t("schedule.noBaseAvailable")}</option> : null}
+            {baseAirportIds.map((airportId) => {
+              const airport = airportsById[airportId];
+              return airport ? (
+                <option key={airportId} value={airportId}>
+                  {airport.iata} {airport.city}
+                </option>
+              ) : null;
+            })}
+          </select>
+        </label>
+        {baseAirportIds.length === 0 ? <p className="mt-3 rounded-md bg-runway px-3 py-3 text-sm font-semibold text-slate-500">{t("schedule.noBaseAvailable")}</p> : null}
+      </section>
+
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
         <form onSubmit={onSubmit} className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
           <div className="flex items-center gap-2">
@@ -240,8 +313,8 @@ export function ScheduleScreen() {
               }}
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
             >
-              {game.fleet.length === 0 ? <option value="">No aircraft owned</option> : null}
-              {game.fleet.map((aircraft) => {
+              {visibleAircraft.length === 0 ? <option value="">No aircraft based here</option> : null}
+              {visibleAircraft.map((aircraft) => {
                 const aircraftModel = aircraftById[aircraft.modelId];
                 const airport = airportsById[aircraft.currentAirportId];
                 return (
@@ -259,8 +332,8 @@ export function ScheduleScreen() {
               onChange={(event) => setRouteId(event.target.value)}
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
             >
-              {game.routes.length === 0 ? <option value="">No routes open</option> : null}
-              {game.routes.map((route) => (
+              {visibleRoutes.length === 0 ? <option value="">No routes from this base</option> : null}
+              {visibleRoutes.map((route) => (
                 <option key={route.id} value={route.id}>
                   {airportsById[route.originAirportId].iata} - {airportsById[route.destinationAirportId].iata}
                 </option>
@@ -572,6 +645,15 @@ function localizeScheduleError(message: string, t: ReturnType<typeof useTranslat
   }
   if (message === "Select at least one operating day.") {
     return t("schedule.selectOperatingDay");
+  }
+  if (message === "Schedule save failed: this route does not belong to the selected base.") {
+    return t("schedule.routeWrongBase");
+  }
+  if (message === "Schedule save failed: this aircraft is not based at the selected airport.") {
+    return t("schedule.aircraftWrongBase");
+  }
+  if (message === "No base airport available.") {
+    return t("schedule.noBaseAvailable");
   }
   return message;
 }

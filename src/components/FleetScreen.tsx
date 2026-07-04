@@ -79,7 +79,8 @@ export function FleetScreen() {
                   <div className="mt-3 grid gap-2 lg:grid-cols-2">
                     {group.aircraft.map((aircraft) => {
                       const model = aircraftById[aircraft.modelId];
-                      const airport = airportsById[aircraft.currentAirportId];
+                      const homeBase = airportsById[aircraft.homeBaseAirportId];
+                      const currentLocation = aircraftCurrentLocationLabel(aircraft);
                       const weeklyFlights = aircraft.weeklySchedules.reduce((sum, schedule) => sum + schedule.daysOfWeek.length * (schedule.isRoundTrip ? 2 : 1), 0);
                       const weeklyBlockMinutes = aircraft.weeklySchedules.reduce((sum, schedule) => sum + schedule.daysOfWeek.length * schedule.blockMinutes, 0);
                       const utilization = Math.round((weeklyBlockMinutes / (7 * 24 * 60)) * 100);
@@ -109,7 +110,9 @@ export function FleetScreen() {
                             <span className="rounded-md bg-runway px-2 py-1 text-xs font-bold capitalize text-jet">{aircraft.status}</span>
                           </div>
                           <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
-                            <Spec label={t("fleet.airport")} value={airport.iata} />
+                            <Spec label={t("fleet.homeBase")} value={homeBase?.iata ?? aircraft.homeBaseAirportId} />
+                            <Spec label={t("fleet.currentAirport")} value={currentLocation} />
+                            <Spec label={t("detail.status")} value={aircraft.status} />
                             <Spec label="Cabin" value={`${aircraft.cabinLayout.first}F/${aircraft.cabinLayout.business}J/${aircraft.cabinLayout.premiumEconomy}W/${aircraft.cabinLayout.economy}Y`} />
                             <Spec label={t("fleet.cargo")} value={`${aircraft.cabinLayout.cargoTons} t`} />
                             <Spec label="Weekly flights" value={String(weeklyFlights)} />
@@ -219,6 +222,17 @@ function Spec({ label, value }: { label: string; value: string }) {
       <p className="truncate font-bold text-ink">{value}</p>
     </div>
   );
+}
+
+function aircraftCurrentLocationLabel(aircraft: AircraftInstance) {
+  const activeFlight = aircraft.schedule.find((item) => item.status === "in-flight");
+  if (activeFlight) {
+    const origin = airportsById[activeFlight.originAirportId];
+    const destination = airportsById[activeFlight.destinationAirportId];
+    return `In flight: ${origin?.iata ?? activeFlight.originAirportId} - ${destination?.iata ?? activeFlight.destinationAirportId}`;
+  }
+  const airport = airportsById[aircraft.currentAirportId];
+  return airport?.iata ?? aircraft.currentAirportId;
 }
 
 function groupFleetByModel(fleet: AircraftInstance[], flightLog: FlightLogEntry[]) {

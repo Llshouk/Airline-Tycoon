@@ -87,7 +87,10 @@ export type RoutePricing = CabinPrices & {
 export interface Route {
   id: string;
   originAirportId: string;
+  originBaseAirportId?: string;
+  originIata?: string;
   destinationAirportId: string;
+  destinationIata?: string;
   distanceKm: number;
   estimatedDemand: CabinDemand;
   estimatedTicketPrices: CabinPrices;
@@ -101,6 +104,7 @@ export interface AircraftInstance {
   id: string;
   modelId: string;
   registration: string;
+  homeBaseAirportId: string;
   currentAirportId: string;
   status: AircraftStatus;
   schedule: ScheduleItem[];
