@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronRight, Plane } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AircraftDetailPanel } from "@/components/AircraftDetailPanel";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
@@ -20,9 +20,14 @@ export function FleetScreen() {
     [baseFilter, game]
   );
   const groups = useMemo(() => groupFleetByModel(filteredFleet), [filteredFleet]);
+  const selectedAircraft = game && selectedAircraftId ? game.fleet.find((aircraft) => aircraft.id === selectedAircraftId) : null;
+
+  useEffect(() => {
+    if (!selectedAircraftId) return;
+    if (!filteredFleet.some((aircraft) => aircraft.id === selectedAircraftId)) setSelectedAircraftId(null);
+  }, [filteredFleet, selectedAircraftId]);
 
   if (!game) return null;
-  const selectedAircraft = selectedAircraftId ? game.fleet.find((aircraft) => aircraft.id === selectedAircraftId) : null;
 
   return (
     <div className="space-y-5">
@@ -33,7 +38,15 @@ export function FleetScreen() {
       <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-soft">
         <label className="text-sm font-bold text-slate-600">
           {t("fleet.baseFilter")}
-          <select value={baseFilter} onChange={(event) => setBaseFilter(event.target.value)} className="ml-2 rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet">
+          <select
+            value={baseFilter}
+            onChange={(event) => {
+              setBaseFilter(event.target.value);
+              setSelectedAircraftId(null);
+              setExpandedGroups({});
+            }}
+            className="ml-2 rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet"
+          >
             <option value="all">{t("fleet.allBases")}</option>
             {game.baseAirports.map((airportId) => {
               const airport = airportsById[airportId];
@@ -56,7 +69,7 @@ export function FleetScreen() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
           {groups.map((group) => {
-            const isExpanded = expandedGroups[group.modelId] ?? true;
+            const isExpanded = expandedGroups[group.modelId] ?? false;
             const Icon = isExpanded ? ChevronDown : ChevronRight;
             return (
               <article key={group.modelId} className="rounded-lg border border-slate-200 bg-white shadow-soft transition duration-200 hover:border-mint">

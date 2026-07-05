@@ -16,6 +16,7 @@ import {
   formatScheduleFlightNumbers,
   generateDefaultFlightNumber,
   hasScheduleConflict,
+  minutesToTime,
   nextFlightNumber,
   normalizeScheduleTime,
   previewBlocksForWeeklySchedule,
@@ -26,7 +27,7 @@ import {
 import { calculateRemainingDemandForSchedulePreview, type ScheduleDemandPreview } from "@/lib/routeDemand";
 import { formatDuration } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
-import type { DayOfWeek, WeeklySchedule } from "@/types/game";
+import type { AircraftInstance, DayOfWeek, Route, WeeklySchedule } from "@/types/game";
 
 export function ScheduleScreen() {
   const { t } = useTranslation();
@@ -39,6 +40,7 @@ export function ScheduleScreen() {
   const [outboundFlightNumber, setOutboundFlightNumber] = useState("AL101");
   const [returnFlightNumber, setReturnFlightNumber] = useState("AL102");
   const [departureTimeLocal, setDepartureTimeLocal] = useState("08:00");
+  const [hasUserEditedDepartureTime, setHasUserEditedDepartureTime] = useState(false);
   const [isRoundTrip, setIsRoundTrip] = useState(true);
   const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>([]);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
@@ -62,6 +64,18 @@ export function ScheduleScreen() {
   const selectedAircraft = visibleAircraft.find((aircraft) => aircraft.id === aircraftId) ?? visibleAircraft[0];
   const selectedRoute = visibleRoutes.find((route) => route.id === routeId) ?? visibleRoutes[0];
   const model = selectedAircraft ? aircraftById[selectedAircraft.modelId] : null;
+  const recommendedDepartureTime = useMemo(
+    () =>
+      getRecommendedDepartureTime({
+        selectedAircraft: selectedAircraft ?? null,
+        selectedRoute: selectedRoute ?? null,
+        routes: game?.routes ?? [],
+        selectedDays,
+        isRoundTrip,
+        editingScheduleId
+      }),
+    [editingScheduleId, game?.routes, isRoundTrip, selectedAircraft, selectedDays, selectedRoute]
+  );
 
   useEffect(() => {
     if (!game) return;
@@ -79,6 +93,11 @@ export function ScheduleScreen() {
     if (selectedRoute && selectedRoute.id !== routeId) setRouteId(selectedRoute.id);
     if (!selectedRoute && routeId) setRouteId("");
   }, [routeId, selectedRoute]);
+
+  useEffect(() => {
+    if (editingScheduleId || hasUserEditedDepartureTime) return;
+    setDepartureTimeLocal(recommendedDepartureTime);
+  }, [editingScheduleId, hasUserEditedDepartureTime, recommendedDepartureTime]);
 
   useEffect(() => {
     if (!game || !selectedAircraft || editingScheduleId) return;
@@ -224,6 +243,7 @@ export function ScheduleScreen() {
     setAircraftId(selectedAircraft.id);
     setRouteId(selectedRoute.id);
     setEditingScheduleId(null);
+    setHasUserEditedDepartureTime(false);
     setSelectedDays([]);
   }
 
@@ -249,6 +269,7 @@ export function ScheduleScreen() {
     setOutboundFlightNumber(schedule.outboundFlightNumber);
     setReturnFlightNumber(schedule.returnFlightNumber ?? nextFlightNumber(schedule.outboundFlightNumber));
     setDepartureTimeLocal(schedule.departureTimeLocal);
+    setHasUserEditedDepartureTime(true);
     setIsRoundTrip(schedule.isRoundTrip);
     setSelectedDays(schedule.daysOfWeek);
   }
@@ -280,6 +301,7 @@ export function ScheduleScreen() {
               setAircraftId("");
               setRouteId("");
               setEditingScheduleId(null);
+              setHasUserEditedDepartureTime(false);
             }}
             className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 font-bold text-jet outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
           >
@@ -310,6 +332,7 @@ export function ScheduleScreen() {
               onChange={(event) => {
                 setAircraftId(event.target.value);
                 setEditingScheduleId(null);
+                setHasUserEditedDepartureTime(false);
               }}
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
             >
@@ -329,7 +352,11 @@ export function ScheduleScreen() {
             <span className="text-sm font-semibold text-slate-700">{t("schedule.route")}</span>
             <select
               value={selectedRoute?.id ?? ""}
-              onChange={(event) => setRouteId(event.target.value)}
+              onChange={(event) => {
+                setRouteId(event.target.value);
+                setEditingScheduleId(null);
+                setHasUserEditedDepartureTime(false);
+              }}
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
             >
               {visibleRoutes.length === 0 ? <option value="">No routes from this base</option> : null}
@@ -368,10 +395,26 @@ export function ScheduleScreen() {
               type="time"
               step={300}
               value={departureTimeLocal}
-              onChange={(event) => setDepartureTimeLocal(event.target.value)}
+              onChange={(event) => {
+                setDepartureTimeLocal(event.target.value);
+                setHasUserEditedDepartureTime(true);
+              }}
               onBlur={(event) => setDepartureTimeLocal(normalizeScheduleTime(event.target.value))}
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
             />
+            <span className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-500">{t("schedule.recommendedTimeHint")}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setDepartureTimeLocal(recommendedDepartureTime);
+                  setHasUserEditedDepartureTime(false);
+                }}
+                className="rounded-md bg-runway px-2 py-1 text-xs font-black text-jet hover:bg-slate-100"
+              >
+                {t("schedule.useRecommendedTime")} ({recommendedDepartureTime})
+              </button>
+            </span>
           </label>
           <div className="mt-4">
             <span className="text-sm font-semibold text-slate-700">{t("schedule.operatingDays")}</span>
@@ -393,14 +436,20 @@ export function ScheduleScreen() {
           <div className="mt-4 grid grid-cols-2 gap-2 rounded-md bg-runway p-2">
             <button
               type="button"
-              onClick={() => setIsRoundTrip(false)}
+              onClick={() => {
+                setIsRoundTrip(false);
+                if (!hasUserEditedDepartureTime) setDepartureTimeLocal(recommendedDepartureTime);
+              }}
               className={`rounded-md px-3 py-2 text-sm font-bold transition ${!isRoundTrip ? "bg-mint text-white" : "bg-white text-slate-600"}`}
             >
               {t("schedule.oneWay")}
             </button>
             <button
               type="button"
-              onClick={() => setIsRoundTrip(true)}
+              onClick={() => {
+                setIsRoundTrip(true);
+                if (!hasUserEditedDepartureTime) setDepartureTimeLocal(recommendedDepartureTime);
+              }}
               className={`rounded-md px-3 py-2 text-sm font-bold transition ${isRoundTrip ? "bg-mint text-white" : "bg-white text-slate-600"}`}
             >
               {t("schedule.roundTrip")}
@@ -513,6 +562,59 @@ export function ScheduleScreen() {
       {detailAircraft ? <AircraftDetailPanel aircraft={detailAircraft} game={game} onClose={() => setDetailAircraftId(null)} /> : null}
     </div>
   );
+}
+
+function getRecommendedDepartureTime({
+  selectedAircraft,
+  selectedRoute,
+  routes,
+  selectedDays,
+  isRoundTrip,
+  editingScheduleId
+}: {
+  selectedAircraft: AircraftInstance | null;
+  selectedRoute: Route | null;
+  routes: Route[];
+  selectedDays: DayOfWeek[];
+  isRoundTrip: boolean;
+  editingScheduleId: string | null;
+}) {
+  if (!selectedAircraft || !selectedRoute) return "08:00";
+
+  const baselineAircraft: AircraftInstance = {
+    ...selectedAircraft,
+    schedule: selectedAircraft.schedule.filter((item) => item.weeklyScheduleId !== editingScheduleId)
+  };
+  const existingBlocks = weeklyEventBlocksFromSchedule(baselineAircraft, routes);
+  const daysToCheck = selectedDays.length > 0 ? selectedDays : weekDays.map((day) => day.id);
+  const candidates = recommendedDepartureCandidates(existingBlocks.map((block) => block.endMinute));
+
+  for (const candidate of candidates) {
+    const preview = previewBlocksForWeeklySchedule({
+      aircraft: selectedAircraft,
+      route: selectedRoute,
+      daysOfWeek: daysToCheck,
+      departureTimeLocal: candidate,
+      isRoundTrip,
+      outboundFlightNumber: "REC101",
+      returnFlightNumber: "REC102",
+      conflict: false
+    });
+    if (!hasScheduleConflict(existingBlocks, preview)) return candidate;
+  }
+
+  return "08:00";
+}
+
+function recommendedDepartureCandidates(existingEndMinutes: number[]) {
+  const preferred = ["08:00", "09:00", "10:00", "07:00", "11:00", "12:00"];
+  const afterExisting = existingEndMinutes.map((minute) => minutesToTime(roundUpToFiveMinutes(minute)));
+  const fullDay = Array.from({ length: 24 * 12 }, (_, index) => minutesToTime(index * 5));
+  return Array.from(new Set([...preferred, ...afterExisting, ...fullDay])).map(normalizeScheduleTime);
+}
+
+function roundUpToFiveMinutes(minute: number) {
+  return Math.ceil(minute / 5) * 5;
 }
 
 function ScheduleToast({ type, message, onClose }: { type: "success" | "error"; message: string; onClose: () => void }) {
