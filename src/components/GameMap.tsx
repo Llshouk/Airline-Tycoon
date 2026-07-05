@@ -3,11 +3,13 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
+import { useTranslation } from "@/i18n";
 import { calculateBearing, greatCirclePath, interpolatePosition } from "@/lib/geo";
 import type { AircraftInstance, AircraftModel, Route } from "@/types/game";
 
 export type MapDisplayMode = "all" | "network" | "airports" | "aircraft";
 type AircraftIconCategory = "regional" | "narrowBodyTwin" | "wideBodyTwin" | "wideBodyQuad";
+type AirportMarkerKind = "base" | "opened" | "unopened";
 
 type Props = {
   baseAirportId: string;
@@ -33,6 +35,7 @@ declare global {
 }
 
 export function GameMap(props: Props) {
+  const { t } = useTranslation();
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const googleMapRef = useRef<any>(null);
   const leafletMapRef = useRef<any>(null);
@@ -75,6 +78,27 @@ export function GameMap(props: Props) {
       <div className="absolute left-3 top-3 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
         {googleKey ? "Google Maps" : "OpenStreetMap"}
       </div>
+      <MapLegend labels={{ title: t("map.legend"), base: t("map.legendBase"), opened: t("map.legendOpened"), unopened: t("map.legendUnopened") }} />
+    </div>
+  );
+}
+
+function MapLegend({ labels }: { labels: { title: string; base: string; opened: string; unopened: string } }) {
+  return (
+    <div className="absolute bottom-3 right-3 rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
+      <p className="mb-1 text-[11px] font-black uppercase tracking-normal text-slate-500">{labels.title}</p>
+      <LegendRow color="#d76745" label={labels.base} />
+      <LegendRow color="#4f9d7e" label={labels.opened} />
+      <LegendRow color="#ffffff" label={labels.unopened} bordered />
+    </div>
+  );
+}
+
+function LegendRow({ color, label, bordered = false }: { color: string; label: string; bordered?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 py-0.5">
+      <span className={`h-3 w-3 rounded-full ${bordered ? "border border-slate-400" : "border border-ink/20"}`} style={{ backgroundColor: color }} />
+      <span>{label}</span>
     </div>
   );
 }
@@ -166,11 +190,12 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
       if (props.displayMode === "network" && !networkAirportIds.has(airport.id)) return;
       if (props.displayMode === "aircraft" && !isBase) return;
       const isExpanded = props.expandedAirportIds.includes(airport.id);
-      const pinSize = airportPinSize(isPrimaryBase, isSecondaryBase, isExpanded);
+      const markerKind = airportMarkerKind(isBase, isExpanded);
+      const pinSize = airportPinSize(isBase, isExpanded);
       const marker = L.marker([airport.lat, airport.lng], {
         icon: L.divIcon({
-          html: airportPinHtml(isPrimaryBase, isSecondaryBase, isExpanded),
-          className: `airport-marker ${isPrimaryBase ? "airport-marker-base" : isSecondaryBase ? "airport-marker-secondary-base" : isExpanded ? "airport-marker-expanded" : ""}`,
+          html: airportPinHtml(markerKind),
+          className: `airport-marker airport-marker-${markerKind}`,
           iconSize: [pinSize.width, pinSize.height],
           iconAnchor: [pinSize.width / 2, pinSize.height - 1]
         }),
@@ -277,19 +302,20 @@ function drawGoogleLayers(props: Props, map: any, layersRef: MutableRefObject<an
       if (props.displayMode === "network" && !networkAirportIds.has(airport.id)) return;
       if (props.displayMode === "aircraft" && !isBase) return;
       const isExpanded = props.expandedAirportIds.includes(airport.id);
+      const markerKind = airportMarkerKind(isBase, isExpanded);
       const infoWindow = new window.google.maps.InfoWindow({
         content: airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded)
       });
-      const pinScale = isPrimaryBase ? 1 : isSecondaryBase ? 0.94 : isExpanded ? 0.9 : 0.78;
+      const pinScale = isBase ? 1 : isExpanded ? 0.9 : 0.78;
       const marker = new window.google.maps.Marker({
         position: { lat: airport.lat, lng: airport.lng },
         map,
         title: `${airport.iata} ${airport.name}`,
         icon: {
           path: "M12 2C7.6 2 4 5.6 4 10c0 5.6 8 12 8 12s8-6.4 8-12c0-4.4-3.6-8-8-8Zm0 11.2A3.2 3.2 0 1 1 12 6.8a3.2 3.2 0 0 1 0 6.4Z",
-          fillColor: isPrimaryBase ? "#d76745" : isSecondaryBase ? "#f6c945" : isExpanded ? "#4f9d7e" : "#ffffff",
+          fillColor: airportMarkerFill(markerKind),
           fillOpacity: 1,
-          strokeColor: isPrimaryBase || isSecondaryBase || isExpanded ? "#102026" : "#18545c",
+          strokeColor: markerKind === "unopened" ? "#18545c" : "#102026",
           strokeWeight: 2,
           scale: pinScale,
           anchor: new window.google.maps.Point(12, 22)
@@ -325,8 +351,8 @@ function getNetworkAirportIds(props: Props) {
   return ids;
 }
 
-function airportPinHtml(isPrimaryBase: boolean, isSecondaryBase: boolean, isExpanded: boolean) {
-  const fill = isPrimaryBase ? "#d76745" : isSecondaryBase ? "#f6c945" : isExpanded ? "#4f9d7e" : "#ffffff";
+function airportPinHtml(kind: AirportMarkerKind) {
+  const fill = airportMarkerFill(kind);
   return `
     <span class="airport-pin">
       <svg viewBox="0 0 34 40" aria-hidden="true" focusable="false">
@@ -339,7 +365,7 @@ function airportPinHtml(isPrimaryBase: boolean, isSecondaryBase: boolean, isExpa
 
 function aircraftIconHtml(bearing: number, category: AircraftIconCategory) {
   const asset = getAircraftIconAsset(category);
-  const imageRotation = bearing - 90;
+  const imageRotation = bearing + 90;
   return `
     <span class="aircraft-map-icon-inner">
       <img class="aircraft-map-icon-image" src="${asset}" alt="" style="transform: rotate(${imageRotation}deg);" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
@@ -432,17 +458,28 @@ function getAircraftIconCategory(model: AircraftModel | undefined): AircraftIcon
 }
 
 function aircraftIconSize(category: AircraftIconCategory) {
-  if (category === "regional") return 26;
-  if (category === "narrowBodyTwin") return 32;
-  if (category === "wideBodyTwin") return 40;
-  return 46;
+  if (category === "regional") return 30;
+  if (category === "narrowBodyTwin") return 36;
+  if (category === "wideBodyTwin") return 44;
+  return 50;
 }
 
-function airportPinSize(isPrimaryBase: boolean, isSecondaryBase: boolean, isExpanded: boolean) {
-  if (isPrimaryBase) return { width: 22, height: 28 };
-  if (isSecondaryBase) return { width: 20, height: 26 };
+function airportPinSize(isBase: boolean, isExpanded: boolean) {
+  if (isBase) return { width: 22, height: 28 };
   if (isExpanded) return { width: 19, height: 24 };
   return { width: 17, height: 22 };
+}
+
+function airportMarkerKind(isBase: boolean, isExpanded: boolean): AirportMarkerKind {
+  if (isBase) return "base";
+  if (isExpanded) return "opened";
+  return "unopened";
+}
+
+function airportMarkerFill(kind: AirportMarkerKind) {
+  if (kind === "base") return "#d76745";
+  if (kind === "opened") return "#4f9d7e";
+  return "#ffffff";
 }
 
 function getAircraftIconAsset(category: AircraftIconCategory) {
@@ -457,10 +494,10 @@ function getAircraftIconAsset(category: AircraftIconCategory) {
 }
 
 function googleAircraftScale(category: AircraftIconCategory) {
-  if (category === "regional") return 0.9;
-  if (category === "narrowBodyTwin") return 1.08;
-  if (category === "wideBodyTwin") return 1.28;
-  return 1.42;
+  if (category === "regional") return 1.02;
+  if (category === "narrowBodyTwin") return 1.2;
+  if (category === "wideBodyTwin") return 1.42;
+  return 1.58;
 }
 
 function aircraftSymbolPath(category: AircraftIconCategory) {

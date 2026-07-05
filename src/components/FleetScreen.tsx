@@ -91,7 +91,6 @@ export function FleetScreen() {
                 {isExpanded ? (
                   <div className="border-t border-slate-100">
                     {group.aircraft.map((aircraft) => {
-                      const model = aircraftById[aircraft.modelId];
                       const homeBase = airportsById[aircraft.homeBaseAirportId];
                       return (
                         <button
@@ -103,9 +102,11 @@ export function FleetScreen() {
                           }`}
                         >
                           <span className="min-w-0">
-                            <span className="block truncate font-black text-ink">{model.model}</span>
-                            <span className="block truncate text-xs font-semibold text-slate-500">
+                            <span className="block truncate font-black text-ink">
                               {aircraft.registration} {homeBase ? `- ${homeBase.iata}` : ""}
+                            </span>
+                            <span className="block truncate text-xs font-semibold text-slate-500">
+                              {homeBase ? `${t("fleet.homeBase")}: ${homeBase.iata}` : t("fleet.homeBase")}
                             </span>
                           </span>
                           <span className="shrink-0 rounded-md bg-runway px-2 py-1 text-xs font-bold capitalize text-jet">{aircraft.status}</span>

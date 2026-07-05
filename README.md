@@ -1,8 +1,8 @@
-# Airline Tycoon V1.0.3
+# Airline Tycoon V1.0.4
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.0.3 - Map Aircraft Icon, Fleet Detail, and Schedule Flow Fixes
+Release: V1.0.4 - Map Icon and Fleet Display Fixes
 
 ## Features
 
@@ -58,7 +58,7 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.0.3 is the map aircraft icon, fleet detail, and schedule flow fixes release. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
+Airline Tycoon V1.0.4 is the map icon and fleet display fixes release. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
 
 ## Cloud Save
 
