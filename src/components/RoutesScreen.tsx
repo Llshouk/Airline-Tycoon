@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -10,9 +11,34 @@ import { formatRouteCode, formatScheduleFlightNumbers } from "@/lib/schedule";
 import { useGameStore } from "@/store/gameStore";
 import type { CabinDemand, GameState, Route } from "@/types/game";
 
+type RouteSortMode = "distance-asc" | "distance-desc" | "revenue-desc" | "revenue-asc";
+
 export function RoutesScreen() {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
+  const [baseFilter, setBaseFilter] = useState("all");
+  const [sortMode, setSortMode] = useState<RouteSortMode>("revenue-desc");
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const visibleRoutes = useMemo(() => {
+    if (!game) return [];
+    return game.routes
+      .filter((route) => baseFilter === "all" || route.originAirportId === baseFilter || route.originBaseAirportId === baseFilter)
+      .map((route) => ({
+        route,
+        summary: calculateRemainingDemand(route.id, game),
+        totals: routeScheduleTotals(route, game),
+        best: bestRoutePreview(route, game)
+      }))
+      .sort((a, b) => {
+        if (sortMode === "distance-asc") return a.route.distanceKm - b.route.distanceKm;
+        if (sortMode === "distance-desc") return b.route.distanceKm - a.route.distanceKm;
+        const aRevenue = estimatedRouteRevenue(a.best?.revenue ?? 0, a.totals.weeklyRevenue);
+        const bRevenue = estimatedRouteRevenue(b.best?.revenue ?? 0, b.totals.weeklyRevenue);
+        return sortMode === "revenue-asc" ? aRevenue - bRevenue : bRevenue - aRevenue;
+      });
+  }, [baseFilter, game, sortMode]);
+  const selectedRoute = selectedRouteId ? visibleRoutes.find((item) => item.route.id === selectedRouteId) ?? null : null;
+
   if (!game) return null;
 
   return (
@@ -27,31 +53,107 @@ export function RoutesScreen() {
         </span>
       </div>
 
+      <section className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-soft md:grid-cols-2">
+        <label className="text-sm font-bold text-slate-600">
+          {t("routes.originBase")}
+          <select value={baseFilter} onChange={(event) => setBaseFilter(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet">
+            <option value="all">{t("fleet.allBases")}</option>
+            {game.baseAirports.map((airportId) => {
+              const airport = airportsById[airportId];
+              return airport ? (
+                <option key={airportId} value={airportId}>
+                  {airport.iata} {airport.city}
+                </option>
+              ) : null;
+            })}
+          </select>
+        </label>
+        <label className="text-sm font-bold text-slate-600">
+          {sortMode.startsWith("distance") ? t("routes.sortByDistance") : t("routes.sortByRevenue")}
+          <select value={sortMode} onChange={(event) => setSortMode(event.target.value as RouteSortMode)} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet">
+            <option value="distance-asc">{t("routes.shortestFirst")}</option>
+            <option value="distance-desc">{t("routes.longestFirst")}</option>
+            <option value="revenue-desc">{t("routes.highestRevenueFirst")}</option>
+            <option value="revenue-asc">{t("routes.lowestRevenueFirst")}</option>
+          </select>
+        </label>
+      </section>
+
       {game.routes.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm font-semibold text-slate-500 shadow-soft">
           {t("routes.openRoutesFromMap")}
         </div>
       ) : (
-        <div className="grid gap-4">
-          {game.routes.map((route) => (
-            <RouteReadOnlyCard key={route.id} route={route} game={game} summary={calculateRemainingDemand(route.id, game)} />
-          ))}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)]">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+            {visibleRoutes.length === 0 ? (
+              <p className="px-4 py-8 text-center text-sm font-semibold text-slate-500">{t("routes.noRoutesForFilter")}</p>
+            ) : (
+              visibleRoutes.map(({ route, best, totals }) => {
+                const origin = airportsById[route.originAirportId];
+                const destination = airportsById[route.destinationAirportId];
+                const revenue = estimatedRouteRevenue(best?.revenue ?? 0, totals.weeklyRevenue);
+                return (
+                  <button
+                    key={route.id}
+                    type="button"
+                    onClick={() => setSelectedRouteId(route.id)}
+                    className={`grid w-full grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition last:border-b-0 hover:bg-runway ${
+                      selectedRouteId === route.id ? "bg-mint/10" : "bg-white"
+                    }`}
+                  >
+                    <span className="min-w-0 truncate font-black text-ink">
+                      {origin.iata} - {destination.iata}
+                    </span>
+                    <span className="whitespace-nowrap font-semibold text-slate-600">{formatNumber.format(route.distanceKm)} km</span>
+                    <span className="whitespace-nowrap font-black text-mint">{formatGBP.format(revenue)}/week</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+            {selectedRoute ? (
+              <RouteReadOnlyCard
+                route={selectedRoute.route}
+                game={game}
+                summary={selectedRoute.summary}
+                best={selectedRoute.best}
+                scheduleTotals={selectedRoute.totals}
+              />
+            ) : (
+              <div className="flex min-h-48 items-center justify-center rounded-md border border-dashed border-slate-300 bg-runway px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                {t("routes.selectRouteDetails")}
+              </div>
+            )}
+          </aside>
         </div>
       )}
     </div>
   );
 }
 
-function RouteReadOnlyCard({ route, game, summary }: { route: Route; game: GameState; summary: RemainingDemandSummary | null }) {
+function RouteReadOnlyCard({
+  route,
+  game,
+  summary,
+  best,
+  scheduleTotals
+}: {
+  route: Route;
+  game: GameState;
+  summary: RemainingDemandSummary | null;
+  best: ReturnType<typeof bestRoutePreview>;
+  scheduleTotals: ReturnType<typeof routeScheduleTotals>;
+}) {
   const { t } = useTranslation();
   const origin = airportsById[route.originAirportId];
   const destination = airportsById[route.destinationAirportId];
   const pricing = route.pricing ?? routePricingFromDefaults(route);
-  const best = bestRoutePreview(route, game);
-  const scheduleTotals = routeScheduleTotals(route, game);
+  const estimatedRevenue = estimatedRouteRevenue(best?.revenue ?? 0, scheduleTotals.weeklyRevenue);
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+    <article>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-normal text-coral">Open</p>
@@ -64,10 +166,17 @@ function RouteReadOnlyCard({ route, game, summary }: { route: Route; game: GameS
       </div>
 
       <div className="mt-4 grid gap-2 text-sm md:grid-cols-4">
+        <Info label={t("airport.origin")} value={`${origin.iata} ${origin.city}`} />
+        <Info label={t("airport.destination")} value={`${destination.iata} ${destination.city}`} />
         <Info label={t("routes.rangeRequirement")} value={`${formatNumber.format(route.distanceKm)} km`} />
-        <Info label={t("routes.bestRevenuePerFlight")} value={best ? formatGBP.format(best.revenue) : "N/A"} />
-        <Info label={t("routes.bestProfitPerFlight")} value={best ? formatGBP.format(best.profit) : "N/A"} />
+        <Info label={t("detail.duration")} value={formatFlightTime(route.distanceKm)} />
         <Info label={t("routes.weeklyScheduledCapacity")} value={String(scheduleTotals.weeklyFlights)} />
+        <Info label={t("routes.estimatedRevenue")} value={`${formatGBP.format(estimatedRevenue)}/week`} />
+        <Info label={t("routes.estimatedProfit")} value={`${formatGBP.format(scheduleTotals.weeklyProfit || best?.profit || 0)}/week`} />
+        <Info label="Status" value={t("routes.readOnly")} />
+      </div>
+
+      <div className="mt-4 grid gap-2 text-sm md:grid-cols-4">
         <Info label="Economy fare" value={formatGBP.format(pricing.economy)} />
         <Info label="Premium fare" value={formatGBP.format(pricing.premiumEconomy)} />
         <Info label="Business fare" value={formatGBP.format(pricing.business)} />
@@ -184,11 +293,24 @@ function routeScheduleTotals(route: Route, game: GameState) {
         .forEach((schedule) => {
           const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft, game.difficultyConfig);
           totals.weeklyFlights += estimate.weeklyFlights;
+          totals.weeklyRevenue += estimate.weeklyRevenue;
+          totals.weeklyProfit += estimate.weeklyProfit;
         });
       return totals;
     },
-    { weeklyFlights: 0 }
+    { weeklyFlights: 0, weeklyRevenue: 0, weeklyProfit: 0 }
   );
+}
+
+function estimatedRouteRevenue(bestRevenuePerFlight: number, weeklyRevenue: number) {
+  return weeklyRevenue > 0 ? weeklyRevenue : bestRevenuePerFlight;
+}
+
+function formatFlightTime(distanceKm: number) {
+  const minutes = Math.max(1, Math.round((distanceKm / 820) * 60));
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return `${hours}h ${remainder.toString().padStart(2, "0")}m`;
 }
 
 function formatDemand(value: number, suffix: string) {

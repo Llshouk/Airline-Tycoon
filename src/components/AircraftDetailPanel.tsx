@@ -1,12 +1,14 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
+import { useState } from "react";
 import { AircraftWeeklyTimetableGrid } from "@/components/AircraftWeeklyTimetableGrid";
 import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
 import { formatGBP } from "@/lib/format";
+import { useGameStore } from "@/store/gameStore";
 import type { AircraftInstance, FlightStatus, GameState } from "@/types/game";
 
 export function AircraftDetailPanel({
@@ -19,6 +21,10 @@ export function AircraftDetailPanel({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const updateAircraftRegistration = useGameStore((state) => state.updateAircraftRegistration);
+  const [isEditingRegistration, setIsEditingRegistration] = useState(false);
+  const [registrationDraft, setRegistrationDraft] = useState(aircraft.registration);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
   const model = aircraftById[aircraft.modelId];
   const homeBase = airportsById[aircraft.homeBaseAirportId];
   const currentLocation = aircraftCurrentLocationLabel(aircraft);
@@ -56,6 +62,60 @@ export function AircraftDetailPanel({
               imageOffsetX={model.imageOffsetX}
               imageOffsetY={model.imageOffsetY}
             />
+            <div className="rounded-md border border-slate-200 p-3">
+              <p className="mb-2 text-sm font-black text-ink">{t("fleet.registration")}</p>
+              {isEditingRegistration ? (
+                <div className="space-y-2">
+                  <input
+                    value={registrationDraft}
+                    onChange={(event) => setRegistrationDraft(event.target.value.toUpperCase())}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 font-black text-ink outline-none focus:border-jet focus:ring-2 focus:ring-jet/20"
+                  />
+                  {registrationError ? <p className="text-xs font-bold text-coral">{registrationError}</p> : null}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const result = updateAircraftRegistration(aircraft.id, registrationDraft);
+                        if (!result.ok) {
+                          setRegistrationError(result.message);
+                          return;
+                        }
+                        setIsEditingRegistration(false);
+                        setRegistrationError(null);
+                      }}
+                      className="rounded-md bg-coral px-3 py-2 text-sm font-bold text-white hover:bg-coral/90"
+                    >
+                      {t("fleet.saveRegistration")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRegistrationDraft(aircraft.registration);
+                        setIsEditingRegistration(false);
+                        setRegistrationError(null);
+                      }}
+                      className="rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegistrationDraft(aircraft.registration);
+                    setRegistrationError(null);
+                    setIsEditingRegistration(true);
+                  }}
+                  className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  <Pencil size={14} />
+                  {t("fleet.editRegistration")}
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <Info label={t("fleet.homeBase")} value={homeBase?.iata ?? aircraft.homeBaseAirportId} />
               <Info label={t("fleet.currentAirport")} value={currentLocation} />

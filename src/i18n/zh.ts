@@ -60,7 +60,7 @@ export const zh = {
   "difficulty.bankruptSaveKept": "该存档会被保留，方便上传或查看。你可以回到选择界面开始另一个难度。",
   "difficulty.startAnotherDifficulty": "返回难度选择",
   "settings.timeSpeed": "时间倍速",
-  "app.title": "航空大亨 V1.0.0",
+  "app.title": "航空大亨 V1.0.1",
   "common.dismiss": "关闭",
   "common.continue": "继续",
   "common.newGame": "新游戏",
@@ -325,10 +325,11 @@ export const zh = {
   "schedule.aircraftWrongBase": "ä¿å­˜å¤±è´¥ï¼šè¯¥é£žæœºä¸å±žäºŽå½“å‰é€‰æ‹©çš„åŸºåœ°æœºåœºã€‚",
   "schedule.routeWrongBaseShort": "è¯¥èˆªçº¿ä¸å±žäºŽå½“å‰é€‰æ‹©çš„åŸºåœ°",
   "schedule.aircraftWrongBaseShort": "è¯¥é£žæœºä¸å±žäºŽå½“å‰é€‰æ‹©çš„åŸºåœ°æœºåœº"
-, "app.releaseName": "V1.0.0 æ­£å¼ç‰ˆï¼šæ ¸å¿ƒè¿è¥ç‰ˆæœ¬",
+, "app.releaseName": "V1.0.1ï¼šæœºé˜Ÿã€èˆªçº¿ä¸Žæœºåœºå¤§å±ä¿®å¤",
   "aircraft.imageComingSoon": "å›¾ç‰‡å³å°†æ›´æ–°",
   "fleet.baseFilter": "åŸºåœ°ç­›é€‰",
   "fleet.allBases": "å…¨éƒ¨åŸºåœ°",
+  "fleet.selectAircraftDetails": "è¯·é€‰æ‹©ä¸€æž¶é£žæœºæŸ¥çœ‹è¯¦æƒ…ã€‚",
   "market.selectAircraftDetails": "è¯·é€‰æ‹©ä¸€æ¬¾é£žæœºæŸ¥çœ‹è¯¦æƒ…",
   "market.price": "ä»·æ ¼",
   "map.routeOpportunities": "èˆªçº¿æœºä¼š",
@@ -340,5 +341,15 @@ export const zh = {
   "map.highestRevenueFirst": "æ”¶ç›Šç”±é«˜åˆ°ä½Ž",
   "map.lowestRevenueFirst": "æ”¶ç›Šç”±ä½Žåˆ°é«˜",
   "map.selectRouteDetails": "è¯·é€‰æ‹©ä¸€æ¡èˆªçº¿æŸ¥çœ‹è¯¦æƒ…ã€‚",
-  "map.estimatedRevenue": "é¢„ä¼°æ”¶ç›Š"
+  "map.estimatedRevenue": "é¢„ä¼°æ”¶ç›Š",
+  "routes.originBase": "å‡ºå‘åŸºåœ°",
+  "routes.sortByDistance": "æŒ‰è·ç¦»æŽ’åº",
+  "routes.shortestFirst": "è·ç¦»ç”±çŸ­åˆ°é•¿",
+  "routes.longestFirst": "è·ç¦»ç”±é•¿åˆ°çŸ­",
+  "routes.sortByRevenue": "æŒ‰æ”¶ç›ŠæŽ’åº",
+  "routes.highestRevenueFirst": "æ”¶ç›Šç”±é«˜åˆ°ä½Ž",
+  "routes.lowestRevenueFirst": "æ”¶ç›Šç”±ä½Žåˆ°é«˜",
+  "routes.estimatedRevenue": "é¢„ä¼°æ”¶ç›Š",
+  "routes.selectRouteDetails": "è¯·é€‰æ‹©ä¸€æ¡èˆªçº¿æŸ¥çœ‹è¯¦æƒ…ã€‚",
+  "routes.noRoutesForFilter": "æ²¡æœ‰ç¬¦åˆç­›é€‰çš„èˆªçº¿ã€‚"
 } as const;

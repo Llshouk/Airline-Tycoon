@@ -998,10 +998,10 @@ function FlightBoardColumn({
                 </span>
                 <span className="block truncate text-slate-400">{row.aircraft.registration}</span>
               </span>
-              <span className="text-right font-mono font-black tabular-nums">
+              <span className={`text-right font-mono font-black tabular-nums ${row.isDelayed ? "text-yellow-400" : "text-slate-100"}`}>
                 {row.isDelayed ? formatBoardTime(row.actualTime) : "-"}
               </span>
-              <span className="text-right font-black">
+              <span className={`text-right font-black ${row.isDelayed ? "text-yellow-400" : "text-slate-100"}`}>
                 {row.isDelayed ? `${t("airport.delayed")} ${row.delayMinutes}m` : airportStatusLabel(row.statusKey, t)}
               </span>
             </div>
@@ -1044,8 +1044,9 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
             ? item.actualDepartureGameTime ?? item.departureGameTime
             : item.actualArrivalGameTime ?? item.arrivalGameTime;
         const counterpartyAirport = airportsById[type === "departure" ? item.destinationAirportId : item.originAirportId];
-        const delayMinutes = Math.max(0, Math.round((actualTime - scheduledTime) / 60_000));
-        const isDelayed = item.operationalStatus === "delayed" || delayMinutes > 0 || actualTime > scheduledTime;
+        const explicitDelayMinutes = item.delayMinutes ?? 0;
+        const delayMinutes = Math.max(explicitDelayMinutes, Math.max(0, Math.round((actualTime - scheduledTime) / 60_000)));
+        const isDelayed = (item.status as string) === "delayed" || item.operationalStatus === "delayed" || explicitDelayMinutes > 0 || delayMinutes > 0 || actualTime > scheduledTime;
         if (!shouldShowBoardFlight(type, item, scheduledTime, actualTime, isDelayed, now, windowStart, windowEnd)) return null;
         const statusKey = item.status === "completed" ? "arrived" : item.status === "in-flight" ? "departed" : "onTime";
         return {
