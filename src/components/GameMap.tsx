@@ -400,7 +400,7 @@ function aircraftDetailsHtml(
 }
 
 function getAircraftDisplayImage(aircraft: AircraftInstance, model: AircraftModel | undefined) {
-  return (aircraft as AircraftInstance & { imageUrl?: string }).imageUrl ?? model?.imageUrl ?? "";
+  return model?.sideImageUrl ?? (aircraft as AircraftInstance & { imageUrl?: string }).imageUrl ?? model?.imageUrl ?? "";
 }
 
 function escapeHtml(value: string) {

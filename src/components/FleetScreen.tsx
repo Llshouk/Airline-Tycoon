@@ -3,7 +3,7 @@
 import { CalendarClock, ChevronDown, ChevronRight, Pencil, Plane } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AircraftDetailPanel } from "@/components/AircraftDetailPanel";
-import { AircraftImage } from "@/components/AircraftImage";
+import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -22,7 +22,12 @@ export function FleetScreen() {
   const [editingAircraftId, setEditingAircraftId] = useState<string | null>(null);
   const [registrationDraft, setRegistrationDraft] = useState("");
   const [registrationError, setRegistrationError] = useState<string | null>(null);
-  const groups = useMemo(() => (game ? groupFleetByModel(game.fleet, game.flightLog) : []), [game]);
+  const [baseFilter, setBaseFilter] = useState("all");
+  const filteredFleet = useMemo(
+    () => (game ? (baseFilter === "all" ? game.fleet : game.fleet.filter((aircraft) => aircraft.homeBaseAirportId === baseFilter)) : []),
+    [baseFilter, game]
+  );
+  const groups = useMemo(() => (game ? groupFleetByModel(filteredFleet, game.flightLog) : []), [filteredFleet, game]);
 
   if (!game) return null;
   const selectedAircraft = selectedAircraftId ? game.fleet.find((aircraft) => aircraft.id === selectedAircraftId) : null;
@@ -33,6 +38,22 @@ export function FleetScreen() {
         <h2 className="text-2xl font-black text-ink">{t("fleet.title")}</h2>
         <p className="text-slate-600">Owned aircraft, assigned services, utilization, and lifetime operating results.</p>
       </div>
+      <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-soft">
+        <label className="text-sm font-bold text-slate-600">
+          {t("fleet.baseFilter")}
+          <select value={baseFilter} onChange={(event) => setBaseFilter(event.target.value)} className="ml-2 rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet">
+            <option value="all">{t("fleet.allBases")}</option>
+            {game.baseAirports.map((airportId) => {
+              const airport = airportsById[airportId];
+              return airport ? (
+                <option key={airportId} value={airportId}>
+                  {airport.iata} {airport.city}
+                </option>
+              ) : null;
+            })}
+          </select>
+        </label>
+      </section>
       {game.fleet.length === 0 ? (
         <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-soft">
           <Plane className="mx-auto text-coral" size={36} />
@@ -52,7 +73,7 @@ export function FleetScreen() {
                   className="flex w-full flex-wrap items-start justify-between gap-3 text-left"
                 >
                   <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <AircraftImage model={group.model} className="h-16 w-28 shrink-0" />
+                    <AircraftSideImage src={group.model.sideImageUrl} alt={group.model.sideImageAlt} size="small" className="w-28 shrink-0" />
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-normal text-coral">{group.model.manufacturer}</p>
                       <h3 className="flex items-center gap-2 text-base font-black text-ink">
@@ -90,7 +111,7 @@ export function FleetScreen() {
                         <div key={aircraft.id} className="rounded-md border border-slate-200 p-2.5">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="flex min-w-0 items-start gap-3">
-                              <AircraftImage model={model} className="h-14 w-24 shrink-0" />
+                              <AircraftSideImage src={model.sideImageUrl} alt={model.sideImageAlt} size="small" className="w-24 shrink-0" />
                               <div>
                                 {isEditing ? (
                                   <div>

@@ -2,7 +2,7 @@
 
 import { CheckCircle2, RotateCcw, ShoppingCart, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { AircraftImage } from "@/components/AircraftImage";
+import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { SeatConfigurationModal } from "@/components/SeatConfigurationModal";
 import { aircraftById, aircraftModels } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
@@ -119,26 +119,17 @@ export function AircraftMarketScreen() {
                 {group.models.map((model) => (
                   <article
                     key={model.id}
-                    className={`rounded-lg border p-4 transition hover:-translate-y-0.5 hover:shadow-soft ${
+                    className={`rounded-md border p-3 transition hover:border-coral hover:bg-coral/5 ${
                       model.id === selectedModelId ? "border-coral bg-coral/5" : "border-slate-200"
                     }`}
                   >
-                    <AircraftImage model={model} />
-                    <div className="mt-3 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">{model.manufacturer}</p>
-                        <h4 className="font-black text-ink">{model.model}</h4>
-                      </div>
-                      <span className="rounded-md bg-runway px-2 py-1 text-xs font-bold capitalize text-jet">{model.recommendedRouteType}</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                      <Spec label={t("fleet.range")} value={`${formatNumber.format(model.rangeKm)} km`} />
-                      <Spec label={t("fleet.cruise")} value={`${formatNumber.format(model.cruiseSpeedKmh)} km/h`} />
-                      <Spec label={t("fleet.maxSeats")} value={formatNumber.format(model.maxPassengerSeats)} />
-                      <Spec label={t("fleet.basePrice")} value={formatGBP.format(model.estimatedPriceGBP)} />
-                    </div>
-                    <button type="button" onClick={() => selectModel(model)} className="mt-4 w-full rounded-md bg-jet px-3 py-2 font-bold text-white">
-                      {t("fleet.configure")}
+                    <button type="button" onClick={() => selectModel(model)} className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-3 text-left">
+                      <span className="min-w-0">
+                        <span className="block truncate font-black text-ink">{model.model}</span>
+                        <span className="block text-xs font-semibold text-slate-500">{model.manufacturer}</span>
+                      </span>
+                      <span className="text-xs font-bold text-slate-600">{formatNumber.format(model.rangeKm)} km</span>
+                      <span className="text-xs font-black text-jet">{formatGBP.format(model.estimatedPriceGBP)}</span>
                     </button>
                   </article>
                 ))}
@@ -157,7 +148,15 @@ export function AircraftMarketScreen() {
               {t("fleet.suggested")}
             </button>
           </div>
-          <AircraftImage model={selectedModel} className="mt-4 h-32" />
+          <AircraftSideImage
+            src={selectedModel.sideImageUrl}
+            alt={selectedModel.sideImageAlt}
+            size="medium"
+            imageScale={selectedModel.imageScale}
+            imageOffsetX={selectedModel.imageOffsetX}
+            imageOffsetY={selectedModel.imageOffsetY}
+            className="mt-4"
+          />
           <label className="mt-4 block">
             <span className="text-sm font-semibold text-slate-700">{t("fleet.registration")}</span>
             <input value={registration} onChange={(event) => setRegistration(event.target.value.toUpperCase())} maxLength={12} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-jet focus:ring-2 focus:ring-jet/20" />
@@ -202,6 +201,10 @@ export function AircraftMarketScreen() {
           <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
             <Spec label={t("fleet.purchasePrice")} value={formatGBP.format(validation.purchasePriceGBP)} />
             <Spec label={t("fleet.routeFit")} value={routeSuitabilityHints(selectedModel, layout)[0]} />
+            <Spec label={t("fleet.cruise")} value={`${formatNumber.format(selectedModel.cruiseSpeedKmh)} km/h`} />
+            <Spec label={t("fleet.maxSeats")} value={formatNumber.format(selectedModel.maxPassengerSeats)} />
+            <Spec label={t("market.aircraftFamily")} value={selectedModel.familyDisplayName} />
+            <Spec label="Fuel/km" value={formatGBP.format(selectedModel.fuelCostPerKm)} />
           </div>
           {validation.errors.length > 0 ? (
             <div className="mt-3 space-y-2">

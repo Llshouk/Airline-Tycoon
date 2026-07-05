@@ -171,6 +171,7 @@ function model(
   // the root-relative runtime path, for example "/aircraft/a320neo.jpg".
   const imageAlt = `${manufacturer} ${aircraftModel}`;
   const imageUrl = image?.imageUrl ?? `/aircraft/${id}.jpg`;
+  const sideImageUrl = aircraftSideImageUrl(id);
   const baseModel: AircraftModel = {
     id,
     manufacturer,
@@ -179,6 +180,8 @@ function model(
     imageUrl,
     imageAlt: image?.imageAlt ?? imageAlt,
     ...(image?.imageCredit ? { imageCredit: image.imageCredit } : {}),
+    sideImageUrl,
+    sideImageAlt: `${manufacturer} ${aircraftModel} side view`,
     type,
     visualVariant,
     recommendedRouteType,
@@ -212,6 +215,25 @@ function model(
     premiumEconomySeats: suggestedLayout.premiumEconomy,
     economySeats: suggestedLayout.economy
   };
+}
+
+function aircraftSideImageUrl(id: string) {
+  const fileById: Record<string, string> = {
+    "a220-300": "a220-300.png",
+    a320neo: "a320neo.png",
+    a321neo: "a321neo.png",
+    "a330-900neo": "a330-900neo.png",
+    "a350-900": "a350-900.png",
+    "a350-1000": "a350-1000.jpg",
+    "737-max-8": "b737max8.jpg",
+    "737-max-9": "b737max9.png",
+    "777-300er": "b777-300er.png",
+    "777-9": "b777-9.jpg",
+    "787-9": "b787-9.jpg",
+    "787-10": "b787-10.jpg"
+  };
+  const file = fileById[id];
+  return file ? `/aircraft-side/${file}` : undefined;
 }
 
 function aircraftFamily(manufacturer: string, aircraftModel: string) {

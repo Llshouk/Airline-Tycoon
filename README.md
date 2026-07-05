@@ -1,6 +1,8 @@
-# Airline Tycoon V1
+# Airline Tycoon V1.0.0
 
 A browser-based airline management simulation game where players build and manage their own airline network.
+
+Release: V1.0.0 - Official Core Operations Release
 
 ## Features
 
@@ -56,7 +58,7 @@ npm run dev
 
 ## Current Status
 
-This is a first playable prototype. Some data, economy calculations, route demand, and scheduling systems are simplified for gameplay balance.
+Airline Tycoon V1.0.0 is the official core operations release. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
 
 ## Cloud Save
 

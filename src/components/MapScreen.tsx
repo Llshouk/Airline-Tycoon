@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AircraftImage } from "@/components/AircraftImage";
+import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { GameMap, type MapDisplayMode } from "@/components/GameMap";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
@@ -181,6 +181,11 @@ export function MapScreen() {
             selectedAirportId={baseBoardAirportId ?? primaryBaseAirportId}
             onSelectAirport={setBaseBoardAirportId}
           />
+          <RouteOpportunitiesPanel
+            game={game}
+            baseAirportIds={baseAirportIds}
+            onOpenRoute={(preview) => setRouteToConfirm(preview)}
+          />
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
             <h3 className="font-bold text-ink">Airport</h3>
             {selectedAirport ? (
@@ -239,7 +244,7 @@ export function MapScreen() {
             <h3 className="font-bold text-ink">Active aircraft</h3>
             {selectedFlight && selectedFlightRoute && selectedFlightModel && selectedFlightImageModel && selectedFlightFinancials ? (
               <div className="mt-3 space-y-2 text-sm">
-                <AircraftImage model={selectedFlightImageModel} className="h-24 w-full" />
+                <AircraftSideImage src={selectedFlightImageModel.sideImageUrl} alt={selectedFlightImageModel.sideImageAlt} size="small" />
                 <Info label="Flight" value={selectedFlight.item.flightNumber ?? "-"} />
                 <Info label="Aircraft" value={`${selectedFlight.aircraft.registration} ${selectedFlightModel.model}`} />
                 <Info label="Manufacturer" value={selectedFlightModel.manufacturer} />
@@ -663,6 +668,156 @@ function BasePurchaseConfirmModal({
         </div>
       </div>
     </div>
+  );
+}
+
+type RouteOpportunitySort = "distance-asc" | "distance-desc" | "revenue-desc" | "revenue-asc";
+
+function RouteOpportunitiesPanel({
+  game,
+  baseAirportIds,
+  onOpenRoute
+}: {
+  game: GameState;
+  baseAirportIds: string[];
+  onOpenRoute: (preview: RouteOpeningPreview) => void;
+}) {
+  const { t } = useTranslation();
+  const [baseFilter, setBaseFilter] = useState("all");
+  const [sortMode, setSortMode] = useState<RouteOpportunitySort>("revenue-desc");
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const opportunities = useMemo(() => {
+    const baseIds = baseFilter === "all" ? baseAirportIds : baseAirportIds.filter((airportId) => airportId === baseFilter);
+    return baseIds
+      .flatMap((baseId) => {
+        const origin = airportsById[baseId];
+        if (!origin) return [];
+        return Object.values(airportsById)
+          .filter((destination) => destination.id !== origin.id)
+          .filter((destination) => !game.routes.some((route) => routeConnects(route.originAirportId, route.destinationAirportId, origin.id, destination.id)))
+          .map((destination) => {
+            const distance = distanceKm(origin, destination);
+            const estimatedTicketPrices = estimateTicketPrices(distance);
+            const estimatedCargoRatePerTon = estimateCargoRatePerTon(distance);
+            const recommendedPricing = { ...estimatedTicketPrices, cargo: estimatedCargoRatePerTon };
+            const route: Route = {
+              id: `${origin.id}-${destination.id}`,
+              originAirportId: origin.id,
+              originBaseAirportId: origin.id,
+              originIata: origin.iata,
+              destinationAirportId: destination.id,
+              destinationIata: destination.iata,
+              distanceKm: distance,
+              estimatedDemand: estimateDemand(origin, destination, distance),
+              estimatedTicketPrices,
+              estimatedCargoRatePerTon,
+              recommendedPricing,
+              pricing: recommendedPricing,
+              isOpen: false
+            };
+            const revenuePreview = bestRoutePreview(route, game);
+            return {
+              key: `${origin.id}-${destination.id}`,
+              preview: { route, cost: estimateRouteOpeningCost(distance) },
+              origin,
+              destination,
+              estimatedRevenue: revenuePreview?.revenue ?? 0,
+              estimatedProfit: revenuePreview?.profit ?? 0
+            };
+          });
+      })
+      .sort((a, b) => {
+        if (sortMode === "distance-asc") return a.preview.route.distanceKm - b.preview.route.distanceKm;
+        if (sortMode === "distance-desc") return b.preview.route.distanceKm - a.preview.route.distanceKm;
+        if (sortMode === "revenue-asc") return a.estimatedRevenue - b.estimatedRevenue;
+        return b.estimatedRevenue - a.estimatedRevenue;
+      })
+      .slice(0, 24);
+  }, [baseAirportIds, baseFilter, game, sortMode]);
+  const selected = opportunities.find((item) => item.key === selectedKey) ?? opportunities[0] ?? null;
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-bold text-ink">{t("map.routeOpportunities")}</h3>
+        <span className="rounded-md bg-runway px-2 py-1 text-xs font-bold text-jet">{opportunities.length}</span>
+      </div>
+      <div className="mt-3 grid gap-2 text-sm">
+        <label className="font-bold text-slate-600">
+          {t("map.originBase")}
+          <select value={baseFilter} onChange={(event) => setBaseFilter(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 font-bold text-jet">
+            <option value="all">{t("fleet.allBases")}</option>
+            {baseAirportIds.map((airportId) => {
+              const airport = airportsById[airportId];
+              return airport ? (
+                <option key={airportId} value={airportId}>
+                  {airport.iata} {airport.city}
+                </option>
+              ) : null;
+            })}
+          </select>
+        </label>
+        <label className="font-bold text-slate-600">
+          {sortMode.startsWith("distance") ? t("map.sortByDistance") : t("map.sortByRevenue")}
+          <select value={sortMode} onChange={(event) => setSortMode(event.target.value as RouteOpportunitySort)} className="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 font-bold text-jet">
+            <option value="distance-asc">{t("map.shortestFirst")}</option>
+            <option value="distance-desc">{t("map.longestFirst")}</option>
+            <option value="revenue-desc">{t("map.highestRevenueFirst")}</option>
+            <option value="revenue-asc">{t("map.lowestRevenueFirst")}</option>
+          </select>
+        </label>
+      </div>
+      <div className="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1">
+        {opportunities.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setSelectedKey(item.key)}
+            className={`grid w-full grid-cols-[1fr_auto_auto] items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition ${
+              selected?.key === item.key ? "bg-coral/10 text-ink" : "bg-runway text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            <span className="font-black">{item.origin.iata} - {item.destination.iata}</span>
+            <span className="font-bold">{formatNumber.format(item.preview.route.distanceKm)} km</span>
+            <span className="font-black">{formatGBP.format(item.estimatedRevenue)}</span>
+          </button>
+        ))}
+        {opportunities.length === 0 ? <p className="rounded-md bg-runway px-3 py-3 text-sm text-slate-500">{t("map.selectRouteDetails")}</p> : null}
+      </div>
+      {selected ? (
+        <div className="mt-3 rounded-md border border-slate-200 p-3">
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <Info label="Route" value={`${selected.origin.iata} - ${selected.destination.iata}`} />
+            <Info label="Distance" value={`${formatNumber.format(selected.preview.route.distanceKm)} km`} />
+            <Info label={t("map.estimatedRevenue")} value={formatGBP.format(selected.estimatedRevenue)} />
+            <Info label="Profit" value={formatGBP.format(selected.estimatedProfit)} />
+          </div>
+          <DemandSummary route={selected.preview.route} />
+          <AvailableAircraftForRoute
+            route={selected.preview.route}
+            game={game}
+            labels={{
+              cancel: "Cancel",
+              confirm: "Confirm",
+              continue: t("common.continue"),
+              managePricing: t("map.managePricingInRoutes"),
+              openingCost: t("map.openingCost"),
+              openRoute: t("map.openRoute"),
+              routeLaunchVideoPlaceholder: t("map.routeLaunchVideoPlaceholder"),
+              routeOpened: t("map.routeOpened"),
+              viewRoute: t("map.viewRoute"),
+              availableAircraft: t("map.availableAircraftForRoute"),
+              noAircraft: t("map.noAircraftForRoute"),
+              available: t("map.available"),
+              rangeTooShort: t("map.rangeTooShort")
+            }}
+          />
+          <button type="button" onClick={() => onOpenRoute(selected.preview)} className="mt-3 w-full rounded-md bg-coral px-3 py-2 text-sm font-black text-white hover:bg-coral/90">
+            {t("map.openRoute")}
+          </button>
+        </div>
+      ) : null}
+    </section>
   );
 }
 

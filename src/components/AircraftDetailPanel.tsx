@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { AircraftWeeklyTimetableGrid } from "@/components/AircraftWeeklyTimetableGrid";
-import { AircraftImage } from "@/components/AircraftImage";
+import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -48,7 +48,14 @@ export function AircraftDetailPanel({
 
         <div className="grid gap-4 p-5 lg:grid-cols-[320px_1fr]">
           <aside className="space-y-4">
-            <AircraftImage model={model} className="h-40" />
+            <AircraftSideImage
+              src={model.sideImageUrl}
+              alt={model.sideImageAlt}
+              size="large"
+              imageScale={model.imageScale}
+              imageOffsetX={model.imageOffsetX}
+              imageOffsetY={model.imageOffsetY}
+            />
             <div className="grid grid-cols-2 gap-2 text-sm">
               <Info label={t("fleet.homeBase")} value={homeBase?.iata ?? aircraft.homeBaseAirportId} />
               <Info label={t("fleet.currentAirport")} value={currentLocation} />

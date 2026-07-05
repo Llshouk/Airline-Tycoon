@@ -34,6 +34,11 @@ export interface AircraftModel {
   imageUrl?: string;
   imageAlt: string;
   imageCredit?: string;
+  sideImageUrl?: string;
+  sideImageAlt: string;
+  imageScale?: number;
+  imageOffsetX?: number;
+  imageOffsetY?: number;
   type: "narrowbody" | "widebody";
   visualVariant: AircraftVisualVariant;
   recommendedRouteType: RouteBand | "all-rounder";
