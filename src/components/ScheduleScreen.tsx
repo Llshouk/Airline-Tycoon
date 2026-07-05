@@ -57,12 +57,25 @@ export function ScheduleScreen() {
     () => (game ? game.routes.filter((route) => route.originAirportId === selectedScheduleBase) : []),
     [game, selectedScheduleBase]
   );
+  const selectedRoute = visibleRoutes.find((route) => route.id === routeId) ?? null;
   const visibleAircraft = useMemo(
-    () => (game ? game.fleet.filter((aircraft) => aircraft.homeBaseAirportId === selectedScheduleBase) : []),
-    [game, selectedScheduleBase]
+    () =>
+      game && selectedRoute
+        ? game.fleet.filter(
+            (aircraft) =>
+              canAircraftOperateRoute({
+                aircraft,
+                route: selectedRoute,
+                selectedBase: selectedScheduleBase,
+                routes: game.routes,
+                isRoundTrip,
+                editingScheduleId
+              }).canOperate
+          )
+        : [],
+    [editingScheduleId, game, isRoundTrip, selectedRoute, selectedScheduleBase]
   );
   const selectedAircraft = visibleAircraft.find((aircraft) => aircraft.id === aircraftId) ?? visibleAircraft[0];
-  const selectedRoute = visibleRoutes.find((route) => route.id === routeId) ?? visibleRoutes[0];
   const model = selectedAircraft ? aircraftById[selectedAircraft.modelId] : null;
   const recommendedDepartureTime = useMemo(
     () =>
@@ -85,13 +98,16 @@ export function ScheduleScreen() {
   }, [game, selectedScheduleBaseId]);
 
   useEffect(() => {
+    if (!selectedRoute) {
+      if (aircraftId) setAircraftId("");
+      return;
+    }
     if (selectedAircraft && selectedAircraft.id !== aircraftId) setAircraftId(selectedAircraft.id);
     if (!selectedAircraft && aircraftId) setAircraftId("");
-  }, [aircraftId, selectedAircraft]);
+  }, [aircraftId, selectedAircraft, selectedRoute]);
 
   useEffect(() => {
-    if (selectedRoute && selectedRoute.id !== routeId) setRouteId(selectedRoute.id);
-    if (!selectedRoute && routeId) setRouteId("");
+    if (routeId && !selectedRoute) setRouteId("");
   }, [routeId, selectedRoute]);
 
   useEffect(() => {
@@ -199,6 +215,7 @@ export function ScheduleScreen() {
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLocalError(null);
+    if (!game) return;
     if (!selectedAircraft) {
       showScheduleFailure("Select an aircraft.");
       return;
@@ -217,6 +234,24 @@ export function ScheduleScreen() {
     }
     if (selectedAircraft.homeBaseAirportId !== selectedScheduleBase) {
       showScheduleFailure("Schedule save failed: this aircraft is not based at the selected airport.");
+      return;
+    }
+    const suitability = canAircraftOperateRoute({
+      aircraft: selectedAircraft,
+      route: selectedRoute,
+      selectedBase: selectedScheduleBase,
+      routes: game.routes,
+      isRoundTrip,
+      editingScheduleId
+    });
+    if (!suitability.canOperate) {
+      if (suitability.reasons.includes("range")) {
+        showScheduleFailure("Schedule save failed: aircraft range is too short.");
+      } else if (suitability.reasons.includes("availability")) {
+        showScheduleFailure("Schedule save failed: aircraft has no available timetable slot.");
+      } else {
+        showScheduleFailure("Schedule save failed: this aircraft cannot operate the selected route.");
+      }
       return;
     }
     if (preview.error) {
@@ -326,40 +361,18 @@ export function ScheduleScreen() {
             <h3 className="font-bold text-ink">{editingScheduleId ? "Edit timetable" : t("schedule.create")}</h3>
           </div>
           <label className="mt-4 block">
-            <span className="text-sm font-semibold text-slate-700">{t("schedule.aircraft")}</span>
-            <select
-              value={selectedAircraft?.id ?? ""}
-              onChange={(event) => {
-                setAircraftId(event.target.value);
-                setEditingScheduleId(null);
-                setHasUserEditedDepartureTime(false);
-              }}
-              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
-            >
-              {visibleAircraft.length === 0 ? <option value="">No aircraft based here</option> : null}
-              {visibleAircraft.map((aircraft) => {
-                const aircraftModel = aircraftById[aircraft.modelId];
-                const airport = airportsById[aircraft.currentAirportId];
-                return (
-                  <option key={aircraft.id} value={aircraft.id}>
-                    {aircraft.registration} - {aircraftModel.model} at {airport.iata}
-                  </option>
-                );
-              })}
-            </select>
-          </label>
-          <label className="mt-4 block">
             <span className="text-sm font-semibold text-slate-700">{t("schedule.route")}</span>
             <select
               value={selectedRoute?.id ?? ""}
               onChange={(event) => {
                 setRouteId(event.target.value);
+                setAircraftId("");
                 setEditingScheduleId(null);
                 setHasUserEditedDepartureTime(false);
               }}
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
             >
-              {visibleRoutes.length === 0 ? <option value="">No routes from this base</option> : null}
+              <option value="">{visibleRoutes.length === 0 ? "No routes from this base" : "Select a route"}</option>
               {visibleRoutes.map((route) => (
                 <option key={route.id} value={route.id}>
                   {airportsById[route.originAirportId].iata} - {airportsById[route.destinationAirportId].iata}
@@ -367,6 +380,34 @@ export function ScheduleScreen() {
               ))}
             </select>
           </label>
+          {selectedRoute ? (
+            <label className="mt-4 block">
+              <span className="text-sm font-semibold text-slate-700">{t("schedule.aircraft")}</span>
+              <select
+                value={selectedAircraft?.id ?? ""}
+                onChange={(event) => {
+                  setAircraftId(event.target.value);
+                  setEditingScheduleId(null);
+                  setHasUserEditedDepartureTime(false);
+                }}
+                className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
+              >
+                {visibleAircraft.length === 0 ? <option value="">{t("schedule.noSuitableAircraft")}</option> : null}
+                {visibleAircraft.map((aircraft) => {
+                  const aircraftModel = aircraftById[aircraft.modelId];
+                  const airport = airportsById[aircraft.currentAirportId];
+                  return (
+                    <option key={aircraft.id} value={aircraft.id}>
+                      {aircraft.registration} - {aircraftModel.model} at {airport.iata}
+                    </option>
+                  );
+                })}
+              </select>
+              {visibleAircraft.length === 0 ? <p className="mt-2 rounded-md bg-runway px-3 py-2 text-sm font-semibold text-slate-500">{t("schedule.noSuitableAircraft")}</p> : null}
+            </label>
+          ) : (
+            <p className="mt-4 rounded-md bg-runway px-3 py-3 text-sm font-semibold text-slate-500">Select a route before choosing aircraft.</p>
+          )}
           <label className="mt-4 block">
             <span className="text-sm font-semibold text-slate-700">Flight Number</span>
             <input
@@ -586,7 +627,7 @@ function getRecommendedDepartureTime({
     schedule: selectedAircraft.schedule.filter((item) => item.weeklyScheduleId !== editingScheduleId)
   };
   const existingBlocks = weeklyEventBlocksFromSchedule(baselineAircraft, routes);
-  const daysToCheck = selectedDays.length > 0 ? selectedDays : weekDays.map((day) => day.id);
+  const daysToCheck = selectedDays.length > 0 ? selectedDays : [0 as DayOfWeek];
   const candidates = recommendedDepartureCandidates(existingBlocks.map((block) => block.endMinute));
 
   for (const candidate of candidates) {
@@ -604,6 +645,68 @@ function getRecommendedDepartureTime({
   }
 
   return "08:00";
+}
+
+function canAircraftOperateRoute({
+  aircraft,
+  route,
+  selectedBase,
+  routes,
+  isRoundTrip,
+  editingScheduleId
+}: {
+  aircraft: AircraftInstance;
+  route: Route;
+  selectedBase: string;
+  routes: Route[];
+  isRoundTrip: boolean;
+  editingScheduleId: string | null;
+}) {
+  const reasons: string[] = [];
+  const model = aircraftById[aircraft.modelId];
+  if (aircraft.homeBaseAirportId !== selectedBase) reasons.push("base");
+  if (!model || model.rangeKm < route.distanceKm) reasons.push("range");
+  if (reasons.length === 0 && !hasAnyTimetableSlot({ aircraft, route, routes, isRoundTrip, editingScheduleId })) reasons.push("availability");
+  return { canOperate: reasons.length === 0, reasons };
+}
+
+function hasAnyTimetableSlot({
+  aircraft,
+  route,
+  routes,
+  isRoundTrip,
+  editingScheduleId
+}: {
+  aircraft: AircraftInstance;
+  route: Route;
+  routes: Route[];
+  isRoundTrip: boolean;
+  editingScheduleId: string | null;
+}) {
+  const baselineAircraft: AircraftInstance = {
+    ...aircraft,
+    schedule: aircraft.schedule.filter((item) => item.weeklyScheduleId !== editingScheduleId)
+  };
+  const existingBlocks = weeklyEventBlocksFromSchedule(baselineAircraft, routes);
+  const candidates = recommendedDepartureCandidates(existingBlocks.map((block) => block.endMinute));
+
+  for (const day of weekDays) {
+    for (const candidate of candidates) {
+      const preview = previewBlocksForWeeklySchedule({
+        aircraft,
+        route,
+        daysOfWeek: [day.id],
+        departureTimeLocal: candidate,
+        isRoundTrip,
+        outboundFlightNumber: "CHK101",
+        returnFlightNumber: "CHK102",
+        conflict: false
+      });
+      if (!hasScheduleConflict(existingBlocks, preview)) return true;
+    }
+  }
+
+  return false;
 }
 
 function recommendedDepartureCandidates(existingEndMinutes: number[]) {
@@ -753,6 +856,15 @@ function localizeScheduleError(message: string, t: ReturnType<typeof useTranslat
   }
   if (message === "Schedule save failed: this aircraft is not based at the selected airport.") {
     return t("schedule.aircraftWrongBase");
+  }
+  if (message === "Schedule save failed: this aircraft cannot operate the selected route.") {
+    return t("schedule.aircraftCannotOperateRoute");
+  }
+  if (message === "Schedule save failed: aircraft range is too short.") {
+    return t("schedule.aircraftRangeTooShort");
+  }
+  if (message === "Schedule save failed: aircraft has no available timetable slot.") {
+    return t("schedule.aircraftNoAvailableSlot");
   }
   if (message === "No base airport available.") {
     return t("schedule.noBaseAvailable");

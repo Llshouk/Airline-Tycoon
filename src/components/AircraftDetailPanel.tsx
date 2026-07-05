@@ -38,9 +38,10 @@ export function AircraftDetailPanel({
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-normal text-coral">{t("detail.title")}</p>
-            <h3 className="text-xl font-black text-ink">
-              {aircraft.registration} - {model.manufacturer} {model.model}
-            </h3>
+            <h3 className="text-xl font-black text-ink">{aircraft.registration}</h3>
+            <p className="text-sm font-semibold text-slate-500">
+              {model.manufacturer} {model.model}
+            </p>
           </div>
           <button
             type="button"
@@ -117,6 +118,7 @@ export function AircraftDetailPanel({
               )}
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
+              <Info label="Model" value={`${model.manufacturer} ${model.model}`} />
               <Info label={t("fleet.homeBase")} value={homeBase?.iata ?? aircraft.homeBaseAirportId} />
               <Info label={t("fleet.currentAirport")} value={currentLocation} />
               <Info label={t("detail.status")} value={statusLabel(aircraft.status, t)} />

@@ -448,11 +448,9 @@ function airportPinSize(isPrimaryBase: boolean, isSecondaryBase: boolean, isExpa
 function getAircraftIconAsset(category: AircraftIconCategory) {
   switch (category) {
     case "regional":
-      return "/aircraft-icons/regional.png";
     case "narrowBodyTwin":
-      return "/aircraft-icons/narrow-body-twin.png";
     case "wideBodyTwin":
-      return "/aircraft-icons/wide-body-twin.png";
+      return "/aircraft-icons/twin.png";
     case "wideBodyQuad":
       return "/aircraft-icons/wide-body-quad.png";
   }
