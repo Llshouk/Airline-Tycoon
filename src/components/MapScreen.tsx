@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { GameMap, type MapDisplayMode } from "@/components/GameMap";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
@@ -9,17 +8,15 @@ import { useTranslation } from "@/i18n";
 import {
   estimateCargoRatePerTon,
   estimateExpectedFlightProfit,
-  estimateFlightFinancials,
   estimateRouteOpeningCost,
-  estimateTicketPrices,
-  routePricingFromDefaults
+  estimateTicketPrices
 } from "@/lib/economy";
 import { estimateDemand } from "@/lib/demand";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
 import { DAY_MS, dayStartMs, formatDuration, formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
-import type { AircraftInstance, AircraftModel, Airport, GameState, Route, ScheduleItem } from "@/types/game";
+import type { AircraftInstance, Airport, GameState, Route, ScheduleItem } from "@/types/game";
 
 const mapDisplayModes = [
   { id: "all", label: "Show All" },
@@ -36,7 +33,6 @@ export function MapScreen() {
   const setPrimaryBaseAirport = useGameStore((state) => state.setPrimaryBaseAirport);
   const [selectedAirportId, setSelectedAirportId] = useState<string | null>(null);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
-  const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
   const [displayMode, setDisplayMode] = useState<MapDisplayMode>("all");
   const [routeToConfirm, setRouteToConfirm] = useState<RouteOpeningPreview | null>(null);
   const [openedRoute, setOpenedRoute] = useState<RouteOpeningPreview | null>(null);
@@ -45,6 +41,7 @@ export function MapScreen() {
   const [baseBoardAirportId, setBaseBoardAirportId] = useState<string | null>(null);
   const [routeOriginAirportId, setRouteOriginAirportId] = useState<string | null>(null);
   const [basePurchaseAirportId, setBasePurchaseAirportId] = useState<string | null>(null);
+  const [isRouteOpportunitiesOpen, setIsRouteOpportunitiesOpen] = useState(false);
 
   const selectedAirport = game && selectedAirportId ? airportsById[selectedAirportId] : null;
   const airportActionAirport = game && airportActionAirportId ? airportsById[airportActionAirportId] : null;
@@ -94,32 +91,13 @@ export function MapScreen() {
   }, [baseBoardAirportId, game, routeOriginAirportId]);
 
   if (!game) return null;
-  const selectedRoute = selectedRouteId ? game.routes.find((route) => route.id === selectedRouteId) : null;
-  const activeFlights = game.fleet.flatMap((aircraft) =>
-    aircraft.schedule
-      .filter((item) => item.status === "in-flight")
-      .map((item) => ({ item, aircraft }))
-  );
-  const selectedFlight = selectedFlightId ? activeFlights.find(({ item }) => item.id === selectedFlightId) : null;
-  const selectedFlightRoute = selectedFlight ? game.routes.find((route) => route.id === selectedFlight.item.routeId) : null;
-  const selectedFlightModel = selectedFlight ? aircraftById[selectedFlight.aircraft.modelId] : null;
-  const selectedFlightFinancials =
-    selectedFlight && selectedFlightRoute && selectedFlightModel
-      ? estimateFlightFinancials(selectedFlightRoute, selectedFlightModel, selectedFlight.aircraft, selectedFlight.item.departureGameTime, game.difficultyConfig)
-      : null;
-  const selectedFlightImageModel =
-    selectedFlight && selectedFlightModel
-      ? ({
-          ...selectedFlightModel,
-          imageUrl: (selectedFlight.aircraft as { imageUrl?: string }).imageUrl ?? selectedFlightModel.imageUrl
-        } satisfies AircraftModel)
-      : null;
 
   function confirmOpenRoute(preview: RouteOpeningPreview) {
     const result = openRoute(preview.route.originAirportId, preview.route.destinationAirportId);
     if (!result.ok || !result.route) return;
     const successPreview = { ...preview, route: result.route };
     setRouteToConfirm(null);
+    setIsRouteOpportunitiesOpen(false);
     setOpenedRoute(successPreview);
     setSelectedRouteId(result.route.id);
     setSelectedAirportId(null);
@@ -163,15 +141,13 @@ export function MapScreen() {
             onSelectAirport={(airportId) => {
               setSelectedAirportId(airportId);
               setSelectedRouteId(null);
-              setSelectedFlightId(null);
               setAirportBoardAirportId(null);
               setAirportActionAirportId(airportId);
             }}
             onSelectRoute={(routeId) => {
               setSelectedRouteId(routeId);
-              setSelectedFlightId(null);
             }}
-            onSelectFlight={(flightId) => setSelectedFlightId(flightId)}
+            onSelectFlight={() => undefined}
           />
         </div>
         <aside className="space-y-4">
@@ -181,92 +157,6 @@ export function MapScreen() {
             selectedAirportId={baseBoardAirportId ?? primaryBaseAirportId}
             onSelectAirport={setBaseBoardAirportId}
           />
-          <RouteOpportunitiesPanel
-            game={game}
-            baseAirportIds={baseAirportIds}
-            onOpenRoute={(preview) => setRouteToConfirm(preview)}
-          />
-          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-            <h3 className="font-bold text-ink">Airport</h3>
-            {selectedAirport ? (
-              <div className="mt-3 space-y-2 text-sm">
-                <Info label="IATA" value={selectedAirport.iata} />
-                <Info label="ICAO" value={selectedAirport.icao} />
-                <Info label="Name" value={selectedAirport.name} />
-                <Info label="City" value={`${selectedAirport.city}, ${selectedAirport.country}`} />
-                <Info label="Tier" value={selectedAirport.sizeTier} />
-                <Info label="Base airport" value={baseAirportIds.includes(selectedAirport.id) ? selectedAirport.id === primaryBaseAirportId ? t("base.primaryBase") : t("base.secondaryBase") : "No"} />
-                <Info label="Network status" value={game.expandedAirportIds.includes(selectedAirport.id) ? "Connected" : "Not connected"} />
-                {selectedAirport.id === game.baseAirportId ? (
-                  <p className="rounded-md bg-runway px-3 py-2 text-sm font-bold text-slate-600">This is your base airport.</p>
-                ) : selectedAirportRoute ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRouteId(selectedAirportRoute.id);
-                      setSelectedFlightId(null);
-                    }}
-                    className="w-full rounded-md bg-runway px-3 py-2 text-sm font-black text-jet transition hover:bg-slate-100"
-                  >
-                    {t("map.routeAlreadyOpened")} - {t("map.viewRoute")}
-                  </button>
-                ) : selectedAirportOpeningPreview ? (
-                  <button
-                    type="button"
-                    onClick={() => setAirportActionAirportId(selectedAirport.id)}
-                    className="w-full rounded-md bg-coral px-3 py-2 text-sm font-black text-white transition hover:bg-coral/90"
-                  >
-                    {t("map.openRoute")}
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-slate-500">Click airport to view details.</p>
-            )}
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-            <h3 className="font-bold text-ink">Route</h3>
-            {selectedRoute ? (
-              <div className="mt-3 space-y-2 text-sm">
-                <Info
-                  label="Route"
-                  value={`${airportsById[selectedRoute.originAirportId].iata} - ${airportsById[selectedRoute.destinationAirportId].iata}`}
-                />
-                <Info label="Distance" value={`${formatNumber.format(selectedRoute.distanceKm)} km`} />
-                <Info label="Economy fare" value={formatGBP.format((selectedRoute.pricing ?? routePricingFromDefaults(selectedRoute)).economy)} />
-                <Info label="Business fare" value={formatGBP.format((selectedRoute.pricing ?? routePricingFromDefaults(selectedRoute)).business)} />
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-slate-500">Click an open route line to inspect it.</p>
-            )}
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-            <h3 className="font-bold text-ink">Active aircraft</h3>
-            {selectedFlight && selectedFlightRoute && selectedFlightModel && selectedFlightImageModel && selectedFlightFinancials ? (
-              <div className="mt-3 space-y-2 text-sm">
-                <AircraftSideImage src={selectedFlightImageModel.sideImageUrl} alt={selectedFlightImageModel.sideImageAlt} size="small" />
-                <Info label="Flight" value={selectedFlight.item.flightNumber ?? "-"} />
-                <Info label="Aircraft" value={`${selectedFlight.aircraft.registration} ${selectedFlightModel.model}`} />
-                <Info label="Manufacturer" value={selectedFlightModel.manufacturer} />
-                <Info
-                  label="Route"
-                  value={`${airportsById[selectedFlight.item.originAirportId].iata} to ${airportsById[selectedFlight.item.destinationAirportId].iata}`}
-                />
-                <Info label="Origin" value={`${airportsById[selectedFlight.item.originAirportId].iata} ${airportsById[selectedFlight.item.originAirportId].city}`} />
-                <Info label="Destination" value={`${airportsById[selectedFlight.item.destinationAirportId].iata} ${airportsById[selectedFlight.item.destinationAirportId].city}`} />
-                <Info
-                  label="Progress"
-                  value={`${Math.round(((game.currentGameTimeMs - selectedFlight.item.departureGameTime) / (selectedFlight.item.arrivalGameTime - selectedFlight.item.departureGameTime)) * 100)}%`}
-                />
-                <Info label="ETA" value={formatGameDate(selectedFlight.item.arrivalGameTime)} />
-                <Info label="Status" value={selectedFlight.item.status} />
-                <Info label="Revenue estimate" value={formatGBP.format(selectedFlightFinancials.revenue)} />
-                <Info label="Profit estimate" value={formatGBP.format(selectedFlightFinancials.profit)} />
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-slate-500">Click a moving aircraft to inspect it.</p>
-            )}
-          </div>
         </aside>
       </section>
       {routeToConfirm ? (
@@ -312,7 +202,8 @@ export function MapScreen() {
             setAirportActionAirportId(null);
           }}
           onOpenRoute={(preview) => {
-            setRouteToConfirm(preview);
+            setIsRouteOpportunitiesOpen(true);
+            if (preview) setRouteOriginAirportId(preview.route.originAirportId);
             setAirportActionAirportId(null);
           }}
           onBuyBase={(airportId) => {
@@ -340,6 +231,17 @@ export function MapScreen() {
       ) : null}
       {airportBoardAirport ? (
         <AirportBoardModal airportId={airportBoardAirport.id} game={game} onClose={() => setAirportBoardAirportId(null)} />
+      ) : null}
+      {isRouteOpportunitiesOpen && !routeToConfirm ? (
+        <RouteOpportunitiesModal
+          game={game}
+          baseAirportIds={baseAirportIds}
+          onClose={() => setIsRouteOpportunitiesOpen(false)}
+          onOpenRoute={(preview) => {
+            setRouteToConfirm(preview);
+            setIsRouteOpportunitiesOpen(false);
+          }}
+        />
       ) : null}
       {openedRoute ? (
         <RouteOpenedModal
@@ -821,6 +723,36 @@ function RouteOpportunitiesPanel({
   );
 }
 
+function RouteOpportunitiesModal({
+  game,
+  baseAirportIds,
+  onClose,
+  onOpenRoute
+}: {
+  game: GameState;
+  baseAirportIds: string[];
+  onClose: () => void;
+  onOpenRoute: (preview: RouteOpeningPreview) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="fixed inset-0 z-[6120] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-soft animate-modal-in">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-normal text-coral">{t("map.openRoute")}</p>
+            <h3 className="mt-1 text-2xl font-black text-ink">{t("map.routeOpportunities")}</h3>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-md border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600 hover:bg-runway">
+            {t("common.close")}
+          </button>
+        </div>
+        <RouteOpportunitiesPanel game={game} baseAirportIds={baseAirportIds} onOpenRoute={onOpenRoute} />
+      </div>
+    </div>
+  );
+}
+
 function AirportActionModal({
   airport,
   game,
@@ -848,7 +780,7 @@ function AirportActionModal({
   onClose: () => void;
   onViewBoard: () => void;
   onViewRoute: (routeId: string) => void;
-  onOpenRoute: (preview: RouteOpeningPreview) => void;
+  onOpenRoute: (preview: RouteOpeningPreview | null) => void;
   onBuyBase: (airportId: string) => void;
   onSetPrimaryBase: (airportId: string) => void;
 }) {
@@ -896,11 +828,10 @@ function AirportActionModal({
             <button type="button" onClick={() => onViewRoute(route.id)} className="rounded-md bg-runway px-4 py-3 text-sm font-black text-jet hover:bg-slate-100">
               {t("map.viewRoute")}
             </button>
-          ) : openingPreview ? (
-            <button type="button" onClick={() => onOpenRoute(openingPreview)} className="rounded-md bg-coral px-4 py-3 text-sm font-black text-white hover:bg-coral/90">
-              {t("map.openRoute")}
-            </button>
           ) : null}
+          <button type="button" onClick={() => onOpenRoute(openingPreview)} className="rounded-md bg-coral px-4 py-3 text-sm font-black text-white hover:bg-coral/90">
+            {t("map.openRoute")}
+          </button>
           {isOwnedBase ? (
             <p className="rounded-md bg-mint/10 px-3 py-2 text-sm font-black text-mint">{t("base.ownedBase")}</p>
           ) : (

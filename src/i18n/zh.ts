@@ -60,7 +60,7 @@ export const zh = {
   "difficulty.bankruptSaveKept": "该存档会被保留，方便上传或查看。你可以回到选择界面开始另一个难度。",
   "difficulty.startAnotherDifficulty": "返回难度选择",
   "settings.timeSpeed": "时间倍速",
-  "app.title": "航空大亨 V1.0.5",
+  "app.title": "航空大亨 V1.0.6",
   "common.dismiss": "关闭",
   "common.continue": "继续",
   "common.newGame": "新游戏",
@@ -335,7 +335,7 @@ export const zh = {
   "schedule.aircraftNoAvailableSlot": "ä¿å­˜å¤±è´¥ï¼šè¯¥é£žæœºæ²¡æœ‰å¯ç”¨æŽ’ç­æ—¶é—´ã€‚",
   "schedule.routeWrongBaseShort": "è¯¥èˆªçº¿ä¸å±žäºŽå½“å‰é€‰æ‹©çš„åŸºåœ°",
   "schedule.aircraftWrongBaseShort": "è¯¥é£žæœºä¸å±žäºŽå½“å‰é€‰æ‹©çš„åŸºåœ°æœºåœº"
-, "app.releaseName": "V1.0.5ï¼šåœ°å›¾å›¾æ ‡ã€å›¾ä¾‹ä¸ŽæŽ’ç­åˆ†é’Ÿé€‰æ‹©ä¿®å¤",
+, "app.releaseName": "V1.0.6ï¼šåœ°å›¾é¢æ¿ä¸Žå›¾ä¾‹ä¿®å¤",
   "aircraft.imageComingSoon": "å›¾ç‰‡å³å°†æ›´æ–°",
   "fleet.baseFilter": "åŸºåœ°ç­›é€‰",
   "fleet.allBases": "å…¨éƒ¨åŸºåœ°",
