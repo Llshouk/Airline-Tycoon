@@ -41,11 +41,21 @@ export function isAllowedScheduleMinute(minute: number) {
   return ALLOWED_SCHEDULE_MINUTES.includes(minute as (typeof ALLOWED_SCHEDULE_MINUTES)[number]);
 }
 
+export function normalizeScheduleMinute(minute: number) {
+  const safeMinute = Number.isFinite(minute) ? Math.min(59, Math.max(0, minute)) : 0;
+  const roundedMinute = Math.round(safeMinute / 5) * 5;
+  if (roundedMinute >= 60) return 0;
+  return Math.min(55, Math.max(0, roundedMinute));
+}
+
 export function normalizeScheduleTime(value: string) {
   if (!/^\d{2}:\d{2}$/.test(value)) return "00:00";
   const [hours = "0", minutes = "0"] = value.split(":");
-  const hour = Math.min(23, Math.max(0, Number(hours)));
-  const minute = Math.min(55, Math.max(0, Math.round(Number(minutes) / 5) * 5));
+  const hourValue = Math.min(23, Math.max(0, Number(hours)));
+  const minuteValue = Math.min(59, Math.max(0, Number(minutes)));
+  const roundedMinute = Math.round(minuteValue / 5) * 5;
+  const hour = roundedMinute >= 60 ? (hourValue + 1) % 24 : hourValue;
+  const minute = roundedMinute >= 60 ? 0 : normalizeScheduleMinute(minuteValue);
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
@@ -328,7 +338,7 @@ export function validateWeeklySchedule(input: {
   if (!input.route) return "Select a route.";
   if (!/^\d{2}:\d{2}$/.test(input.departureTimeLocal)) return "Choose a valid departure time.";
   if (!isAllowedScheduleMinute(Number(input.departureTimeLocal.split(":")[1] ?? 0))) {
-    return "Departure minutes must be in 5-minute intervals.";
+    return "Departure minutes must be 00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, or 55.";
   }
   if (input.daysOfWeek.length === 0) return "Select at least one operating day.";
   const outbound = validateFlightNumber(input.outboundFlightNumber);

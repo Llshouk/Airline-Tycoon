@@ -11,6 +11,7 @@ import { useTranslation } from "@/i18n";
 import { estimateScheduleFinancials, estimateWeeklyScheduleFinancials } from "@/lib/economy";
 import { formatGBP, formatNumber } from "@/lib/format";
 import {
+  ALLOWED_SCHEDULE_MINUTES,
   findDuplicateFlightNumber,
   formatRouteCode,
   formatScheduleFlightNumbers,
@@ -28,6 +29,9 @@ import { calculateRemainingDemandForSchedulePreview, type ScheduleDemandPreview 
 import { formatDuration } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
 import type { AircraftInstance, DayOfWeek, Route, WeeklySchedule } from "@/types/game";
+
+const SCHEDULE_HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, "0"));
+const SCHEDULE_MINUTE_OPTIONS = ALLOWED_SCHEDULE_MINUTES.map((minute) => String(minute).padStart(2, "0"));
 
 export function ScheduleScreen() {
   const { t } = useTranslation();
@@ -303,7 +307,7 @@ export function ScheduleScreen() {
     setRouteId(schedule.routeId);
     setOutboundFlightNumber(schedule.outboundFlightNumber);
     setReturnFlightNumber(schedule.returnFlightNumber ?? nextFlightNumber(schedule.outboundFlightNumber));
-    setDepartureTimeLocal(schedule.departureTimeLocal);
+    setDepartureTimeLocal(normalizeScheduleTime(schedule.departureTimeLocal));
     setHasUserEditedDepartureTime(true);
     setIsRoundTrip(schedule.isRoundTrip);
     setSelectedDays(schedule.daysOfWeek);
@@ -318,6 +322,7 @@ export function ScheduleScreen() {
           schedule: selectedAircraft.schedule.filter((item) => item.weeklyScheduleId !== editingScheduleId)
         }
       : selectedAircraft;
+  const departureTimeParts = scheduleTimeParts(departureTimeLocal);
 
   return (
     <div className="space-y-5">
@@ -432,17 +437,38 @@ export function ScheduleScreen() {
           ) : null}
           <label className="mt-4 block">
             <span className="text-sm font-semibold text-slate-700">{t("schedule.departureTime")}</span>
-            <input
-              type="time"
-              step={300}
-              value={departureTimeLocal}
-              onChange={(event) => {
-                setDepartureTimeLocal(event.target.value);
-                setHasUserEditedDepartureTime(true);
-              }}
-              onBlur={(event) => setDepartureTimeLocal(normalizeScheduleTime(event.target.value))}
-              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
-            />
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <select
+                aria-label="Departure hour"
+                value={departureTimeParts.hour}
+                onChange={(event) => {
+                  setDepartureTimeLocal(normalizeScheduleTime(`${event.target.value}:${departureTimeParts.minute}`));
+                  setHasUserEditedDepartureTime(true);
+                }}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
+              >
+                {SCHEDULE_HOURS.map((hour) => (
+                  <option key={hour} value={hour}>
+                    {hour}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Departure minute"
+                value={departureTimeParts.minute}
+                onChange={(event) => {
+                  setDepartureTimeLocal(normalizeScheduleTime(`${departureTimeParts.hour}:${event.target.value}`));
+                  setHasUserEditedDepartureTime(true);
+                }}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-3 outline-none transition focus:border-jet focus:ring-2 focus:ring-jet/20"
+              >
+                {SCHEDULE_MINUTE_OPTIONS.map((minute) => (
+                  <option key={minute} value={minute}>
+                    {minute}
+                  </option>
+                ))}
+              </select>
+            </div>
             <span className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-semibold text-slate-500">{t("schedule.recommendedTimeHint")}</span>
               <button
@@ -567,7 +593,8 @@ export function ScheduleScreen() {
                         </span>
                       </p>
                       <p className="text-sm text-slate-500">
-                        {service.daysOfWeek.map((day) => weekDays.find((item) => item.id === day)?.short).join(", ")} at {service.departureTimeLocal}
+                        {service.daysOfWeek.map((day) => weekDays.find((item) => item.id === day)?.short).join(", ")} at{" "}
+                        {normalizeScheduleTime(service.departureTimeLocal)}
                       </p>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                         <Info label="Weekly revenue" value={formatGBP.format(estimate.weeklyRevenue)} />
@@ -841,11 +868,19 @@ function formatScheduleDemand(value: number, suffix: string) {
   return suffix ? `${value.toFixed(1)}${suffix}` : formatNumber.format(Math.round(value));
 }
 
+function scheduleTimeParts(value: string) {
+  const [hour = "00", minute = "00"] = normalizeScheduleTime(value).split(":");
+  return { hour, minute };
+}
+
 function localizeScheduleError(message: string, t: ReturnType<typeof useTranslation>["t"]) {
   if (message === "Flight number already exists. Please use a unique flight number.") {
     return t("schedule.flightNumberDuplicateFull");
   }
-  if (message === "Departure minutes must be in 5-minute intervals.") {
+  if (
+    message === "Departure minutes must be in 5-minute intervals." ||
+    message === "Departure minutes must be 00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, or 55."
+  ) {
     return t("schedule.departureMinuteInterval");
   }
   if (message === "Select at least one operating day.") {

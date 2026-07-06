@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Airline Tycoon V1.0.4",
+  title: "Airline Tycoon V1.0.5",
   description: "A browser-based airline management simulation MVP."
 };
 

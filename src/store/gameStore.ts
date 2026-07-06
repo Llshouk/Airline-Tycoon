@@ -19,6 +19,7 @@ import {
   calculateScheduleBlock,
   findDuplicateFlightNumber,
   generateDefaultFlightNumber,
+  isAllowedScheduleMinute,
   nextFlightNumber,
   normalizeFlightNumber,
   normalizeScheduleTime,
@@ -524,6 +525,16 @@ export const useGameStore = create<GameStore>()(
         }
         const normalizedOutbound = validateFlightNumber(input.outboundFlightNumber);
         const normalizedReturn = input.isRoundTrip ? validateFlightNumber(input.returnFlightNumber ?? "") : null;
+        if (!/^\d{2}:\d{2}$/.test(input.departureTimeLocal)) {
+          const message = "Choose a valid departure time.";
+          set({ notice: message });
+          return { ok: false, message };
+        }
+        if (!isAllowedScheduleMinute(Number(input.departureTimeLocal.split(":")[1] ?? 0))) {
+          const message = "Departure minutes must be 00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, or 55.";
+          set({ notice: message });
+          return { ok: false, message };
+        }
         const normalizedDepartureTime = normalizeScheduleTime(input.departureTimeLocal);
         const existingForValidation = aircraft.schedule.filter((item) => item.weeklyScheduleId !== input.replaceWeeklyScheduleId);
         const allWeeklySchedules = game.fleet.flatMap((fleetAircraft) => fleetAircraft.weeklySchedules);

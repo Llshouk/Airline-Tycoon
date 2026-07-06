@@ -73,10 +73,12 @@ export function GameMap(props: Props) {
   }, [props, googleKey]);
 
   return (
-    <div className="relative h-full w-full">
-      <div ref={mapElementRef} className="h-full w-full" />
-      <div className="absolute left-3 top-3 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
-        {googleKey ? "Google Maps" : "OpenStreetMap"}
+    <div className="flex h-full min-h-[620px] w-full flex-col">
+      <div className="relative min-h-[560px] flex-1">
+        <div ref={mapElementRef} className="h-full w-full" />
+        <div className="absolute left-3 top-3 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
+          {googleKey ? "Google Maps" : "OpenStreetMap"}
+        </div>
       </div>
       <MapLegend labels={{ title: t("map.legend"), base: t("map.legendBase"), opened: t("map.legendOpened"), unopened: t("map.legendUnopened") }} />
     </div>
@@ -85,8 +87,8 @@ export function GameMap(props: Props) {
 
 function MapLegend({ labels }: { labels: { title: string; base: string; opened: string; unopened: string } }) {
   return (
-    <div className="absolute bottom-3 right-3 rounded-md border border-slate-200 bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
-      <p className="mb-1 text-[11px] font-black uppercase tracking-normal text-slate-500">{labels.title}</p>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-200 bg-white/95 px-3 py-2 text-xs font-bold text-ink">
+      <span className="font-black uppercase tracking-normal text-slate-500">{labels.title}:</span>
       <LegendRow color="#d76745" label={labels.base} />
       <LegendRow color="#4f9d7e" label={labels.opened} />
       <LegendRow color="#ffffff" label={labels.unopened} bordered />
@@ -96,10 +98,10 @@ function MapLegend({ labels }: { labels: { title: string; base: string; opened: 
 
 function LegendRow({ color, label, bordered = false }: { color: string; label: string; bordered?: boolean }) {
   return (
-    <div className="flex items-center gap-2 py-0.5">
+    <span className="flex items-center gap-2 whitespace-nowrap py-0.5">
       <span className={`h-3 w-3 rounded-full ${bordered ? "border border-slate-400" : "border border-ink/20"}`} style={{ backgroundColor: color }} />
       <span>{label}</span>
-    </div>
+    </span>
   );
 }
 
@@ -458,10 +460,10 @@ function getAircraftIconCategory(model: AircraftModel | undefined): AircraftIcon
 }
 
 function aircraftIconSize(category: AircraftIconCategory) {
-  if (category === "regional") return 30;
-  if (category === "narrowBodyTwin") return 36;
-  if (category === "wideBodyTwin") return 44;
-  return 50;
+  if (category === "regional") return 36;
+  if (category === "narrowBodyTwin") return 44;
+  if (category === "wideBodyTwin") return 52;
+  return 58;
 }
 
 function airportPinSize(isBase: boolean, isExpanded: boolean) {
@@ -494,10 +496,10 @@ function getAircraftIconAsset(category: AircraftIconCategory) {
 }
 
 function googleAircraftScale(category: AircraftIconCategory) {
-  if (category === "regional") return 1.02;
-  if (category === "narrowBodyTwin") return 1.2;
-  if (category === "wideBodyTwin") return 1.42;
-  return 1.58;
+  if (category === "regional") return 1.18;
+  if (category === "narrowBodyTwin") return 1.38;
+  if (category === "wideBodyTwin") return 1.62;
+  return 1.8;
 }
 
 function aircraftSymbolPath(category: AircraftIconCategory) {
