@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { GameMap, type MapDisplayMode } from "@/components/GameMap";
+import { RouteEvaluationCard } from "@/components/RouteEvaluationCard";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -14,6 +15,7 @@ import {
 import { estimateDemand } from "@/lib/demand";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { distanceKm } from "@/lib/geo";
+import { evaluateRoute } from "@/lib/routeEvaluation";
 import { DAY_MS, dayStartMs, formatDuration, formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
 import type { AircraftInstance, Airport, GameState, Route, ScheduleItem } from "@/types/game";
@@ -637,6 +639,7 @@ function RouteOpportunitiesPanel({
       .slice(0, 24);
   }, [baseAirportIds, baseFilter, game, sortMode]);
   const selected = opportunities.find((item) => item.key === selectedKey) ?? opportunities[0] ?? null;
+  const selectedEvaluation = selected ? evaluateRoute({ route: selected.preview.route, gameState: game }) : null;
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
@@ -695,6 +698,7 @@ function RouteOpportunitiesPanel({
             <Info label="Profit" value={formatGBP.format(selected.estimatedProfit)} />
           </div>
           <DemandSummary route={selected.preview.route} />
+          {selectedEvaluation ? <RouteEvaluationCard evaluation={selectedEvaluation} game={game} /> : null}
           <AvailableAircraftForRoute
             route={selected.preview.route}
             game={game}

@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { RouteEvaluationCard } from "@/components/RouteEvaluationCard";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
 import { estimateExpectedFlightProfit, estimateWeeklyScheduleFinancials, routePricingFromDefaults } from "@/lib/economy";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { calculateRemainingDemand, type RemainingDemandSummary } from "@/lib/routeDemand";
+import { evaluateRoute } from "@/lib/routeEvaluation";
 import { formatRouteCode, formatScheduleFlightNumbers } from "@/lib/schedule";
 import { useGameStore } from "@/store/gameStore";
 import type { CabinDemand, GameState, Route } from "@/types/game";
@@ -151,6 +153,7 @@ function RouteReadOnlyCard({
   const destination = airportsById[route.destinationAirportId];
   const pricing = route.pricing ?? routePricingFromDefaults(route);
   const estimatedRevenue = estimatedRouteRevenue(best?.revenue ?? 0, scheduleTotals.weeklyRevenue);
+  const evaluation = evaluateRoute({ route, gameState: game });
 
   return (
     <article>
@@ -164,6 +167,8 @@ function RouteReadOnlyCard({
         </div>
         <span className="rounded-md bg-mint/10 px-3 py-2 text-xs font-black text-mint">{t("routes.readOnly")}</span>
       </div>
+
+      <RouteEvaluationCard evaluation={evaluation} game={game} />
 
       <div className="mt-4 grid gap-2 text-sm md:grid-cols-4">
         <Info label={t("airport.origin")} value={`${origin.iata} ${origin.city}`} />
@@ -183,7 +188,7 @@ function RouteReadOnlyCard({
         <Info label="Cargo rate" value={`${formatGBP.format(pricing.cargo)}/t`} />
       </div>
 
-      <DemandGrid title={t("routes.weeklyDemand")} demand={route.estimatedDemand} />
+      <DemandGrid title={t("routes.weeklyDemand")} demand={evaluation.adjustedDemand} />
       {summary ? <RemainingDemandBars summary={summary} /> : null}
       <ActiveSchedules route={route} game={game} />
     </article>

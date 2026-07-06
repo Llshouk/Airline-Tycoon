@@ -38,11 +38,80 @@ export function estimateDemand(origin: Airport, destination: Airport, distanceKm
   const premiumBias = hubBonus * (band === "long-haul" ? 1.45 : band === "medium-haul" ? 1.14 : 0.76) * GAME_BALANCE.premiumDemandMultiplier;
   const cargoBias = (band === "long-haul" ? 1.18 : 1) * GAME_BALANCE.cargoDemandMultiplier;
 
+  return calculateCabinDemandByDistance({
+    routeDistanceKm: distanceKm,
+    originAirport: origin,
+    destinationAirport: destination,
+    baseDemand: {
+      first: Math.round(weeklyBase * (band === "long-haul" ? 0.045 : 0.01) * premiumBias),
+      business: Math.round(weeklyBase * (band === "short-haul" ? 0.09 : 0.16) * premiumBias),
+      premiumEconomy: Math.round(weeklyBase * (band === "short-haul" ? 0.08 : 0.2) * GAME_BALANCE.premiumDemandMultiplier),
+      economy: Math.round(weeklyBase * (band === "short-haul" ? 0.95 : 0.82)),
+      cargoTons: Math.round(weeklyBase * (band === "short-haul" ? 0.035 : band === "medium-haul" ? 0.075 : 0.12) * cargoBias * 10) / 10
+    }
+  });
+}
+
+export function calculateCabinDemandByDistance({
+  routeDistanceKm,
+  originAirport,
+  destinationAirport,
+  baseDemand
+}: {
+  routeDistanceKm: number;
+  originAirport: Airport;
+  destinationAirport: Airport;
+  baseDemand: CabinDemand;
+}): CabinDemand {
+  const premiumMarket = (originAirport.baseDemandScore + destinationAirport.baseDemandScore) / 2;
+  const hubPair = originAirport.sizeTier === "mega" && destinationAirport.sizeTier === "mega";
+  const longHaulPremium = hubPair || premiumMarket >= 86;
+
+  if (routeDistanceKm < 800) {
+    return roundCabinDemand({
+      first: 0,
+      business: baseDemand.business * (hubPair ? 0.32 : 0.2),
+      premiumEconomy: baseDemand.premiumEconomy * 0.08,
+      economy: baseDemand.economy * 1.08,
+      cargoTons: baseDemand.cargoTons * 0.45
+    });
+  }
+
+  if (routeDistanceKm < 2500) {
+    return roundCabinDemand({
+      first: hubPair && premiumMarket >= 92 ? Math.min(4, baseDemand.first * 0.08) : 0,
+      business: baseDemand.business * (hubPair ? 0.72 : 0.52),
+      premiumEconomy: baseDemand.premiumEconomy * 0.38,
+      economy: baseDemand.economy,
+      cargoTons: baseDemand.cargoTons * 0.7
+    });
+  }
+
+  if (routeDistanceKm < 5500) {
+    return roundCabinDemand({
+      first: longHaulPremium ? baseDemand.first * 0.65 : Math.min(6, baseDemand.first * 0.2),
+      business: baseDemand.business * (longHaulPremium ? 1 : 0.78),
+      premiumEconomy: baseDemand.premiumEconomy * 0.82,
+      economy: baseDemand.economy * 0.96,
+      cargoTons: baseDemand.cargoTons
+    });
+  }
+
+  return roundCabinDemand({
+    first: baseDemand.first * (longHaulPremium ? 1.05 : 0.7),
+    business: baseDemand.business * (longHaulPremium ? 1.08 : 0.92),
+    premiumEconomy: baseDemand.premiumEconomy * 1.05,
+    economy: baseDemand.economy * 0.94,
+    cargoTons: baseDemand.cargoTons * (hubPair ? 1.12 : 1)
+  });
+}
+
+function roundCabinDemand(demand: CabinDemand): CabinDemand {
   return {
-    first: Math.round(weeklyBase * (band === "long-haul" ? 0.045 : 0.01) * premiumBias),
-    business: Math.round(weeklyBase * (band === "short-haul" ? 0.09 : 0.16) * premiumBias),
-    premiumEconomy: Math.round(weeklyBase * (band === "short-haul" ? 0.08 : 0.2) * GAME_BALANCE.premiumDemandMultiplier),
-    economy: Math.round(weeklyBase * (band === "short-haul" ? 0.95 : 0.82)),
-    cargoTons: Math.round(weeklyBase * (band === "short-haul" ? 0.035 : band === "medium-haul" ? 0.075 : 0.12) * cargoBias * 10) / 10
+    first: Math.max(0, Math.round(demand.first)),
+    business: Math.max(0, Math.round(demand.business)),
+    premiumEconomy: Math.max(0, Math.round(demand.premiumEconomy)),
+    economy: Math.max(0, Math.round(demand.economy)),
+    cargoTons: Math.max(0, Math.round(demand.cargoTons * 10) / 10)
   };
 }

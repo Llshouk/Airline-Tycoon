@@ -1,18 +1,22 @@
 "use client";
 
 import { Activity, Banknote, CheckCircle2, Gauge, Package, Plane, TrendingUp, Users } from "lucide-react";
+import { useMemo } from "react";
 import { AircraftImage } from "@/components/AircraftImage";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
 import { formatGBP } from "@/lib/format";
+import { getRecommendedRouteOpportunities, type RouteGrade } from "@/lib/routeEvaluation";
 import { calculateDashboardStats } from "@/lib/stats";
 import { formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
+import type { GameState } from "@/types/game";
 
 export function Dashboard() {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
+  const recommendedRoutes = useMemo(() => (game ? getRecommendedRouteOpportunities(game, 4) : []), [game]);
   if (!game) return null;
   const base = airportsById[game.baseAirportId];
   const stats = calculateDashboardStats(game);
@@ -100,28 +104,76 @@ export function Dashboard() {
             </table>
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-          <h3 className="font-bold text-ink">Upcoming flights</h3>
-          <div className="mt-3 space-y-3">
-            {nextFlights.length === 0 ? (
-              <p className="text-sm text-slate-500">No scheduled flights yet.</p>
-            ) : (
-              nextFlights.slice(0, 5).map(({ item, aircraft }) => (
-                <div key={item.id} className="rounded-md border border-slate-200 p-3">
-                  <p className="font-semibold text-ink">
-                    {airportsById[item.originAirportId].iata} to {airportsById[item.destinationAirportId].iata}
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    {aircraft.registration} departs {formatGameDate(item.departureGameTime)}
-                  </p>
-                </div>
-              ))
-            )}
+        <div className="space-y-4">
+          <RecommendedRoutesPanel opportunities={recommendedRoutes} game={game} />
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+            <h3 className="font-bold text-ink">Upcoming flights</h3>
+            <div className="mt-3 space-y-3">
+              {nextFlights.length === 0 ? (
+                <p className="text-sm text-slate-500">No scheduled flights yet.</p>
+              ) : (
+                nextFlights.slice(0, 5).map(({ item, aircraft }) => (
+                  <div key={item.id} className="rounded-md border border-slate-200 p-3">
+                    <p className="font-semibold text-ink">
+                      {airportsById[item.originAirportId].iata} to {airportsById[item.destinationAirportId].iata}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {aircraft.registration} departs {formatGameDate(item.departureGameTime)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </section>
     </div>
   );
+}
+
+function RecommendedRoutesPanel({ opportunities, game }: { opportunities: ReturnType<typeof getRecommendedRouteOpportunities>; game: GameState }) {
+  const { t } = useTranslation();
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+      <h3 className="font-bold text-ink">{t("dashboard.recommendedRoutes")}</h3>
+      <div className="mt-3 space-y-3">
+        {opportunities.length === 0 ? (
+          <p className="text-sm text-slate-500">{t("dashboard.noRecommendedRoutes")}</p>
+        ) : (
+          opportunities.map(({ route, evaluation }) => {
+            const origin = airportsById[route.originAirportId];
+            const destination = airportsById[route.destinationAirportId];
+            const aircraft = evaluation.recommendedAircraftIds[0] ? opportunitiesAircraftLabel(evaluation.recommendedAircraftIds[0], game) : null;
+            return (
+              <div key={route.id} className="rounded-md border border-slate-200 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-semibold text-ink">
+                    {origin.iata} to {destination.iata}
+                  </p>
+                  <span className={`rounded px-2 py-1 text-xs font-black ${gradeClass(evaluation.overallGrade)}`}>{evaluation.overallGrade}</span>
+                </div>
+                <p className="mt-1 text-sm font-bold text-mint">{formatGBP.format(evaluation.estimatedWeeklyRevenue)}/week</p>
+                <p className="text-xs font-semibold text-slate-500">{aircraft ?? t("routeEvaluation.noSuitableAircraft")}</p>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function opportunitiesAircraftLabel(aircraftId: string, game: GameState) {
+  const aircraft = game.fleet.find((item) => item.id === aircraftId);
+  const model = aircraft ? aircraftById[aircraft.modelId] : null;
+  return aircraft && model ? `${aircraft.registration} ${model.model}` : null;
+}
+
+function gradeClass(grade: RouteGrade) {
+  if (grade === "A+" || grade === "A") return "bg-mint/15 text-mint";
+  if (grade === "B") return "bg-sky-100 text-sky-700";
+  if (grade === "C") return "bg-amber-100 text-amber-700";
+  return "bg-coral/10 text-coral";
 }
 
 function Stat({ icon: Icon, label, value }: { icon: typeof Banknote; label: string; value: string }) {

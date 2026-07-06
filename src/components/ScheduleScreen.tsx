@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AircraftDetailPanel } from "@/components/AircraftDetailPanel";
 import { AircraftImage } from "@/components/AircraftImage";
 import { AircraftWeeklyTimetableGrid } from "@/components/AircraftWeeklyTimetableGrid";
+import { RouteEvaluationCard } from "@/components/RouteEvaluationCard";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -26,6 +27,7 @@ import {
   weeklyEventBlocksFromSchedule
 } from "@/lib/schedule";
 import { calculateRemainingDemandForSchedulePreview, type ScheduleDemandPreview } from "@/lib/routeDemand";
+import { evaluateRoute } from "@/lib/routeEvaluation";
 import { formatDuration } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
 import type { AircraftInstance, DayOfWeek, Route, WeeklySchedule } from "@/types/game";
@@ -92,6 +94,10 @@ export function ScheduleScreen() {
         editingScheduleId
       }),
     [editingScheduleId, game?.routes, isRoundTrip, selectedAircraft, selectedDays, selectedRoute]
+  );
+  const selectedRouteEvaluation = useMemo(
+    () => (game && selectedRoute ? evaluateRoute({ route: selectedRoute, gameState: game }) : null),
+    [game, selectedRoute]
   );
 
   useEffect(() => {
@@ -385,6 +391,11 @@ export function ScheduleScreen() {
               ))}
             </select>
           </label>
+          {selectedRoute ? (
+            <>
+              {selectedRouteEvaluation ? <RouteEvaluationCard evaluation={selectedRouteEvaluation} game={game} compact /> : null}
+            </>
+          ) : null}
           {selectedRoute ? (
             <label className="mt-4 block">
               <span className="text-sm font-semibold text-slate-700">{t("schedule.aircraft")}</span>

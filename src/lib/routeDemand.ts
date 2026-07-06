@@ -1,5 +1,7 @@
 import type { CabinDemand, CabinLayout, GameState, Route } from "@/types/game";
 import { estimatePriceAdjustedDemand } from "@/lib/economy";
+import { calculateCabinDemandByDistance } from "@/lib/demand";
+import { airportsById } from "@/data/airports";
 
 const CABIN_KEYS = ["first", "business", "premiumEconomy", "economy"] as const;
 
@@ -19,7 +21,14 @@ export type ScheduleDemandPreview = RemainingDemandSummary & {
 };
 
 export function calculateAdjustedRouteDemand(route: Route) {
-  return estimatePriceAdjustedDemand(route);
+  const origin = airportsById[route.originAirportId];
+  const destination = airportsById[route.destinationAirportId];
+  return calculateCabinDemandByDistance({
+    routeDistanceKm: route.distanceKm,
+    originAirport: origin,
+    destinationAirport: destination,
+    baseDemand: estimatePriceAdjustedDemand(route)
+  });
 }
 
 export function calculateScheduledCapacityForRoute(routeId: string, game: GameState, excludeWeeklyScheduleId?: string): CabinDemand {
