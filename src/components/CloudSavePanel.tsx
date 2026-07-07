@@ -4,6 +4,7 @@ import { Cloud, LogOut, UploadCloud } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "@/i18n";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import {
   getCloudSaveMetadata,
   getCloudSaveErrorMessage,
@@ -30,6 +31,7 @@ export function CloudSavePanel() {
   const [cloudMetadata, setCloudMetadata] = useState<CloudSaveMetadata | null>(null);
   const [localMetadata, setLocalMetadata] = useState<LocalSaveMetadata>({ hasSave: false, updatedAt: null });
   const [isBusy, setIsBusy] = useState(false);
+  const isOnline = useOnlineStatus();
   const configured = isSupabaseConfigured();
   const configurationMessage = getSupabaseConfigurationMessage();
 
@@ -165,6 +167,10 @@ export function CloudSavePanel() {
   }
 
   async function runCloudAction(action: () => Promise<void>) {
+    if (!isOnline) {
+      setMessage(t("cloud.syncPendingDescription"));
+      return;
+    }
     setIsBusy(true);
     setMessage(null);
     try {
@@ -197,17 +203,17 @@ export function CloudSavePanel() {
           </div>
           {!cloudMetadata ? <StatusMessage>{t("cloud.noCloudSaveFound")}</StatusMessage> : null}
           <div className="grid gap-2 sm:grid-cols-2">
-            <CloudButton disabled={isBusy || !game} onClick={handleSaveToCloud}>
+            <CloudButton disabled={isBusy || !isOnline || !game} onClick={handleSaveToCloud}>
               {t("cloud.saveToCloud")}
             </CloudButton>
-            <CloudButton disabled={isBusy || !cloudMetadata} onClick={handleLoadCloudSave}>
+            <CloudButton disabled={isBusy || !isOnline || !cloudMetadata} onClick={handleLoadCloudSave}>
               {t("cloud.loadCloudSave")}
             </CloudButton>
-            <CloudButton disabled={isBusy || !game} onClick={handleUploadLocalSave}>
+            <CloudButton disabled={isBusy || !isOnline || !game} onClick={handleUploadLocalSave}>
               <UploadCloud size={16} />
               {t("cloud.uploadLocalSave")}
             </CloudButton>
-            <CloudButton disabled={isBusy} onClick={handleLogOut} variant="secondary">
+            <CloudButton disabled={isBusy || !isOnline} onClick={handleLogOut} variant="secondary">
               <LogOut size={16} />
               {t("cloud.logOut")}
             </CloudButton>
@@ -238,10 +244,10 @@ export function CloudSavePanel() {
             </label>
           </div>
           <div className="flex flex-wrap gap-2">
-            <CloudButton disabled={isBusy || !email || !password} onClick={handleSignUp}>
+            <CloudButton disabled={isBusy || !isOnline || !email || !password} onClick={handleSignUp}>
               {t("cloud.signUp")}
             </CloudButton>
-            <CloudButton disabled={isBusy || !email || !password} onClick={handleLogIn} variant="secondary">
+            <CloudButton disabled={isBusy || !isOnline || !email || !password} onClick={handleLogIn} variant="secondary">
               {t("cloud.logIn")}
             </CloudButton>
           </div>

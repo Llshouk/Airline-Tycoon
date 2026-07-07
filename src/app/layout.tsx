@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Airline Tycoon V1.1.0",
-  description: "A browser-based airline management simulation MVP."
+  title: "Airline Tycoon V1.1.1",
+  description: "A browser-based airline management simulation MVP.",
+  manifest: "/manifest.json"
 };
 
 export default function RootLayout({
@@ -13,7 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ServiceWorkerRegistration />
+        {children}
+      </body>
     </html>
   );
 }

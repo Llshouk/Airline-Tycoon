@@ -17,6 +17,7 @@ import { getCurrentCash } from "@/lib/cash";
 import { formatGBP } from "@/lib/format";
 import { formatGameDate, GAME_SPEED_OPTIONS } from "@/lib/time";
 import { useCloudAutoSave } from "@/hooks/useCloudAutoSave";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useTranslation } from "@/i18n";
 import { useGameStore } from "@/store/gameStore";
 import type { GameState, TimeMultiplier } from "@/types/game";
@@ -53,6 +54,7 @@ export function AppShell() {
   const setTimeMultiplier = useGameStore((state) => state.setTimeMultiplier);
   const togglePause = useGameStore((state) => state.togglePause);
   const autoSaveStatus = useCloudAutoSave(game, user);
+  const isOnline = useOnlineStatus();
 
   if (!game) return null;
   const cash = getCurrentCash(game);
@@ -62,12 +64,13 @@ export function AppShell() {
       <header className="sticky top-0 z-[900] border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto grid max-w-[1500px] gap-3 px-3 py-3 xl:grid-cols-[minmax(180px,1fr)_auto] xl:items-center">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1.1.0</p>
+            <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1.1.1</p>
             <h1 className="truncate text-xl font-black text-ink">{game.airlineName}</h1>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm xl:justify-end">
             <HeaderStat label={t("top.cash")} value={formatGBP.format(cash)} onClick={isAdmin ? () => setIsConsoleOpen(true) : undefined} title={isAdmin ? "Open Game Console" : undefined} />
             <HeaderStat label={t("top.gameTime")} value={formatGameDate(game.currentGameTimeMs)} />
+            <HeaderStat label="Network" value={isOnline ? t("top.online") : t("top.offlineMode")} />
             <HeaderStat label={t("difficulty.difficulty")} value={t(`difficulty.${game.difficulty}`)} />
             <HeaderStat label={t("top.aircraft")} value={String(game.fleet.length)} />
             <HeaderStat label={t("top.routes")} value={String(game.routes.length)} />
@@ -156,6 +159,8 @@ export function AppShell() {
               setLanguage={setLanguage}
               timeMultiplier={game.timeMultiplier}
               isPaused={game.isPaused}
+              isOnline={isOnline}
+              autoSaveStatus={autoSaveStatus}
               setTimeMultiplier={setTimeMultiplier}
               togglePause={togglePause}
               isAdmin={isAdmin}
@@ -212,6 +217,7 @@ function formatAutoSaveStatus(
   if (status.state === "disabled") return null;
   if (status.state === "saving") return t("cloud.saving");
   if (status.state === "failed") return t("cloud.autoSaveFailed");
+  if (status.state === "pending") return t("cloud.syncPending");
   if (status.state === "saved" && status.lastSavedAt) {
     return `${t("cloud.autoSaved")} ${new Date(status.lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   }
@@ -223,6 +229,8 @@ function SettingsPanel({
   setLanguage,
   timeMultiplier,
   isPaused,
+  isOnline,
+  autoSaveStatus,
   setTimeMultiplier,
   togglePause,
   isAdmin
@@ -231,6 +239,8 @@ function SettingsPanel({
   setLanguage: (language: "en" | "zh") => void;
   timeMultiplier: TimeMultiplier;
   isPaused: boolean;
+  isOnline: boolean;
+  autoSaveStatus: ReturnType<typeof useCloudAutoSave>;
   setTimeMultiplier: (speed: TimeMultiplier) => void;
   togglePause: () => void;
   isAdmin: boolean;
@@ -269,6 +279,14 @@ function SettingsPanel({
           <option value="zh">简体中文</option>
         </select>
       </section>
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+        <h3 className="font-bold text-ink">Connectivity</h3>
+        <div className="mt-3 grid gap-2 text-sm text-slate-600">
+          <InfoRow label="Network" value={isOnline ? t("top.online") : t("top.offlineMode")} />
+          <InfoRow label={t("cloud.title")} value={formatAutoSaveStatus(autoSaveStatus, t) ?? t("cloud.autoSaveEnabled")} />
+          {autoSaveStatus.message ? <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">{autoSaveStatus.message}</p> : null}
+        </div>
+      </section>
       <div>
         <CloudSavePanel />
       </div>
@@ -276,6 +294,15 @@ function SettingsPanel({
         <p className="mb-2 text-xs font-black uppercase tracking-normal text-slate-500">Developer Tools</p>
         {isAdmin ? <GameConsole /> : null}
       </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3 rounded-md bg-runway px-3 py-2">
+      <span className="font-semibold">{label}</span>
+      <span className="text-right font-bold text-ink">{value}</span>
     </div>
   );
 }

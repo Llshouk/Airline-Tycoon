@@ -892,7 +892,7 @@ function AirportFlightBoard({ airportId, game, compact = false }: { airportId: s
   const arrivals = airportBoardRows(airportId, game, "arrival");
   return (
     <section className={`${compact ? "mt-3" : "mt-4"} rounded-md border border-white/15 bg-black/20 p-3 text-white`}>
-      <p className="mb-3 text-xs font-black uppercase tracking-normal text-slate-300">{t("airport.upcomingFlights")} - {t("airport.within30Minutes")}</p>
+      <p className="mb-3 text-xs font-black uppercase tracking-normal text-slate-300">{t("airport.todaysFlights")}</p>
       <div className={`grid gap-3 ${compact ? "" : "md:grid-cols-2"}`}>
         <FlightBoardColumn title={t("airport.departures")} rows={departures} emptyLabel={t("airport.noUpcomingFlights")} type="departure" />
         <FlightBoardColumn title={t("airport.arrivals")} rows={arrivals} emptyLabel={t("airport.noUpcomingFlights")} type="arrival" />
@@ -974,15 +974,16 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
           type === "departure"
             ? item.scheduledDepartureGameTime ?? item.departureGameTime
             : item.scheduledArrivalGameTime ?? item.arrivalGameTime;
-        const actualTime =
+        const explicitActualTime =
           type === "departure"
-            ? item.actualDepartureGameTime ?? item.departureGameTime
-            : item.actualArrivalGameTime ?? item.arrivalGameTime;
+            ? item.actualDepartureGameTime
+            : item.actualArrivalGameTime;
+        const actualTime = explicitActualTime ?? scheduledTime;
         const counterpartyAirport = airportsById[type === "departure" ? item.destinationAirportId : item.originAirportId];
         const explicitDelayMinutes = item.delayMinutes ?? 0;
         const delayMinutes = Math.max(explicitDelayMinutes, Math.max(0, Math.round((actualTime - scheduledTime) / 60_000)));
         const isDelayed = (item.status as string) === "delayed" || item.operationalStatus === "delayed" || explicitDelayMinutes > 0 || delayMinutes > 0 || actualTime > scheduledTime;
-        if (!shouldShowBoardFlight(type, item, scheduledTime, actualTime, isDelayed, now, windowStart, windowEnd)) return null;
+        if (!shouldShowBoardFlight(type, item, scheduledTime, actualTime, explicitActualTime, now, windowStart, windowEnd)) return null;
         const statusKey = item.status === "completed" ? "arrived" : item.status === "in-flight" ? "departed" : "onTime";
         return {
           item,
@@ -1007,27 +1008,30 @@ function shouldShowBoardFlight(
   item: ScheduleItem,
   scheduledTime: number,
   actualTime: number,
-  isDelayed: boolean,
+  explicitActualTime: number | undefined,
   now: number,
   windowStart: number,
   windowEnd: number
 ) {
   const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
-  const actualToday = actualTime >= windowStart && actualTime < windowEnd;
-  const minutesUntilScheduled = (scheduledTime - now) / 60_000;
-  const minutesUntilActual = (actualTime - now) / 60_000;
-  const dueSoon = (minutesUntilScheduled >= 0 && minutesUntilScheduled <= 30) || (minutesUntilActual >= 0 && minutesUntilActual <= 30);
+  if (!scheduledToday) return false;
 
   if (type === "departure") {
-    const hasNotDeparted = item.status === "scheduled" && actualTime >= now;
-    const delayedNotDeparted = isDelayed && hasNotDeparted;
-    return scheduledToday && (dueSoon || hasNotDeparted || delayedNotDeparted);
+    const hasDeparted =
+      Boolean(explicitActualTime) ||
+      item.status === "in-flight" ||
+      item.status === "completed" ||
+      item.operationalStatus === "departed" ||
+      item.operationalStatus === "arrived";
+    if (!hasDeparted) return true;
+    const minutesSinceDeparture = (now - actualTime) / 60_000;
+    return minutesSinceDeparture >= 0 && minutesSinceDeparture <= 30;
   }
 
-  const inFlight = item.status === "in-flight";
-  const hasNotArrived = item.status !== "completed" && actualTime >= now;
-  const delayedNotArrived = isDelayed && item.status !== "completed";
-  return (scheduledToday || actualToday) && (dueSoon || hasNotArrived || delayedNotArrived || inFlight);
+  const hasArrived = Boolean(explicitActualTime) || item.status === "completed" || item.operationalStatus === "arrived";
+  if (!hasArrived) return true;
+  const minutesSinceArrival = (now - actualTime) / 60_000;
+  return minutesSinceArrival >= 0 && minutesSinceArrival <= 30;
 }
 
 function formatBoardTime(value: number) {

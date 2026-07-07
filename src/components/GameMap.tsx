@@ -3,6 +3,7 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useTranslation } from "@/i18n";
 import { calculateBearing, greatCirclePath, interpolatePosition } from "@/lib/geo";
 import type { AircraftInstance, AircraftModel, Route } from "@/types/game";
@@ -36,6 +37,7 @@ declare global {
 
 export function GameMap(props: Props) {
   const { t } = useTranslation();
+  const isOnline = useOnlineStatus();
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const googleMapRef = useRef<any>(null);
   const leafletMapRef = useRef<any>(null);
@@ -79,6 +81,11 @@ export function GameMap(props: Props) {
         <div className="absolute left-3 top-3 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
           {googleKey ? "Google Maps" : "OpenStreetMap"}
         </div>
+        {!isOnline ? (
+          <div className="absolute bottom-3 left-3 right-3 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:right-auto md:max-w-md">
+            {t("map.offlineFallback")}
+          </div>
+        ) : null}
       </div>
       <MapLegend labels={{ title: t("map.legend"), base: t("map.legendBase"), opened: t("map.legendOpened"), unopened: t("map.legendUnopened") }} />
     </div>

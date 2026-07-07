@@ -1,0 +1,11 @@
+{
+  "name": "Airline Tycoon V1.1.1",
+  "short_name": "Airline Tycoon",
+  "description": "A browser-based airline management simulation game.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f7f8",
+  "theme_color": "#18545c",
+  "icons": []
+}

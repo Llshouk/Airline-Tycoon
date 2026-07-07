@@ -1,8 +1,8 @@
-# Airline Tycoon V1.1.0
+# Airline Tycoon V1.1.1
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.1.0 - Route Evaluation System
+Release: V1.1.1 - Airport Board and Offline Mode
 
 ## Features
 
@@ -14,9 +14,11 @@ Release: V1.1.0 - Route Evaluation System
 - Create weekly flight schedules
 - View aircraft movement on a map
 - Evaluate route quality, risk, demand, aircraft fit, and recommended aircraft
+- View full-day airport departure and arrival boards
 - Manage owned fleet and aircraft registrations
 - Choose Simulation, Easy, or Realistic difficulty with adjustable game speed
 - Save progress locally in the browser
+- Continue a previously loaded local save while offline
 - Switch between English and Chinese
 - Use a developer console for testing
 
@@ -59,7 +61,7 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.1.0 adds the route evaluation system. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
+Airline Tycoon V1.1.1 fixes airport board visibility and adds first-pass offline play support. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
 
 ## Cloud Save
 
@@ -73,6 +75,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY
 ```
 
 Do not commit `.env.local` or any Supabase keys.
+
+## Offline Mode
+
+The app includes a basic PWA service worker for cached app shell files and aircraft assets. If the player has already loaded a local save on the device, they can use **Continue Offline** when the browser is offline.
+
+Offline mode keeps saving to LocalStorage. Cloud auto-save is paused while offline and marks cloud sync as pending. When the browser comes back online, the app prompts the player to sync the local save back to Supabase.
+
+Map tiles may be unavailable offline, depending on what the browser has cached. The game shows an offline map notice instead of crashing, and the simulation continues to run.
 
 Difficulty-based cloud saves use one row per user and difficulty. If your Supabase `game_saves` table was created before this feature, run:
 
