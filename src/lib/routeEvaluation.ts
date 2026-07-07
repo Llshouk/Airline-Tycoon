@@ -10,12 +10,26 @@ export type RouteRiskLevel = "low" | "medium" | "high";
 export type RouteStrategicValue = "low" | "medium" | "high";
 
 export type RouteEvaluation = {
+  overallScore: number;
   overallGrade: RouteGrade;
-  demandScore: RouteGrade;
-  profitScore: RouteGrade;
-  aircraftFitScore: RouteGrade;
+  demandScore: number;
+  demandGrade: RouteGrade;
+  profitScore: number;
+  profitGrade: RouteGrade;
+  aircraftFitScore: number;
+  aircraftFitGrade: RouteGrade;
+  riskScore: number;
   riskLevel: RouteRiskLevel;
+  strategicScore: number;
   strategicValue: RouteStrategicValue;
+  cabinDemandBreakdown: {
+    first: number;
+    business: number;
+    premiumEconomy: number;
+    economy: number;
+    cargo: number;
+  };
+  scoreReasons: string[];
   estimatedWeeklyRevenue: number;
   estimatedWeeklyProfit?: number;
   recommendedAircraftIds: string[];
@@ -50,29 +64,56 @@ export function evaluateRoute({ route, gameState }: { route: Route; gameState: G
     : estimateRevenueFromDemand(evaluationRoute);
   // TODO V1.2: replace this per-flight proxy with a fuller operating-cost and utilization model.
   const estimatedWeeklyProfit = bestFinancials ? Math.round(bestFinancials.profit * weeklyFlights) : undefined;
-  const demandNumeric = demandStrength(adjustedDemand, origin, destination, route.distanceKm);
-  const demandScore = gradeFromScore(demandNumeric);
-  const profitScore = gradeFromScore(profitStrength(estimatedWeeklyRevenue, estimatedWeeklyProfit));
-  const aircraftFitScore = gradeFromScore(bestAircraftScore?.score ?? 0);
-  const strategicValue = strategicValueForRoute(origin, destination, route.distanceKm, demandNumeric);
-  const riskLevel = riskForRoute({ route, demandNumeric, bestAircraftScore, estimatedWeeklyProfit, aircraftCount: recommendedAircraftIds.length });
+  const demandScore = clampScore(demandStrength(adjustedDemand, origin, destination, route.distanceKm));
+  const profitScore = clampScore(profitStrength(estimatedWeeklyRevenue, estimatedWeeklyProfit));
+  const aircraftFitScore = clampScore(bestAircraftScore?.score ?? 0);
+  const strategicScore = strategicScoreForRoute(origin, destination, route.distanceKm, demandScore);
+  const strategicValue = strategicValueFromScore(strategicScore);
+  const riskScore = riskScoreForRoute({ route, demandNumeric: demandScore, bestAircraftScore, estimatedWeeklyProfit, aircraftCount: recommendedAircraftIds.length });
+  const riskLevel = scoreToRiskLevel(riskScore);
   const warnings = routeWarnings({ route, adjustedDemand, bestAircraftScore, aircraftScores, estimatedWeeklyProfit });
   const suggestions = routeSuggestions({ route, adjustedDemand, bestAircraftScore, recommendedAircraftIds, riskLevel, strategicValue });
-  const overallGrade = overallGradeFor({
-    demandScore,
-    profitScore,
-    aircraftFitScore,
-    riskLevel,
-    strategicValue
-  });
-
-  return {
-    overallGrade,
+  const scoreReasons = routeScoreReasons({
+    route,
+    adjustedDemand,
     demandScore,
     profitScore,
     aircraftFitScore,
     riskLevel,
     strategicValue,
+    bestAircraftScore,
+    recommendedAircraftIds,
+    estimatedWeeklyRevenue
+  });
+  const overallScore = overallScoreFor({
+    demandScore,
+    profitScore,
+    aircraftFitScore,
+    riskScore,
+    strategicScore
+  });
+
+  return {
+    overallScore,
+    overallGrade: scoreToGrade(overallScore),
+    demandScore,
+    demandGrade: scoreToGrade(demandScore),
+    profitScore,
+    profitGrade: scoreToGrade(profitScore),
+    aircraftFitScore,
+    aircraftFitGrade: scoreToGrade(aircraftFitScore),
+    riskScore,
+    riskLevel,
+    strategicScore,
+    strategicValue,
+    cabinDemandBreakdown: {
+      first: adjustedDemand.first,
+      business: adjustedDemand.business,
+      premiumEconomy: adjustedDemand.premiumEconomy,
+      economy: adjustedDemand.economy,
+      cargo: adjustedDemand.cargoTons
+    },
+    scoreReasons,
     estimatedWeeklyRevenue,
     estimatedWeeklyProfit,
     recommendedAircraftIds,
@@ -90,7 +131,7 @@ export function evaluateCabinFit({
   aircraftCabinConfig: CabinLayout;
   routeCabinDemand: CabinDemand;
   routeDistanceKm: number;
-}): { score: RouteGrade; warnings: string[]; suggestions: string[] } {
+}): { score: number; grade: RouteGrade; warnings: string[]; suggestions: string[] } {
   const warnings: string[] = [];
   const suggestions: string[] = [];
   const weeklyFlights = routeDistanceKm >= 5500 ? 7 : 14;
@@ -121,7 +162,8 @@ export function evaluateCabinFit({
     warnings.push("Aircraft capacity may be high for this demand level");
   }
 
-  return { score: gradeFromScore(score), warnings, suggestions };
+  const numericScore = clampScore(score);
+  return { score: numericScore, grade: scoreToGrade(numericScore), warnings, suggestions };
 }
 
 export function getRecommendedRouteOpportunities(gameState: GameState, limit = 5) {
@@ -172,7 +214,7 @@ function getAircraftFitScores(route: Route, gameState: GameState, adjustedDemand
       routeCabinDemand: adjustedDemand,
       routeDistanceKm: route.distanceKm
     });
-    let score = numericFromGrade(cabinFit.score);
+    let score = cabinFit.score;
     if (rangeMargin < 0) score = 0;
     else if (rangeMargin < Math.max(250, route.distanceKm * 0.08)) score -= 18;
     if (!correctBase) score -= 28;
@@ -210,6 +252,7 @@ function routeWarnings({
   if (!bestAircraftScore) warnings.add("No suitable aircraft available");
   if (aircraftScores.every((item) => item.model.rangeKm < route.distanceKm)) warnings.add("No owned aircraft has enough range");
   if (estimatedWeeklyProfit !== undefined && estimatedWeeklyProfit < 0) warnings.add("Weak route");
+  if (bestAircraftScore && route.distanceKm < 2500 && bestAircraftScore.aircraft.cabinLayout.first > 4) warnings.add("This aircraft has too many First Class seats for a short-haul route");
   bestAircraftScore?.cabinFit.warnings.forEach((warning) => warnings.add(warning));
   return Array.from(warnings);
 }
@@ -234,6 +277,9 @@ function routeSuggestions({
   if (!bestAircraftScore) suggestions.add("Buy or move a suitable aircraft before opening this route");
   if (route.distanceKm < 800 && adjustedDemand.first === 0) suggestions.add("Use economy-focused regional or narrow-body aircraft");
   if (route.distanceKm > 5500 && strategicValue === "high") suggestions.add("Prioritize long-haul aircraft with premium and cargo capacity");
+  if (bestAircraftScore) {
+    suggestions.add(`${bestAircraftScore.model.model} ${bestAircraftScore.score >= 72 ? "fits this route well because range and capacity match demand" : "can operate this route, but review capacity and cabin mix before scheduling"}`);
+  }
   bestAircraftScore?.cabinFit.suggestions.forEach((suggestion) => suggestions.add(suggestion));
   return Array.from(suggestions);
 }
@@ -267,7 +313,7 @@ function profitStrength(weeklyRevenue: number, weeklyProfit?: number) {
   return revenueScore * 0.45 + profitScore * 0.55;
 }
 
-function riskForRoute({
+function riskScoreForRoute({
   route,
   demandNumeric,
   bestAircraftScore,
@@ -279,62 +325,115 @@ function riskForRoute({
   bestAircraftScore: ReturnType<typeof getAircraftFitScores>[number] | undefined;
   estimatedWeeklyProfit?: number;
   aircraftCount: number;
-}): RouteRiskLevel {
-  let risk = 0;
-  if (demandNumeric < 45) risk += 2;
-  if (!bestAircraftScore) risk += 3;
-  if (bestAircraftScore && bestAircraftScore.model.rangeKm - route.distanceKm < Math.max(250, route.distanceKm * 0.08)) risk += 1;
-  if (estimatedWeeklyProfit !== undefined && estimatedWeeklyProfit < 0) risk += 2;
-  if (route.distanceKm > 9000) risk += 1;
-  if (aircraftCount <= 1) risk += 1;
-  if (risk >= 4) return "high";
-  if (risk >= 2) return "medium";
+}): number {
+  let risk = 12;
+  if (demandNumeric < 45) risk += 20;
+  if (!bestAircraftScore) risk += 35;
+  if (bestAircraftScore && bestAircraftScore.model.rangeKm - route.distanceKm < Math.max(250, route.distanceKm * 0.08)) risk += 12;
+  if (estimatedWeeklyProfit !== undefined && estimatedWeeklyProfit < 0) risk += 22;
+  if (route.distanceKm > 9000) risk += 10;
+  if (aircraftCount <= 1) risk += 12;
+  return clampScore(risk);
+}
+
+function strategicScoreForRoute(origin: Airport, destination: Airport, distance: number, demandNumeric: number): number {
+  let score = demandNumeric * 0.35;
+  if (origin.sizeTier === "mega") score += 18;
+  if (destination.sizeTier === "mega") score += 18;
+  if (origin.sizeTier === "large" || destination.sizeTier === "large") score += 8;
+  if (distance > 5500) score += 14;
+  else if (distance > 2500) score += 7;
+  return clampScore(score);
+}
+
+function strategicValueFromScore(score: number): RouteStrategicValue {
+  if (score >= 70) return "high";
+  if (score >= 42) return "medium";
   return "low";
 }
 
-function strategicValueForRoute(origin: Airport, destination: Airport, distance: number, demandNumeric: number): RouteStrategicValue {
-  if ((origin.sizeTier === "mega" && destination.sizeTier === "mega") || (distance > 5500 && demandNumeric >= 70)) return "high";
-  if (origin.sizeTier !== "regional" || destination.sizeTier !== "regional" || demandNumeric >= 55) return "medium";
-  return "low";
+function overallScoreFor({
+  demandScore,
+  profitScore,
+  aircraftFitScore,
+  riskScore,
+  strategicScore
+}: {
+  demandScore: number;
+  profitScore: number;
+  aircraftFitScore: number;
+  riskScore: number;
+  strategicScore: number;
+}) {
+  // Central route score formula. Deterministic weighted blend: demand and profit lead,
+  // aircraft fit matters heavily, strategic value helps, and risk lowers the final score.
+  return clampScore(
+    demandScore * 0.3 +
+      profitScore * 0.3 +
+      aircraftFitScore * 0.25 +
+      strategicScore * 0.1 +
+      (100 - riskScore) * 0.05
+  );
 }
 
-function overallGradeFor({
+export function scoreToGrade(score: number): RouteGrade {
+  if (score >= 90) return "A+";
+  if (score >= 80) return "A";
+  if (score >= 65) return "B";
+  if (score >= 50) return "C";
+  return "D";
+}
+
+function scoreToRiskLevel(riskScore: number): RouteRiskLevel {
+  if (riskScore < 35) return "low";
+  if (riskScore < 70) return "medium";
+  return "high";
+}
+
+function clampScore(score: number) {
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function routeScoreReasons({
+  route,
+  adjustedDemand,
   demandScore,
   profitScore,
   aircraftFitScore,
   riskLevel,
-  strategicValue
+  strategicValue,
+  bestAircraftScore,
+  recommendedAircraftIds,
+  estimatedWeeklyRevenue
 }: {
-  demandScore: RouteGrade;
-  profitScore: RouteGrade;
-  aircraftFitScore: RouteGrade;
+  route: Route;
+  adjustedDemand: CabinDemand;
+  demandScore: number;
+  profitScore: number;
+  aircraftFitScore: number;
   riskLevel: RouteRiskLevel;
   strategicValue: RouteStrategicValue;
+  bestAircraftScore: ReturnType<typeof getAircraftFitScores>[number] | undefined;
+  recommendedAircraftIds: string[];
+  estimatedWeeklyRevenue: number;
 }) {
-  let score = numericFromGrade(demandScore) * 0.28 + numericFromGrade(profitScore) * 0.32 + numericFromGrade(aircraftFitScore) * 0.28;
-  score += strategicValue === "high" ? 8 : strategicValue === "medium" ? 3 : 0;
-  score -= riskLevel === "high" ? 22 : riskLevel === "medium" ? 8 : 0;
-  return gradeFromScore(score);
-}
-
-function gradeFromScore(score: number): RouteGrade {
-  if (score >= 88) return "A+";
-  if (score >= 76) return "A";
-  if (score >= 60) return "B";
-  if (score >= 42) return "C";
-  return "D";
-}
-
-function numericFromGrade(grade: RouteGrade) {
-  if (grade === "A+") return 94;
-  if (grade === "A") return 82;
-  if (grade === "B") return 66;
-  if (grade === "C") return 48;
-  return 24;
+  const reasons: string[] = [];
+  if (demandScore >= 75) reasons.push("Strong passenger demand for this route");
+  else if (demandScore < 50) reasons.push("Passenger demand is limited for this route");
+  if (route.distanceKm < 800 && adjustedDemand.first === 0) reasons.push("Short-haul route: First Class demand is not expected");
+  if (profitScore >= 75) reasons.push("Estimated weekly revenue is strong compared with route distance");
+  if (aircraftFitScore >= 72 && recommendedAircraftIds.length >= 2) reasons.push("At least two aircraft can operate this route");
+  else if (!bestAircraftScore) reasons.push("No suitable aircraft is currently available from this base");
+  if (bestAircraftScore) reasons.push(`${bestAircraftScore.model.model} is the best current aircraft fit for this route`);
+  if (riskLevel === "medium") reasons.push("Risk is medium because aircraft availability or operating margin is limited");
+  if (riskLevel === "high") reasons.push("Risk is high because aircraft fit, range, or profitability is weak");
+  if (strategicValue === "high") reasons.push("Strategic value is high because this connects major or long-haul markets");
+  if (estimatedWeeklyRevenue <= 2500000) reasons.push("Revenue potential is modest, so start with conservative capacity");
+  return reasons.slice(0, 6);
 }
 
 function evaluationSortScore(evaluation: RouteEvaluation) {
-  return numericFromGrade(evaluation.overallGrade) * 100000000 + evaluation.estimatedWeeklyRevenue;
+  return evaluation.overallScore * 100000000 + evaluation.estimatedWeeklyRevenue;
 }
 
 function routeConnects(originA: string, destinationA: string, originB: string, destinationB: string) {

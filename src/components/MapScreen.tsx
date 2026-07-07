@@ -983,7 +983,11 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
         const explicitDelayMinutes = item.delayMinutes ?? 0;
         const delayMinutes = Math.max(explicitDelayMinutes, Math.max(0, Math.round((actualTime - scheduledTime) / 60_000)));
         const isDelayed = (item.status as string) === "delayed" || item.operationalStatus === "delayed" || explicitDelayMinutes > 0 || delayMinutes > 0 || actualTime > scheduledTime;
-        if (!shouldShowBoardFlight(type, item, scheduledTime, actualTime, explicitActualTime, now, windowStart, windowEnd)) return null;
+        const shouldShow =
+          type === "departure"
+            ? shouldShowDepartureOnAirportBoard({ flight: item, now, windowStart, windowEnd })
+            : shouldShowArrivalOnAirportBoard({ flight: item, now, windowStart, windowEnd });
+        if (!shouldShow) return null;
         const statusKey = item.status === "completed" ? "arrived" : item.status === "in-flight" ? "departed" : "onTime";
         return {
           item,
@@ -1003,32 +1007,51 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
     .sort((a, b) => a.sortTime - b.sortTime);
 }
 
-function shouldShowBoardFlight(
-  type: "departure" | "arrival",
-  item: ScheduleItem,
-  scheduledTime: number,
-  actualTime: number,
-  explicitActualTime: number | undefined,
-  now: number,
-  windowStart: number,
-  windowEnd: number
-) {
+function shouldShowDepartureOnAirportBoard({
+  flight,
+  now,
+  windowStart,
+  windowEnd
+}: {
+  flight: ScheduleItem;
+  now: number;
+  windowStart: number;
+  windowEnd: number;
+}) {
+  const scheduledTime = flight.scheduledDepartureGameTime ?? flight.departureGameTime;
+  const actualTime = flight.actualDepartureGameTime ?? scheduledTime;
   const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
   if (!scheduledToday) return false;
 
-  if (type === "departure") {
-    const hasDeparted =
-      Boolean(explicitActualTime) ||
-      item.status === "in-flight" ||
-      item.status === "completed" ||
-      item.operationalStatus === "departed" ||
-      item.operationalStatus === "arrived";
-    if (!hasDeparted) return true;
-    const minutesSinceDeparture = (now - actualTime) / 60_000;
-    return minutesSinceDeparture >= 0 && minutesSinceDeparture <= 30;
-  }
+  const hasDeparted =
+    Boolean(flight.actualDepartureGameTime) ||
+    flight.status === "in-flight" ||
+    flight.status === "completed" ||
+    flight.operationalStatus === "departed" ||
+    flight.operationalStatus === "arrived";
 
-  const hasArrived = Boolean(explicitActualTime) || item.status === "completed" || item.operationalStatus === "arrived";
+  if (!hasDeparted) return true;
+  const minutesSinceDeparture = (now - actualTime) / 60_000;
+  return minutesSinceDeparture >= 0 && minutesSinceDeparture <= 30;
+}
+
+function shouldShowArrivalOnAirportBoard({
+  flight,
+  now,
+  windowStart,
+  windowEnd
+}: {
+  flight: ScheduleItem;
+  now: number;
+  windowStart: number;
+  windowEnd: number;
+}) {
+  const scheduledTime = flight.scheduledArrivalGameTime ?? flight.arrivalGameTime;
+  const actualTime = flight.actualArrivalGameTime ?? scheduledTime;
+  const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
+  if (!scheduledToday) return false;
+
+  const hasArrived = Boolean(flight.actualArrivalGameTime) || flight.status === "completed" || flight.operationalStatus === "arrived";
   if (!hasArrived) return true;
   const minutesSinceArrival = (now - actualTime) / 60_000;
   return minutesSinceArrival >= 0 && minutesSinceArrival <= 30;

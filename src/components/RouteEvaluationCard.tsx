@@ -30,15 +30,18 @@ export function RouteEvaluationCard({ evaluation, game, compact = false }: Props
           <p className="text-xs font-black uppercase tracking-normal text-coral">{t("routeEvaluation.title")}</p>
           <p className="mt-1 text-sm font-semibold text-slate-500">{gradeDescription(evaluation.overallGrade, t)}</p>
         </div>
-        <GradeBadge grade={evaluation.overallGrade} label={t("routeEvaluation.overallGrade")} />
+        <div className="flex flex-wrap items-center gap-2">
+          <GradeBadge grade={evaluation.overallGrade} label={t("routeEvaluation.overallGrade")} />
+          <span className="rounded-md bg-jet px-2 py-1 text-xs font-black text-white">{evaluation.overallScore}/100</span>
+        </div>
       </div>
 
       <div className={`mt-3 grid gap-2 text-sm ${compact ? "grid-cols-2" : "grid-cols-2 md:grid-cols-5"}`}>
-        <Score label={t("routeEvaluation.demandScore")} value={<GradeBadge grade={evaluation.demandScore} />} />
-        <Score label={t("routeEvaluation.profitScore")} value={<GradeBadge grade={evaluation.profitScore} />} />
-        <Score label={t("routeEvaluation.aircraftFit")} value={<GradeBadge grade={evaluation.aircraftFitScore} />} />
-        <Score label={t("routeEvaluation.riskLevel")} value={<RiskBadge risk={evaluation.riskLevel} />} />
-        <Score label={t("routeEvaluation.strategicValue")} value={<span className="font-black capitalize text-ink">{strategicLabel(evaluation.strategicValue, t)}</span>} />
+        <Score label={t("routeEvaluation.demandScore")} value={<ScoreWithGrade score={evaluation.demandScore} grade={evaluation.demandGrade} />} />
+        <Score label={t("routeEvaluation.profitScore")} value={<ScoreWithGrade score={evaluation.profitScore} grade={evaluation.profitGrade} />} />
+        <Score label={t("routeEvaluation.aircraftFit")} value={<ScoreWithGrade score={evaluation.aircraftFitScore} grade={evaluation.aircraftFitGrade} />} />
+        <Score label={t("routeEvaluation.riskLevel")} value={<RiskBadge risk={evaluation.riskLevel} score={evaluation.riskScore} />} />
+        <Score label={t("routeEvaluation.strategicValue")} value={<ValueWithScore value={strategicLabel(evaluation.strategicValue, t)} score={evaluation.strategicScore} />} />
       </div>
 
       <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
@@ -46,16 +49,7 @@ export function RouteEvaluationCard({ evaluation, game, compact = false }: Props
         <Info label={t("routeEvaluation.estimatedWeeklyProfit")} value={evaluation.estimatedWeeklyProfit === undefined ? "-" : formatGBP.format(evaluation.estimatedWeeklyProfit)} />
       </div>
 
-      {compact ? null : (
-        <div className="mt-3 rounded-md bg-runway p-3 text-sm">
-          <p className="font-black text-ink">{t("routes.weeklyDemand")}</p>
-          <p className="mt-1 text-xs font-semibold text-slate-600">
-            F {formatNumber.format(evaluation.adjustedDemand.first)} / B {formatNumber.format(evaluation.adjustedDemand.business)} / W{" "}
-            {formatNumber.format(evaluation.adjustedDemand.premiumEconomy)} / Y {formatNumber.format(evaluation.adjustedDemand.economy)} / Cargo{" "}
-            {evaluation.adjustedDemand.cargoTons.toFixed(1)} t
-          </p>
-        </div>
-      )}
+      {compact ? null : <CabinDemandPanel evaluation={evaluation} />}
 
       <div className="mt-3">
         <p className="text-xs font-black uppercase tracking-normal text-slate-500">{t("routeEvaluation.recommendedAircraft")}</p>
@@ -72,24 +66,16 @@ export function RouteEvaluationCard({ evaluation, game, compact = false }: Props
         )}
       </div>
 
+      {!compact && evaluation.scoreReasons.length > 0 ? (
+        <NoticeList title={t("routeEvaluation.whyThisScore")} items={evaluation.scoreReasons} tone="neutral" />
+      ) : null}
+
       {evaluation.warnings.length > 0 ? (
-        <div className="mt-3 space-y-1">
-          {evaluation.warnings.map((warning) => (
-            <p key={warning} className="rounded-md bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-              {translatedNotice(warning, t)}
-            </p>
-          ))}
-        </div>
+        <NoticeList title={t("routeEvaluation.warnings")} items={evaluation.warnings.map((warning) => translatedNotice(warning, t))} tone="warning" compact={compact} />
       ) : null}
 
       {!compact && evaluation.suggestions.length > 0 ? (
-        <div className="mt-3 space-y-1">
-          {evaluation.suggestions.map((suggestion) => (
-            <p key={suggestion} className="rounded-md bg-mint/10 px-3 py-2 text-xs font-bold text-mint">
-              {translatedNotice(suggestion, t)}
-            </p>
-          ))}
-        </div>
+        <NoticeList title={t("routeEvaluation.suggestions")} items={evaluation.suggestions.map((suggestion) => translatedNotice(suggestion, t))} tone="success" />
       ) : null}
     </section>
   );
@@ -113,15 +99,70 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ScoreWithGrade({ score, grade }: { score: number; grade: RouteGrade }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-black text-ink">{score}/100</span>
+      <GradeBadge grade={grade} />
+    </div>
+  );
+}
+
 function GradeBadge({ grade, label }: { grade: RouteGrade; label?: string }) {
   const color = grade === "A+" || grade === "A" ? "bg-mint/15 text-mint" : grade === "B" ? "bg-sky-100 text-sky-700" : grade === "C" ? "bg-amber-100 text-amber-700" : "bg-coral/10 text-coral";
   return <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-black ${color}`}>{label ? `${label}: ${grade}` : grade}</span>;
 }
 
-function RiskBadge({ risk }: { risk: RouteRiskLevel }) {
+function RiskBadge({ risk, score }: { risk: RouteRiskLevel; score: number }) {
   const { t } = useTranslation();
   const color = risk === "low" ? "bg-mint/15 text-mint" : risk === "medium" ? "bg-amber-100 text-amber-700" : "bg-coral/10 text-coral";
-  return <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-black ${color}`}>{riskLabel(risk, t)}</span>;
+  return <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-black ${color}`}>{riskLabel(risk, t)} / {score}</span>;
+}
+
+function ValueWithScore({ value, score }: { value: string; score: number }) {
+  return <span className="font-black capitalize text-ink">{value} / {score}</span>;
+}
+
+function CabinDemandPanel({ evaluation }: { evaluation: RouteEvaluation }) {
+  const { t } = useTranslation();
+  const demand = evaluation.cabinDemandBreakdown;
+  return (
+    <div className="mt-3 rounded-md bg-runway p-3 text-sm">
+      <p className="font-black text-ink">{t("routeEvaluation.cabinDemand")}</p>
+      <div className="mt-2 grid gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-2 lg:grid-cols-5">
+        <CabinDemandItem label={t("fleet.firstClass")} value={formatNumber.format(demand.first)} />
+        <CabinDemandItem label={t("fleet.business")} value={formatNumber.format(demand.business)} />
+        <CabinDemandItem label={t("fleet.premiumEconomy")} value={formatNumber.format(demand.premiumEconomy)} />
+        <CabinDemandItem label={t("fleet.economy")} value={formatNumber.format(demand.economy)} />
+        <CabinDemandItem label={t("fleet.cargo")} value={`${demand.cargo.toFixed(1)} t`} />
+      </div>
+      {demand.first === 0 ? <p className="mt-2 text-xs font-bold text-slate-500">{t("routeEvaluation.shortHaulFirstDemandNote")}</p> : null}
+    </div>
+  );
+}
+
+function CabinDemandItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-white px-2 py-2">
+      <p className="text-slate-500">{label}</p>
+      <p className="mt-1 font-black text-ink">{value}</p>
+    </div>
+  );
+}
+
+function NoticeList({ title, items, tone, compact = false }: { title: string; items: string[]; tone: "neutral" | "warning" | "success"; compact?: boolean }) {
+  const visibleItems = compact ? items.slice(0, 2) : items.slice(0, 6);
+  const color = tone === "warning" ? "bg-amber-50 text-amber-700" : tone === "success" ? "bg-mint/10 text-mint" : "bg-runway text-slate-700";
+  return (
+    <div className="mt-3">
+      <p className="text-xs font-black uppercase tracking-normal text-slate-500">{title}</p>
+      <div className="mt-2 space-y-1">
+        {visibleItems.map((item) => (
+          <p key={item} className={`rounded-md px-3 py-2 text-xs font-bold ${color}`}>- {item}</p>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function riskLabel(risk: RouteRiskLevel, t: ReturnType<typeof useTranslation>["t"]) {
@@ -142,8 +183,13 @@ function gradeDescription(grade: RouteGrade, t: ReturnType<typeof useTranslation
 
 function translatedNotice(message: string, t: ReturnType<typeof useTranslation>["t"]) {
   if (message === "No suitable aircraft available") return t("routeEvaluation.noSuitableAircraft");
+  if (message === "No owned aircraft has enough range") return t("routeEvaluation.aircraftRangeTooShort");
   if (message === "Short-haul routes do not support meaningful First Class demand") return t("routeEvaluation.shortHaulNoFirst");
   if (message === "Cabin configuration does not match route demand") return t("routeEvaluation.cabinMismatch");
+  if (message === "This aircraft has too many First Class seats for a short-haul route") return t("routeEvaluation.tooManyFirstSeats");
+  if (message === "Use economy-focused regional or narrow-body aircraft") return t("routeEvaluation.useEconomyAircraft");
+  if (message === "Buy or move a suitable aircraft before opening this route") return t("routeEvaluation.buyOrMoveAircraft");
+  if (message === "Prioritize long-haul aircraft with premium and cargo capacity") return t("routeEvaluation.useLongHaulPremiumAircraft");
   if (message === "Strong route opportunity") return t("routeEvaluation.strongRoute");
   if (message === "Weak route") return t("routeEvaluation.weakRoute");
   return message;

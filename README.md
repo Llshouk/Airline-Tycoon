@@ -1,8 +1,8 @@
-# Airline Tycoon V1.1.1
+# Airline Tycoon V1.1.2
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.1.1 - Airport Board and Offline Mode
+Release: V1.1.2 - Airport Board and Route Evaluation Clarity Fixes
 
 ## Features
 
@@ -61,7 +61,7 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.1.1 fixes airport board visibility and adds first-pass offline play support. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
+Airline Tycoon V1.1.2 fixes airport board visibility rules and improves Route Evaluation clarity with numeric scores, grade badges, cabin demand breakdowns, and actionable route advice. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
 
 ## Cloud Save
 

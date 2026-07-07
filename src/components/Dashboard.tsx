@@ -150,10 +150,10 @@ function RecommendedRoutesPanel({ opportunities, game }: { opportunities: Return
                   <p className="font-semibold text-ink">
                     {origin.iata} to {destination.iata}
                   </p>
-                  <span className={`rounded px-2 py-1 text-xs font-black ${gradeClass(evaluation.overallGrade)}`}>{evaluation.overallGrade}</span>
+                  <span className={`rounded px-2 py-1 text-xs font-black ${gradeClass(evaluation.overallGrade)}`}>{evaluation.overallGrade} / {evaluation.overallScore}</span>
                 </div>
                 <p className="mt-1 text-sm font-bold text-mint">{formatGBP.format(evaluation.estimatedWeeklyRevenue)}/week</p>
-                <p className="text-xs font-semibold text-slate-500">{aircraft ?? t("routeEvaluation.noSuitableAircraft")}</p>
+                <p className="text-xs font-semibold text-slate-500">{t("routeEvaluation.bestAircraft")}: {aircraft ?? t("routeEvaluation.noSuitableAircraft")}</p>
               </div>
             );
           })
