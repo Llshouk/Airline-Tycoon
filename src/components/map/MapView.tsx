@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, type ReactNode } from "react";
 import type { MapLegendLabels, MapProviderType } from "@/components/map/mapTypes";
 
 type MapViewProps = {
@@ -9,16 +9,17 @@ type MapViewProps = {
   isOffline: boolean;
   offlineMessage: string;
   legendLabels: MapLegendLabels;
+  children?: ReactNode;
 };
 
 export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView(
-  { provider, engineLabel, isOffline, offlineMessage, legendLabels },
+  { provider, engineLabel, isOffline, offlineMessage, legendLabels, children },
   ref
 ) {
   return (
     <div className="flex h-full min-h-[620px] w-full flex-col" data-map-provider={provider}>
       <div className="relative min-h-[560px] flex-1">
-        <div ref={ref} className="h-full w-full" />
+        {children ?? <div ref={ref} className="h-full w-full" />}
         <div className="absolute left-3 top-3 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
           {engineLabel}
         </div>

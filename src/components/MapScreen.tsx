@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { GameMap, type MapDisplayMode } from "@/components/GameMap";
+import type { MapEngine } from "@/components/map/mapTypes";
 import { RouteEvaluationCard } from "@/components/RouteEvaluationCard";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
@@ -27,6 +28,8 @@ const mapDisplayModes = [
   { id: "aircraft", label: "Aircraft Only" }
 ] satisfies { id: MapDisplayMode; label: string }[];
 
+const MAP_ENGINE_STORAGE_KEY = "airline-tycoon-map-engine";
+
 export function MapScreen() {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
@@ -36,6 +39,7 @@ export function MapScreen() {
   const [selectedAirportId, setSelectedAirportId] = useState<string | null>(null);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [displayMode, setDisplayMode] = useState<MapDisplayMode>("all");
+  const [mapEngine, setMapEngine] = useState<MapEngine>("2d");
   const [routeToConfirm, setRouteToConfirm] = useState<RouteOpeningPreview | null>(null);
   const [openedRoute, setOpenedRoute] = useState<RouteOpeningPreview | null>(null);
   const [airportActionAirportId, setAirportActionAirportId] = useState<string | null>(null);
@@ -85,6 +89,15 @@ export function MapScreen() {
   }, [game, selectedAirport, selectedAirportRoute, selectedRouteOriginAirportId]);
 
   useEffect(() => {
+    const savedMapEngine = window.localStorage.getItem(MAP_ENGINE_STORAGE_KEY);
+    if (savedMapEngine === "2d" || savedMapEngine === "globe3d") setMapEngine(savedMapEngine);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(MAP_ENGINE_STORAGE_KEY, mapEngine);
+  }, [mapEngine]);
+
+  useEffect(() => {
     if (!game) return;
     const bases = game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId];
     const primary = game.primaryBaseAirport ?? game.baseAirportId;
@@ -113,12 +126,22 @@ export function MapScreen() {
           <p className="text-slate-600">Real airport coordinates, route distances, and your growing network.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600 shadow-soft">
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600 shadow-soft">
             <span>{t("map.engine")}</span>
-            <select value="leaflet2d" disabled className="rounded border border-slate-200 bg-runway px-2 py-1 text-xs font-black text-jet">
-              <option value="leaflet2d">{t("map.engine2d")}</option>
-            </select>
-          </label>
+            <div className="flex gap-1 rounded bg-runway p-1">
+              {(["2d", "globe3d"] as MapEngine[]).map((engine) => (
+                <button
+                  key={engine}
+                  type="button"
+                  onClick={() => setMapEngine(engine)}
+                  className={`rounded px-2 py-1 text-xs font-black transition ${mapEngine === engine ? "bg-jet text-white" : "text-slate-600 hover:bg-white"}`}
+                >
+                  {engine === "2d" ? t("map.engine2d") : t("map.engineGlobe3d")}
+                </button>
+              ))}
+            </div>
+            {mapEngine === "globe3d" ? <span className="text-coral">{t("map.globeExperimental")}</span> : null}
+          </div>
           <div className="flex flex-wrap gap-1 rounded-md border border-slate-200 bg-white p-1 shadow-soft">
             {mapDisplayModes.map((mode) => (
               <button
@@ -148,6 +171,7 @@ export function MapScreen() {
             selectedAirportId={selectedAirportId}
             selectedRouteId={selectedRouteId}
             displayMode={displayMode}
+            mapEngine={mapEngine}
             onSelectAirport={(airportId) => {
               setSelectedAirportId(airportId);
               setSelectedRouteId(null);

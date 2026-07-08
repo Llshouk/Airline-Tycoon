@@ -1,8 +1,8 @@
-# Airline Tycoon V1.1.8
+# Airline Tycoon V1.2.0
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.1.8 - Map Rendering Refactor and Route Path Fix
+Release: V1.2.0 - 3D Globe Map
 
 ## Features
 
@@ -12,7 +12,7 @@ Release: V1.1.8 - Map Rendering Refactor and Route Path Fix
 - Adjust ticket prices by cabin class
 - Estimate demand, revenue, cost and profit
 - Create weekly flight schedules
-- View aircraft movement on a map
+- View aircraft movement on a 2D map or experimental 3D globe
 - Evaluate route quality, risk, demand, aircraft fit, and recommended aircraft
 - View full-day airport departure and arrival boards
 - Manage owned fleet and aircraft registrations
@@ -61,7 +61,7 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.1.8 stabilizes 2D map rendering, keeps routes on the primary world copy, and adds an early map-provider structure for future globe and map-engine support. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
+Airline Tycoon V1.2.0 adds an optional experimental 3D Globe map while keeping the stable 2D map as the default fallback. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
 
 ## Cloud Save
 

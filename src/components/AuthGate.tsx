@@ -461,7 +461,7 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
   return (
     <main className="flex min-h-screen items-center justify-center bg-runway px-4 py-10">
       <div className="w-full max-w-6xl text-center">
-        <p className="text-xs font-black uppercase tracking-normal text-coral">Airline Tycoon V1.1.8</p>
+        <p className="text-xs font-black uppercase tracking-normal text-coral">Airline Tycoon V1.2.0</p>
         <h1 className="mt-2 text-4xl font-black text-ink">{title}</h1>
         <p className="mx-auto mt-3 max-w-2xl text-sm font-semibold text-slate-600">{subtitle}</p>
         {children}

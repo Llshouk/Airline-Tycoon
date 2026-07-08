@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useRef, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useTranslation } from "@/i18n";
 import { calculateBearing } from "@/lib/geo";
-import { buildRoutePolylineLatLngSegments, interpolateRoutePosition, normalizeLongitude } from "@/lib/mapRoutePath";
+import { buildRoutePolylinePoints, buildRoutePolylineLatLngSegments, interpolateRoutePosition, normalizeLongitude } from "@/lib/mapRoutePath";
 import { MapView } from "@/components/map/MapView";
+import { Globe3DMapProvider } from "@/components/map/providers/Globe3DMapProvider";
 import { LEAFLET_2D_MAP_OPTIONS, LEAFLET_2D_TILE_OPTIONS, PRIMARY_WORLD_BOUNDS } from "@/components/map/providers/LeafletMapProvider";
-import type { MapProviderType } from "@/components/map/mapTypes";
+import type { MapAircraftMarker, MapAirportMarker, MapEngine, MapProviderType, MapRouteLine } from "@/components/map/mapTypes";
 import type { AircraftInstance, AircraftModel, Route } from "@/types/game";
 
 export type MapDisplayMode = "all" | "network" | "airports" | "aircraft";
@@ -27,6 +28,7 @@ type Props = {
   selectedAirportId: string | null;
   selectedRouteId: string | null;
   displayMode: MapDisplayMode;
+  mapEngine?: MapEngine;
   onSelectAirport: (airportId: string) => void;
   onSelectRoute: (routeId: string) => void;
   onSelectFlight: (flightId: string) => void;
@@ -47,12 +49,40 @@ export function GameMap(props: Props) {
   const leafletMapRef = useRef<any>(null);
   const googleLayersRef = useRef<any[]>([]);
   const leafletLayersRef = useRef<any>(null);
+  const [globeFailed, setGlobeFailed] = useState(false);
   const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const mapProvider: MapProviderType = googleKey ? "google" : "leaflet2d";
+  const selectedMapEngine = props.mapEngine ?? "2d";
+  const effectiveMapEngine = selectedMapEngine === "globe3d" && !globeFailed ? "globe3d" : "2d";
+  const usesGoogleMap = effectiveMapEngine === "2d" && Boolean(googleKey);
+  const mapProvider: MapProviderType = effectiveMapEngine === "globe3d" ? "globe3d" : usesGoogleMap ? "google" : "leaflet2d";
+  const globeData = useMemo(
+    () => buildGlobeMapData(props),
+    [
+      props.baseAirportId,
+      props.baseAirportIds,
+      props.primaryBaseAirportId,
+      props.expandedAirportIds,
+      props.routes,
+      props.fleet,
+      props.currentGameTimeMs,
+      props.selectedRouteId,
+      props.displayMode
+    ]
+  );
+  const handleGlobeError = useCallback(() => setGlobeFailed(true), []);
+
+  useEffect(() => {
+    if (selectedMapEngine === "globe3d") setGlobeFailed(false);
+  }, [selectedMapEngine]);
 
   useEffect(() => {
     if (!mapElementRef.current) return;
-    if (googleKey) {
+    if (effectiveMapEngine === "globe3d") {
+      cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef);
+      return;
+    }
+
+    if (usesGoogleMap) {
       initGoogleMap(mapElementRef.current, googleMapRef).then(() => {
         drawGoogleLayers(props, googleMapRef.current, googleLayersRef);
       });
@@ -68,27 +98,157 @@ export function GameMap(props: Props) {
     return () => {
       cancelled = true;
     };
-  }, [googleKey]);
+  }, [effectiveMapEngine, usesGoogleMap, googleKey]);
 
   useEffect(() => {
-    if (googleKey && googleMapRef.current) {
+    if (effectiveMapEngine === "globe3d") return;
+    if (usesGoogleMap && googleMapRef.current) {
       drawGoogleLayers(props, googleMapRef.current, googleLayersRef);
     }
-    if (!googleKey && leafletMapRef.current) {
+    if (!usesGoogleMap && leafletMapRef.current) {
       import("leaflet").then((leaflet) => drawLeafletLayers(props, leaflet, leafletMapRef.current, leafletLayersRef));
     }
-  }, [props, googleKey]);
+  }, [props, effectiveMapEngine, usesGoogleMap]);
 
   return (
     <MapView
       ref={mapElementRef}
       provider={mapProvider}
-      engineLabel={googleKey ? "Google Maps" : "2D Map"}
+      engineLabel={effectiveMapEngine === "globe3d" ? t("map.engineGlobe3d") : googleKey ? "Google Maps" : t("map.engine2d")}
       isOffline={!isOnline}
       offlineMessage={t("map.offlineFallback")}
       legendLabels={{ title: t("map.legend"), base: t("map.legendBase"), opened: t("map.legendOpened"), unopened: t("map.legendUnopened") }}
-    />
+    >
+      {effectiveMapEngine === "globe3d" ? (
+        <Globe3DMapProvider
+          airports={globeData.airports}
+          routes={globeData.routes}
+          aircraft={globeData.aircraft}
+          selectedRouteId={props.selectedRouteId}
+          baseAirportId={props.primaryBaseAirportId ?? props.baseAirportId}
+          labels={{
+            autoRotate: t("map.autoRotate"),
+            resetView: t("map.resetView"),
+            focusBase: t("map.focusBase"),
+            experimental: t("map.globeExperimental"),
+            performance: t("map.globePerformanceNote")
+          }}
+          onSelectAirport={props.onSelectAirport}
+          onSelectRoute={props.onSelectRoute}
+          onSelectAircraft={props.onSelectFlight}
+          onError={handleGlobeError}
+        />
+      ) : null}
+    </MapView>
   );
+}
+
+function cleanupTwoDMaps(
+  googleMapRef: MutableRefObject<any>,
+  googleLayersRef: MutableRefObject<any[]>,
+  leafletMapRef: MutableRefObject<any>,
+  leafletLayersRef: MutableRefObject<any>
+) {
+  googleLayersRef.current.forEach((layer) => layer.setMap?.(null));
+  googleLayersRef.current = [];
+  googleMapRef.current = null;
+  if (leafletLayersRef.current) {
+    leafletLayersRef.current.remove();
+    leafletLayersRef.current = null;
+  }
+  if (leafletMapRef.current) {
+    leafletMapRef.current.remove();
+    leafletMapRef.current = null;
+  }
+}
+
+function buildGlobeMapData(props: Props): { airports: MapAirportMarker[]; routes: MapRouteLine[]; aircraft: MapAircraftMarker[] } {
+  const networkAirportIds = getNetworkAirportIds(props);
+  const baseAirportIds = props.baseAirportIds ?? [props.baseAirportId];
+  const primaryBaseAirportId = props.primaryBaseAirportId ?? props.baseAirportId;
+
+  const airportMarkers = shouldShowAirports(props.displayMode)
+    ? airports
+        .filter((airport) => {
+          const isPrimaryBase = airport.id === primaryBaseAirportId;
+          const isSecondaryBase = baseAirportIds.includes(airport.id) && !isPrimaryBase;
+          const isBase = isPrimaryBase || isSecondaryBase;
+          if (props.displayMode === "network" && !networkAirportIds.has(airport.id)) return false;
+          if (props.displayMode === "aircraft" && !isBase) return false;
+          return true;
+        })
+        .map((airport) => {
+          const isPrimaryBase = airport.id === primaryBaseAirportId;
+          const isSecondaryBase = baseAirportIds.includes(airport.id) && !isPrimaryBase;
+          const isBase = isPrimaryBase || isSecondaryBase;
+          const isExpanded = props.expandedAirportIds.includes(airport.id);
+          return {
+            id: airport.id,
+            iata: airport.iata,
+            name: airport.name,
+            city: airport.city,
+            country: airport.country,
+            lat: airport.lat,
+            lng: normalizeLongitude(airport.lng),
+            markerType: airportMarkerKind(isBase, isExpanded)
+          } satisfies MapAirportMarker;
+        })
+    : [];
+
+  const routeLines: MapRouteLine[] = shouldShowRoutes(props.displayMode)
+    ? props.routes
+        .map((route): MapRouteLine | null => {
+          const origin = airportsById[route.originAirportId];
+          const destination = airportsById[route.destinationAirportId];
+          if (!origin || !destination) return null;
+          const status: MapRouteLine["status"] = props.selectedRouteId === route.id ? "active" : undefined;
+          return {
+            id: route.id,
+            originIata: origin.iata,
+            destinationIata: destination.iata,
+            origin: { lat: origin.lat, lng: normalizeLongitude(origin.lng) },
+            destination: { lat: destination.lat, lng: normalizeLongitude(destination.lng) },
+            points: buildRoutePolylinePoints(origin, destination).map((point) => ({ lat: point.lat, lng: normalizeLongitude(point.lng) })),
+            status
+          };
+        })
+        .filter((route): route is MapRouteLine => Boolean(route))
+    : [];
+
+  const aircraftMarkers: MapAircraftMarker[] = shouldShowAircraft(props.displayMode)
+    ? props.fleet.flatMap((aircraft) => {
+        const model = aircraftById[aircraft.modelId];
+        const iconCategory = getAircraftIconCategory(model);
+        const iconSize = aircraftIconSize(iconCategory);
+        return aircraft.schedule
+          .filter((item) => item.status === "in-flight")
+          .map((item): MapAircraftMarker | null => {
+            const origin = airportsById[item.originAirportId];
+            const destination = airportsById[item.destinationAirportId];
+            if (!origin || !destination) return null;
+            const progress = (props.currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
+            const position = interpolateRoutePosition(origin, destination, progress);
+            const nextPosition = interpolateRoutePosition(origin, destination, Math.min(1, progress + 0.01));
+            const heading = calculateBearing(position.lat, position.lng, nextPosition.lat, nextPosition.lng);
+            return {
+              id: item.id,
+              registration: aircraft.registration,
+              model: model ? `${model.manufacturer} ${model.model}` : aircraft.modelId,
+              lat: position.lat,
+              lng: normalizeLongitude(position.lng),
+              heading,
+              size: iconSize,
+              iconType: iconCategory,
+              status: item.status,
+              routeId: `${item.originAirportId}-${item.destinationAirportId}`,
+              title: item.flightNumber ? `${item.flightNumber} ${aircraft.registration}` : aircraft.registration
+            };
+          })
+          .filter((marker): marker is MapAircraftMarker => Boolean(marker));
+      })
+    : [];
+
+  return { airports: airportMarkers, routes: routeLines, aircraft: aircraftMarkers };
 }
 
 async function initLeafletMap(element: HTMLDivElement, mapRef: MutableRefObject<any>) {

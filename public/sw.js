@@ -1,4 +1,4 @@
-const CACHE_NAME = "airline-tycoon-v118";
+const CACHE_NAME = "airline-tycoon-v120";
 const PRECACHE_URLS = [
   "/",
   "/offline.html",
