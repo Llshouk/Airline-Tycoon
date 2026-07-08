@@ -64,7 +64,7 @@ export function AppShell() {
       <header className="sticky top-0 z-[900] border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto grid max-w-[1500px] gap-3 px-3 py-3 xl:grid-cols-[minmax(180px,1fr)_auto] xl:items-center">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1.1.5</p>
+            <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1.1.6</p>
             <h1 className="truncate text-xl font-black text-ink">{game.airlineName}</h1>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm xl:justify-end">
@@ -164,6 +164,7 @@ export function AppShell() {
               setTimeMultiplier={setTimeMultiplier}
               togglePause={togglePause}
               isAdmin={isAdmin}
+              openConsole={() => setIsConsoleOpen(true)}
             />
           )}
         </section>
@@ -233,7 +234,8 @@ function SettingsPanel({
   autoSaveStatus,
   setTimeMultiplier,
   togglePause,
-  isAdmin
+  isAdmin,
+  openConsole
 }: {
   language: string;
   setLanguage: (language: "en" | "zh") => void;
@@ -244,8 +246,10 @@ function SettingsPanel({
   setTimeMultiplier: (speed: TimeMultiplier) => void;
   togglePause: () => void;
   isAdmin: boolean;
+  openConsole: () => void;
 }) {
   const { t } = useTranslation();
+  const [showCloudSave, setShowCloudSave] = useState(false);
   return (
     <div className="max-w-3xl space-y-4">
       <div>
@@ -287,12 +291,28 @@ function SettingsPanel({
           {autoSaveStatus.message ? <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">{autoSaveStatus.message}</p> : null}
         </div>
       </section>
-      <div>
+      {showCloudSave ? (
         <CloudSavePanel />
-      </div>
+      ) : (
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+          <h3 className="font-bold text-ink">{t("cloud.title")}</h3>
+          <p className="mt-2 text-sm text-slate-600">{t("cloud.description")}</p>
+          <button
+            type="button"
+            onClick={() => setShowCloudSave(true)}
+            className="mt-3 rounded-md bg-jet px-4 py-2 text-sm font-black text-white transition hover:bg-ink"
+          >
+            {t("cloud.title")}
+          </button>
+        </section>
+      )}
       <div>
         <p className="mb-2 text-xs font-black uppercase tracking-normal text-slate-500">Developer Tools</p>
-        {isAdmin ? <GameConsole /> : null}
+        {isAdmin ? (
+          <button type="button" onClick={openConsole} className="rounded-md bg-runway px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-slate-100">
+            Open Game Console
+          </button>
+        ) : null}
       </div>
     </div>
   );

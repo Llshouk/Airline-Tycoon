@@ -1,8 +1,8 @@
-# Airline Tycoon V1.1.5
+# Airline Tycoon V1.1.6
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.1.5 - Airport Board Current-Day Visibility Fix
+Release: V1.1.6 - UI Polish and Settings Performance Fix
 
 ## Features
 
@@ -61,7 +61,7 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.1.5 fixes airport board current-day visibility so future delayed actual departure and arrival times remain visible, with flights hidden only after they are more than 30 in-game minutes past their actual event time. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
+Airline Tycoon V1.1.6 polishes the airport board UI and improves Settings performance by deferring heavier cloud-save and developer-console panels until the player opens them. Some data, economy calculations, route demand, and scheduling systems remain simplified for gameplay balance.
 
 ## Cloud Save
 

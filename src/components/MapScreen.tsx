@@ -888,56 +888,94 @@ function AirportBoardModal({ airportId, game, onClose }: { airportId: string; ga
 
 function AirportFlightBoard({ airportId, game, compact = false }: { airportId: string; game: GameState; compact?: boolean }) {
   const { t } = useTranslation();
-  const departures = airportBoardRows(airportId, game, "departure");
-  const arrivals = airportBoardRows(airportId, game, "arrival");
+  const airport = airportsById[airportId];
+  const [activeTab, setActiveTab] = useState<"departure" | "arrival">("departure");
+  const departures = useMemo(() => airportBoardRows(airportId, game, "departure"), [airportId, game]);
+  const arrivals = useMemo(() => airportBoardRows(airportId, game, "arrival"), [airportId, game]);
+  const rows = activeTab === "departure" ? departures : arrivals;
   return (
-    <section className={`${compact ? "mt-3" : "mt-4"} rounded-md border border-white/15 bg-black/20 p-3 text-white`}>
-      <p className="mb-3 text-xs font-black uppercase tracking-normal text-slate-300">{t("airport.todaysFlights")}</p>
-      <div className={`grid gap-3 ${compact ? "" : "md:grid-cols-2"}`}>
-        <FlightBoardColumn title={t("airport.departures")} rows={departures} emptyLabel={t("airport.noUpcomingFlights")} type="departure" />
-        <FlightBoardColumn title={t("airport.arrivals")} rows={arrivals} emptyLabel={t("airport.noUpcomingFlights")} type="arrival" />
+    <section className={`${compact ? "mt-3" : "mt-4"} overflow-hidden rounded-lg border border-slate-700/70 bg-slate-950 text-white shadow-[0_18px_45px_rgba(2,6,23,0.35)]`}>
+      <div className="border-b border-white/10 bg-white/[0.04] px-3 py-3">
+        <p className="font-mono text-[11px] font-black uppercase tracking-[0.16em] text-amber-200">
+          {airport?.iata} {t("airport.todaysFlights")}
+        </p>
+        <div className="mt-1 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h3 className={`${compact ? "text-lg" : "text-2xl"} font-black text-white`}>
+              {airport?.iata} Airport Board
+            </h3>
+            <p className="text-xs font-semibold text-slate-300">{airport?.city} - {formatGameDate(game.currentGameTimeMs)}</p>
+          </div>
+          <span className="rounded-md border border-white/10 bg-black/25 px-2 py-1 font-mono text-xs font-black text-slate-100">
+            {formatBoardTime(game.currentGameTimeMs)}
+          </span>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-1 rounded-md border border-white/10 bg-black/30 p-1">
+          <BoardTab active={activeTab === "departure"} label={t("airport.departures")} count={departures.length} onClick={() => setActiveTab("departure")} />
+          <BoardTab active={activeTab === "arrival"} label={t("airport.arrivals")} count={arrivals.length} onClick={() => setActiveTab("arrival")} />
+        </div>
       </div>
+      <FlightBoardColumn rows={rows} emptyLabel={t("airport.noUpcomingFlights")} type={activeTab} compact={compact} />
     </section>
   );
 }
 
+function BoardTab({ active, label, count, onClick }: { active: boolean; label: string; count: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center justify-between gap-2 rounded px-3 py-2 text-xs font-black uppercase tracking-normal transition ${
+        active ? "bg-amber-300 text-slate-950 shadow-sm" : "text-slate-300 hover:bg-white/10 hover:text-white"
+      }`}
+    >
+      <span>{label}</span>
+      <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${active ? "bg-slate-950/15" : "bg-white/10"}`}>{count}</span>
+    </button>
+  );
+}
+
 function FlightBoardColumn({
-  title,
   rows,
   emptyLabel,
-  type
+  type,
+  compact
 }: {
-  title: string;
   rows: AirportBoardRow[];
   emptyLabel: string;
   type: "departure" | "arrival";
+  compact: boolean;
 }) {
   const { t } = useTranslation();
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between gap-2 border-b border-white/15 pb-2">
-        <p className="text-xs font-black uppercase tracking-normal text-amber-200">{title}</p>
-        <span className="text-[11px] font-bold text-slate-300">{rows.length}</span>
+    <div className="p-2">
+      <div className="mb-2 hidden grid-cols-[64px_72px_1fr_92px_92px] gap-2 border-b border-white/10 px-2 pb-2 text-[10px] font-black uppercase tracking-normal text-slate-400 md:grid">
+        <span>{t("airport.scheduled")}</span>
+        <span>{t("airport.flight")}</span>
+        <span>{type === "departure" ? t("airport.destination") : t("airport.origin")}</span>
+        <span>{t("schedule.aircraft")}</span>
+        <span className="text-right">{t("detail.status")}</span>
       </div>
       {rows.length === 0 ? (
-        <p className="rounded bg-white/5 px-2 py-3 text-xs font-semibold text-slate-300">{emptyLabel}</p>
+        <p className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-5 text-center text-xs font-semibold text-slate-300">{emptyLabel}</p>
       ) : (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           {rows.map((row) => (
-            <div key={`${type}-${row.item.id}`} className={`grid grid-cols-[52px_1fr_64px_72px] gap-2 rounded px-2 py-2 text-xs ${row.isDelayed ? "bg-amber-300/15 text-amber-100" : "bg-white/5 text-slate-100"}`}>
-              <span className="font-mono font-black tabular-nums">{formatBoardTime(row.scheduledTime)}</span>
-              <span className="min-w-0">
-                <span className={`block truncate font-black ${row.isDelayed ? "text-yellow-400" : "text-white"}`}>{row.flightNumber}</span>
-                <span className="block truncate text-slate-300">
-                  {type === "departure" ? t("airport.destination") : t("airport.origin")}: {row.counterparty}
-                </span>
-                <span className="block truncate text-slate-400">{row.aircraft.registration}</span>
+            <div
+              key={`${type}-${row.item.id}`}
+              className={`grid items-center gap-2 rounded-md border px-2.5 py-2 text-xs transition ${
+                compact ? "grid-cols-[52px_62px_1fr_auto]" : "grid-cols-[64px_72px_1fr_92px_92px]"
+              } ${row.isDelayed ? "border-amber-300/25 bg-amber-300/12 text-amber-100" : "border-white/10 bg-white/[0.045] text-slate-100 hover:bg-white/[0.07]"}`}
+            >
+              <span className="font-mono text-sm font-black tabular-nums text-white">{formatBoardTime(row.scheduledTime)}</span>
+              <span className={`font-mono font-black tabular-nums ${row.isDelayed ? "text-yellow-300" : "text-slate-100"}`}>{row.flightNumber}</span>
+              <span className="min-w-0 truncate text-slate-300">
+                {row.routeLabel}
+                {!compact ? <span className="ml-2 text-slate-500">{row.aircraftModel}</span> : null}
               </span>
-              <span className={`text-right font-mono font-black tabular-nums ${row.isDelayed ? "text-yellow-400" : "text-slate-100"}`}>
-                {row.isDelayed ? formatBoardTime(row.actualTime) : "-"}
-              </span>
-              <span className={`text-right font-black ${row.isDelayed ? "text-yellow-400" : "text-slate-100"}`}>
-                {row.isDelayed ? `${t("airport.delayed")} ${row.delayMinutes}m` : airportStatusLabel(row.statusKey, t)}
+              {!compact ? <span className="truncate font-mono font-bold text-slate-300">{row.aircraft.registration}</span> : null}
+              <span className={`justify-self-end rounded px-2 py-1 text-[10px] font-black uppercase tracking-normal ${row.isDelayed ? "bg-amber-300 text-slate-950" : "bg-white/10 text-slate-100"}`}>
+                {row.isDelayed ? `${t("airport.delayed")} ${formatBoardTime(row.actualTime)}` : airportStatusLabel(row.statusKey, t)}
               </span>
             </div>
           ))}
@@ -951,7 +989,8 @@ type AirportBoardRow = {
   item: ScheduleItem;
   aircraft: AircraftInstance;
   flightNumber: string;
-  counterparty: string;
+  routeLabel: string;
+  aircraftModel: string;
   scheduledTime: number;
   actualTime: number;
   sortTime: number;
@@ -979,7 +1018,6 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
             ? item.actualDepartureGameTime
             : item.actualArrivalGameTime;
         const actualTime = explicitActualTime ?? scheduledTime;
-        const counterpartyAirport = airportsById[type === "departure" ? item.destinationAirportId : item.originAirportId];
         const explicitDelayMinutes = item.delayMinutes ?? 0;
         const delayMinutes = Math.max(explicitDelayMinutes, Math.max(0, Math.round((actualTime - scheduledTime) / 60_000)));
         const isDelayed = (item.status as string) === "delayed" || item.operationalStatus === "delayed" || explicitDelayMinutes > 0 || delayMinutes > 0 || actualTime > scheduledTime;
@@ -993,7 +1031,8 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
           item,
           aircraft,
           flightNumber: item.flightNumber ?? aircraft.registration,
-          counterparty: `${counterpartyAirport.iata} ${counterpartyAirport.city}`,
+          routeLabel: `${airportsById[item.originAirportId].iata} -> ${airportsById[item.destinationAirportId].iata}`,
+          aircraftModel: aircraftById[aircraft.modelId]?.model ?? aircraft.modelId,
           scheduledTime,
           actualTime,
           sortTime: actualTime,
