@@ -7,6 +7,9 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useTranslation } from "@/i18n";
 import { calculateBearing } from "@/lib/geo";
 import { buildRoutePolylineLatLngSegments, interpolateRoutePosition, normalizeLongitude } from "@/lib/mapRoutePath";
+import { MapView } from "@/components/map/MapView";
+import { LEAFLET_2D_MAP_OPTIONS, LEAFLET_2D_TILE_OPTIONS, PRIMARY_WORLD_BOUNDS } from "@/components/map/providers/LeafletMapProvider";
+import type { MapProviderType } from "@/components/map/mapTypes";
 import type { AircraftInstance, AircraftModel, Route } from "@/types/game";
 
 export type MapDisplayMode = "all" | "network" | "airports" | "aircraft";
@@ -45,6 +48,7 @@ export function GameMap(props: Props) {
   const googleLayersRef = useRef<any[]>([]);
   const leafletLayersRef = useRef<any>(null);
   const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const mapProvider: MapProviderType = googleKey ? "google" : "leaflet2d";
 
   useEffect(() => {
     if (!mapElementRef.current) return;
@@ -76,40 +80,14 @@ export function GameMap(props: Props) {
   }, [props, googleKey]);
 
   return (
-    <div className="flex h-full min-h-[620px] w-full flex-col">
-      <div className="relative min-h-[560px] flex-1">
-        <div ref={mapElementRef} className="h-full w-full" />
-        <div className="absolute left-3 top-3 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
-          {googleKey ? "Google Maps" : "OpenStreetMap"}
-        </div>
-        {!isOnline ? (
-          <div className="absolute bottom-3 left-3 right-3 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:right-auto md:max-w-md">
-            {t("map.offlineFallback")}
-          </div>
-        ) : null}
-      </div>
-      <MapLegend labels={{ title: t("map.legend"), base: t("map.legendBase"), opened: t("map.legendOpened"), unopened: t("map.legendUnopened") }} />
-    </div>
-  );
-}
-
-function MapLegend({ labels }: { labels: { title: string; base: string; opened: string; unopened: string } }) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-200 bg-white/95 px-3 py-2 text-xs font-bold text-ink">
-      <span className="font-black uppercase tracking-normal text-slate-500">{labels.title}:</span>
-      <LegendRow color="#d76745" label={labels.base} />
-      <LegendRow color="#4f9d7e" label={labels.opened} />
-      <LegendRow color="#ffffff" label={labels.unopened} bordered />
-    </div>
-  );
-}
-
-function LegendRow({ color, label, bordered = false }: { color: string; label: string; bordered?: boolean }) {
-  return (
-    <span className="flex items-center gap-2 whitespace-nowrap py-0.5">
-      <span className={`h-3 w-3 rounded-full ${bordered ? "border border-slate-400" : "border border-ink/20"}`} style={{ backgroundColor: color }} />
-      <span>{label}</span>
-    </span>
+    <MapView
+      ref={mapElementRef}
+      provider={mapProvider}
+      engineLabel={googleKey ? "Google Maps" : "2D Map"}
+      isOffline={!isOnline}
+      offlineMessage={t("map.offlineFallback")}
+      legendLabels={{ title: t("map.legend"), base: t("map.legendBase"), opened: t("map.legendOpened"), unopened: t("map.legendUnopened") }}
+    />
   );
 }
 
@@ -117,14 +95,9 @@ async function initLeafletMap(element: HTMLDivElement, mapRef: MutableRefObject<
   const L = await import("leaflet");
   if (mapRef.current) return L;
 
-  mapRef.current = L.map(element, {
-    center: [30, 5],
-    zoom: 2,
-    worldCopyJump: true
-  });
+  mapRef.current = L.map(element, LEAFLET_2D_MAP_OPTIONS);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors",
-    maxZoom: 10
+    ...LEAFLET_2D_TILE_OPTIONS
   }).addTo(mapRef.current);
 
   return L;
@@ -203,7 +176,7 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
       const isExpanded = props.expandedAirportIds.includes(airport.id);
       const markerKind = airportMarkerKind(isBase, isExpanded);
       const pinSize = airportPinSize(isBase, isExpanded);
-      const marker = L.marker([airport.lat, airport.lng], {
+      const marker = L.marker([airport.lat, normalizeLongitude(airport.lng)], {
         icon: L.divIcon({
           html: airportPinHtml(markerKind),
           className: `airport-marker airport-marker-${markerKind}`,
@@ -216,7 +189,7 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
         props.onSelectAirport(airport.id);
         window.setTimeout(() => {
           L.popup({ offset: [0, -26] })
-            .setLatLng([airport.lat, airport.lng])
+            .setLatLng([airport.lat, normalizeLongitude(airport.lng)])
             .setContent(airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded))
             .openOn(map);
         }, 0);
@@ -234,6 +207,17 @@ async function initGoogleMap(element: HTMLDivElement, mapRef: MutableRefObject<a
   mapRef.current = new window.google.maps.Map(element, {
     center: { lat: 30, lng: 5 },
     zoom: 2,
+    minZoom: 2,
+    maxZoom: 8,
+    restriction: {
+      latLngBounds: {
+        south: PRIMARY_WORLD_BOUNDS[0][0],
+        west: PRIMARY_WORLD_BOUNDS[0][1],
+        north: PRIMARY_WORLD_BOUNDS[1][0],
+        east: PRIMARY_WORLD_BOUNDS[1][1]
+      },
+      strictBounds: true
+    },
     mapTypeControl: false,
     streetViewControl: false,
     fullscreenControl: false
@@ -322,7 +306,7 @@ function drawGoogleLayers(props: Props, map: any, layersRef: MutableRefObject<an
       });
       const pinScale = isBase ? 1 : isExpanded ? 0.9 : 0.78;
       const marker = new window.google.maps.Marker({
-        position: { lat: airport.lat, lng: airport.lng },
+        position: { lat: airport.lat, lng: normalizeLongitude(airport.lng) },
         map,
         title: `${airport.iata} ${airport.name}`,
         icon: {

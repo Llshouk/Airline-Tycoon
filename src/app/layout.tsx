@@ -3,7 +3,7 @@ import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistratio
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Airline Tycoon V1.1.7",
+  title: "Airline Tycoon V1.1.8",
   description: "A browser-based airline management simulation MVP.",
   manifest: "/manifest.json"
 };

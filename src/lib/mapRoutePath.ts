@@ -3,6 +3,8 @@ export type GeoPoint = {
   lng: number;
 };
 
+const DEFAULT_ROUTE_STEPS = 96;
+
 export function normalizeLongitude(lng: number) {
   let next = lng;
   while (next > 180) next -= 360;
@@ -16,7 +18,7 @@ export function normalizeLongitudeDelta(delta: number) {
   return delta;
 }
 
-export function buildRoutePolylinePoints(origin: GeoPoint, destination: GeoPoint, steps = 64): GeoPoint[] {
+export function buildRoutePolylinePoints(origin: GeoPoint, destination: GeoPoint, steps = DEFAULT_ROUTE_STEPS): GeoPoint[] {
   const safeSteps = Math.max(1, Math.floor(steps));
   const lngDelta = normalizeLongitudeDelta(destination.lng - origin.lng);
   const latDelta = destination.lat - origin.lat;
@@ -32,17 +34,12 @@ export function buildRoutePolylinePoints(origin: GeoPoint, destination: GeoPoint
   });
 }
 
-export function buildRoutePolylineLatLngs(origin: GeoPoint, destination: GeoPoint, steps = 64): [number, number][] {
-  return buildRoutePolylinePoints(origin, destination, steps).map((point) => [point.lat, normalizeLongitude(point.lng)]);
-}
-
-export function buildRoutePolylineLatLngSegments(origin: GeoPoint, destination: GeoPoint, steps = 64): [number, number][][] {
-  const points = buildRoutePolylinePoints(origin, destination, steps);
-  const segments: [number, number][][] = [];
-  let currentSegment: [number, number][] = [];
+export function splitPolylineAtAntimeridian(points: GeoPoint[]): GeoPoint[][] {
+  const segments: GeoPoint[][] = [];
+  let currentSegment: GeoPoint[] = [];
 
   points.forEach((point, index) => {
-    const normalizedPoint: [number, number] = [point.lat, normalizeLongitude(point.lng)];
+    const normalizedPoint = { lat: point.lat, lng: normalizeLongitude(point.lng) };
     if (index === 0) {
       currentSegment.push(normalizedPoint);
       return;
@@ -51,17 +48,18 @@ export function buildRoutePolylineLatLngSegments(origin: GeoPoint, destination: 
     const previous = points[index - 1];
     const previousNormalizedLng = normalizeLongitude(previous.lng);
     const normalizedLng = normalizeLongitude(point.lng);
-    const wraps = Math.abs(normalizedLng - previousNormalizedLng) > 180;
+    const crossesAntimeridian = Math.abs(normalizedLng - previousNormalizedLng) > 180;
 
-    if (wraps) {
-      const increasing = point.lng > previous.lng;
-      const boundaryLng = increasing ? 180 : -180;
-      const oppositeBoundaryLng = increasing ? -180 : 180;
+    if (crossesAntimeridian) {
+      const movingEast = point.lng > previous.lng;
+      const boundaryLng = movingEast ? 180 : -180;
+      const oppositeBoundaryLng = movingEast ? -180 : 180;
       const boundaryProgress = (boundaryLng - previous.lng) / (point.lng - previous.lng);
       const boundaryLat = previous.lat + (point.lat - previous.lat) * boundaryProgress;
-      currentSegment.push([boundaryLat, boundaryLng]);
+
+      currentSegment.push({ lat: boundaryLat, lng: boundaryLng });
       segments.push(currentSegment);
-      currentSegment = [[boundaryLat, oppositeBoundaryLng], normalizedPoint];
+      currentSegment = [{ lat: boundaryLat, lng: oppositeBoundaryLng }, normalizedPoint];
       return;
     }
 
@@ -70,6 +68,18 @@ export function buildRoutePolylineLatLngSegments(origin: GeoPoint, destination: 
 
   if (currentSegment.length > 0) segments.push(currentSegment);
   return segments;
+}
+
+export function buildRoutePolylineLatLngs(origin: GeoPoint, destination: GeoPoint, steps = DEFAULT_ROUTE_STEPS): [number, number][] {
+  return buildRoutePolylinePoints(origin, destination, steps).map((point) => [point.lat, normalizeLongitude(point.lng)]);
+}
+
+export function buildRoutePolylineSegments(origin: GeoPoint, destination: GeoPoint, steps = DEFAULT_ROUTE_STEPS): GeoPoint[][] {
+  return splitPolylineAtAntimeridian(buildRoutePolylinePoints(origin, destination, steps));
+}
+
+export function buildRoutePolylineLatLngSegments(origin: GeoPoint, destination: GeoPoint, steps = DEFAULT_ROUTE_STEPS): [number, number][][] {
+  return buildRoutePolylineSegments(origin, destination, steps).map((segment) => segment.map((point) => [point.lat, point.lng]));
 }
 
 export function interpolateRoutePosition(origin: GeoPoint, destination: GeoPoint, progress: number): GeoPoint {

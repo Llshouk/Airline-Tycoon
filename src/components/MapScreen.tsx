@@ -112,19 +112,27 @@ export function MapScreen() {
           <h2 className="text-2xl font-black text-ink">{t("map.title")}</h2>
           <p className="text-slate-600">Real airport coordinates, route distances, and your growing network.</p>
         </div>
-        <div className="flex flex-wrap gap-1 rounded-md border border-slate-200 bg-white p-1 shadow-soft">
-          {mapDisplayModes.map((mode) => (
-            <button
-              key={mode.id}
-              type="button"
-              onClick={() => setDisplayMode(mode.id)}
-              className={`rounded px-3 py-2 text-xs font-black transition ${
-                displayMode === mode.id ? "bg-jet text-white" : "text-slate-600 hover:bg-runway"
-              }`}
-            >
-              {mode.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600 shadow-soft">
+            <span>{t("map.engine")}</span>
+            <select value="leaflet2d" disabled className="rounded border border-slate-200 bg-runway px-2 py-1 text-xs font-black text-jet">
+              <option value="leaflet2d">{t("map.engine2d")}</option>
+            </select>
+          </label>
+          <div className="flex flex-wrap gap-1 rounded-md border border-slate-200 bg-white p-1 shadow-soft">
+            {mapDisplayModes.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                onClick={() => setDisplayMode(mode.id)}
+                className={`rounded px-3 py-2 text-xs font-black transition ${
+                  displayMode === mode.id ? "bg-jet text-white" : "text-slate-600 hover:bg-runway"
+                }`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <section className="grid gap-4 xl:grid-cols-[1fr_340px]">
