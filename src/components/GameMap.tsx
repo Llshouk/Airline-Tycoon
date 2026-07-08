@@ -5,7 +5,8 @@ import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useTranslation } from "@/i18n";
-import { calculateBearing, greatCirclePath, interpolatePosition } from "@/lib/geo";
+import { calculateBearing } from "@/lib/geo";
+import { buildRoutePolylineLatLngSegments, interpolateRoutePosition, normalizeLongitude } from "@/lib/mapRoutePath";
 import type { AircraftInstance, AircraftModel, Route } from "@/types/game";
 
 export type MapDisplayMode = "all" | "network" | "airports" | "aircraft";
@@ -142,7 +143,7 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
       const origin = airportsById[route.originAirportId];
       const destination = airportsById[route.destinationAirportId];
       const active = props.selectedRouteId === route.id;
-      L.polyline(greatCirclePath(origin, destination), {
+      L.polyline(buildRoutePolylineLatLngSegments(origin, destination), {
         color: active ? "#d76745" : "#18545c",
         weight: active ? 4 : 2,
         opacity: 0.85
@@ -163,9 +164,10 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
           const origin = airportsById[item.originAirportId];
           const destination = airportsById[item.destinationAirportId];
           const progress = (props.currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
-          const position = interpolatePosition(origin, destination, progress);
-          const bearing = calculateBearing(position.lat, position.lng, destination.lat, destination.lng);
-          L.marker([position.lat, position.lng], {
+          const position = interpolateRoutePosition(origin, destination, progress);
+          const nextPosition = interpolateRoutePosition(origin, destination, Math.min(1, progress + 0.01));
+          const bearing = calculateBearing(position.lat, position.lng, nextPosition.lat, nextPosition.lng);
+          L.marker([position.lat, normalizeLongitude(position.lng)], {
             icon: L.divIcon({
               html: aircraftIconHtml(bearing, iconCategory),
               className: `aircraft-map-icon aircraft-map-icon-${iconCategory}`,
@@ -178,7 +180,7 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
               props.onSelectFlight(item.id);
               window.setTimeout(() => {
                 L.popup({ offset: [0, -10] })
-                  .setLatLng([position.lat, position.lng])
+                  .setLatLng([position.lat, normalizeLongitude(position.lng)])
                   .setContent(aircraftDetailsHtml(aircraft, model, item, props.currentGameTimeMs))
                   .openOn(map);
               }, 0);
@@ -248,16 +250,18 @@ function drawGoogleLayers(props: Props, map: any, layersRef: MutableRefObject<an
       const origin = airportsById[route.originAirportId];
       const destination = airportsById[route.destinationAirportId];
       const active = props.selectedRouteId === route.id;
-      const line = new window.google.maps.Polyline({
-        path: greatCirclePath(origin, destination).map(([lat, lng]) => ({ lat, lng })),
-        geodesic: true,
-        strokeColor: active ? "#d76745" : "#18545c",
-        strokeOpacity: 0.85,
-        strokeWeight: active ? 4 : 2,
-        map
+      buildRoutePolylineLatLngSegments(origin, destination).forEach((segment) => {
+        const line = new window.google.maps.Polyline({
+          path: segment.map(([lat, lng]) => ({ lat, lng })),
+          geodesic: false,
+          strokeColor: active ? "#d76745" : "#18545c",
+          strokeOpacity: 0.85,
+          strokeWeight: active ? 4 : 2,
+          map
+        });
+        line.addListener("click", () => props.onSelectRoute(route.id));
+        layersRef.current.push(line);
       });
-      line.addListener("click", () => props.onSelectRoute(route.id));
-      layersRef.current.push(line);
     });
   }
 
@@ -271,10 +275,11 @@ function drawGoogleLayers(props: Props, map: any, layersRef: MutableRefObject<an
           const origin = airportsById[item.originAirportId];
           const destination = airportsById[item.destinationAirportId];
           const progress = (props.currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
-          const position = interpolatePosition(origin, destination, progress);
-          const bearing = calculateBearing(position.lat, position.lng, destination.lat, destination.lng);
+          const position = interpolateRoutePosition(origin, destination, progress);
+          const nextPosition = interpolateRoutePosition(origin, destination, Math.min(1, progress + 0.01));
+          const bearing = calculateBearing(position.lat, position.lng, nextPosition.lat, nextPosition.lng);
           const marker = new window.google.maps.Marker({
-            position,
+            position: { lat: position.lat, lng: normalizeLongitude(position.lng) },
             map,
             title: item.flightNumber ? `${item.flightNumber} ${aircraft.registration}` : aircraft.registration,
             icon: {
