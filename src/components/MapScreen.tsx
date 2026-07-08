@@ -1022,10 +1022,9 @@ function shouldShowDepartureOnAirportBoard({
   const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
   if (!scheduledToday) return false;
 
-  if (!flight.actualDepartureGameTime) return true;
-  const actualTime = flight.actualDepartureGameTime;
-  const minutesSinceDeparture = (now - actualTime) / 60_000;
-  return minutesSinceDeparture >= 0 && minutesSinceDeparture <= 30;
+  const departureTime = flight.actualDepartureGameTime ?? scheduledTime;
+  const minutesSinceDeparture = (now - departureTime) / 60_000;
+  return minutesSinceDeparture <= 30;
 }
 
 function shouldShowArrivalOnAirportBoard({
@@ -1043,10 +1042,9 @@ function shouldShowArrivalOnAirportBoard({
   const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
   if (!scheduledToday) return false;
 
-  if (!flight.actualArrivalGameTime) return true;
-  const actualTime = flight.actualArrivalGameTime;
-  const minutesSinceArrival = (now - actualTime) / 60_000;
-  return minutesSinceArrival >= 0 && minutesSinceArrival <= 30;
+  const arrivalTime = flight.actualArrivalGameTime ?? scheduledTime;
+  const minutesSinceArrival = (now - arrivalTime) / 60_000;
+  return minutesSinceArrival <= 30;
 }
 
 function formatBoardTime(value: number) {
