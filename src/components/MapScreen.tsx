@@ -996,7 +996,7 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
           counterparty: `${counterpartyAirport.iata} ${counterpartyAirport.city}`,
           scheduledTime,
           actualTime,
-          sortTime: isDelayed ? actualTime : scheduledTime,
+          sortTime: actualTime,
           delayMinutes,
           isDelayed,
           statusKey
@@ -1019,18 +1019,11 @@ function shouldShowDepartureOnAirportBoard({
   windowEnd: number;
 }) {
   const scheduledTime = flight.scheduledDepartureGameTime ?? flight.departureGameTime;
-  const actualTime = flight.actualDepartureGameTime ?? scheduledTime;
   const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
   if (!scheduledToday) return false;
 
-  const hasDeparted =
-    Boolean(flight.actualDepartureGameTime) ||
-    flight.status === "in-flight" ||
-    flight.status === "completed" ||
-    flight.operationalStatus === "departed" ||
-    flight.operationalStatus === "arrived";
-
-  if (!hasDeparted) return true;
+  if (!flight.actualDepartureGameTime) return true;
+  const actualTime = flight.actualDepartureGameTime;
   const minutesSinceDeparture = (now - actualTime) / 60_000;
   return minutesSinceDeparture >= 0 && minutesSinceDeparture <= 30;
 }
@@ -1047,12 +1040,11 @@ function shouldShowArrivalOnAirportBoard({
   windowEnd: number;
 }) {
   const scheduledTime = flight.scheduledArrivalGameTime ?? flight.arrivalGameTime;
-  const actualTime = flight.actualArrivalGameTime ?? scheduledTime;
   const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
   if (!scheduledToday) return false;
 
-  const hasArrived = Boolean(flight.actualArrivalGameTime) || flight.status === "completed" || flight.operationalStatus === "arrived";
-  if (!hasArrived) return true;
+  if (!flight.actualArrivalGameTime) return true;
+  const actualTime = flight.actualArrivalGameTime;
   const minutesSinceArrival = (now - actualTime) / 60_000;
   return minutesSinceArrival >= 0 && minutesSinceArrival <= 30;
 }
