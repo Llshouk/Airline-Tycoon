@@ -20,6 +20,7 @@ import {
 import { formatGBP } from "@/lib/format";
 import { isAdminUser } from "@/lib/admin";
 import { supabase } from "@/lib/supabaseClient";
+import { safeGetLocalStorage, safeGetSessionStorage, safeRemoveLocalStorage, safeRemoveSessionStorage, safeSetLocalStorage, safeSetSessionStorage } from "@/lib/gameSaveStorage";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { BASE_AIRPORT_COST, STARTING_CAPITAL, useGameStore } from "@/store/gameStore";
 
@@ -211,7 +212,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     const latestLocalMetadata = getLocalSaveMetadata();
     const currentGame = useGameStore.getState().game;
     setLocalMetadata(latestLocalMetadata);
-    if (!latestLocalMetadata.hasSave || !currentGame) {
+    if (!currentGame) {
       setMessage(t("cloud.offlineRequiresLocalSave"));
       return;
     }
@@ -461,7 +462,7 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
   return (
     <main className="flex min-h-screen items-center justify-center bg-runway px-4 py-10">
       <div className="w-full max-w-6xl text-center">
-        <p className="text-xs font-black uppercase tracking-normal text-coral">Airline Tycoon V1.2.1</p>
+        <p className="text-xs font-black uppercase tracking-normal text-coral">Airline Tycoon V1.2.2</p>
         <h1 className="mt-2 text-4xl font-black text-ink">{title}</h1>
         <p className="mx-auto mt-3 max-w-2xl text-sm font-semibold text-slate-600">{subtitle}</p>
         {children}
@@ -496,21 +497,21 @@ function errorMessage(error: unknown, fallback: string) {
 function isSessionGateFresh() {
   if (typeof window === "undefined") return false;
   return (
-    window.sessionStorage.getItem(SESSION_GATE_KEY) === "true" &&
-    Date.now() - Number(window.localStorage.getItem(LAST_ACTIVE_KEY) ?? 0) < SESSION_TIMEOUT_MS
+    safeGetSessionStorage(SESSION_GATE_KEY) === "true" &&
+    Date.now() - Number(safeGetLocalStorage(LAST_ACTIVE_KEY) ?? 0) < SESSION_TIMEOUT_MS
   );
 }
 
 function markActivity() {
-  window.localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
+  safeSetLocalStorage(LAST_ACTIVE_KEY, String(Date.now()));
 }
 
 function markEnteredSession() {
-  window.sessionStorage.setItem(SESSION_GATE_KEY, "true");
+  safeSetSessionStorage(SESSION_GATE_KEY, "true");
   markActivity();
 }
 
 function clearEnteredSession() {
-  window.sessionStorage.removeItem(SESSION_GATE_KEY);
-  window.localStorage.removeItem(LAST_ACTIVE_KEY);
+  safeRemoveSessionStorage(SESSION_GATE_KEY);
+  safeRemoveLocalStorage(LAST_ACTIVE_KEY);
 }

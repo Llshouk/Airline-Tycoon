@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { en } from "@/i18n/en";
 import { zh } from "@/i18n/zh";
+import { safeGetLocalStorage, safeSetLocalStorage } from "@/lib/gameSaveStorage";
 
 export type Language = "en" | "zh";
 export type TranslationKey = keyof typeof en;
@@ -22,13 +23,13 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>("en");
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored = safeGetLocalStorage(STORAGE_KEY);
     if (stored === "en" || stored === "zh") setLanguageState(stored);
   }, []);
 
   function setLanguage(nextLanguage: Language) {
     setLanguageState(nextLanguage);
-    window.localStorage.setItem(STORAGE_KEY, nextLanguage);
+    safeSetLocalStorage(STORAGE_KEY, nextLanguage);
   }
 
   const value = useMemo<I18nContextValue>(

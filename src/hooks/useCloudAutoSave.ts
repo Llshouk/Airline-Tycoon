@@ -6,6 +6,7 @@ import { getCloudSaveErrorDetails, isSupabaseConfigured, saveGameToCloud } from 
 import { useTranslation } from "@/i18n";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import type { GameState } from "@/types/game";
+import { safeGetLocalStorage, safeRemoveLocalStorage, safeSetLocalStorage } from "@/lib/gameSaveStorage";
 
 const AUTO_SAVE_INTERVAL_MS = 60_000;
 export const CLOUD_SYNC_PENDING_KEY = "airline-tycoon-cloud-sync-pending";
@@ -40,7 +41,7 @@ export function useCloudAutoSave(gameState: GameState | null, user: User | null)
     }
 
     if (!isOnline) {
-      window.localStorage.setItem(CLOUD_SYNC_PENDING_KEY, String(Date.now()));
+      safeSetLocalStorage(CLOUD_SYNC_PENDING_KEY, String(Date.now()));
       syncPromptedRef.current = false;
       setStatus((current) => ({ ...current, state: "pending", message: t("cloud.syncPendingDescription") }));
       return;
@@ -81,7 +82,7 @@ export function useCloudAutoSave(gameState: GameState | null, user: User | null)
 
   useEffect(() => {
     if (!user || !hasGame || !isOnline || !isSupabaseConfigured() || syncPromptedRef.current) return;
-    if (!window.localStorage.getItem(CLOUD_SYNC_PENDING_KEY)) return;
+    if (!safeGetLocalStorage(CLOUD_SYNC_PENDING_KEY)) return;
 
     syncPromptedRef.current = true;
     if (!window.confirm(t("cloud.syncNowPrompt"))) return;
@@ -93,7 +94,7 @@ export function useCloudAutoSave(gameState: GameState | null, user: User | null)
     setStatus((current) => ({ ...current, state: "saving", message: null }));
     saveGameToCloud(latestGame)
       .then((metadata) => {
-        window.localStorage.removeItem(CLOUD_SYNC_PENDING_KEY);
+        safeRemoveLocalStorage(CLOUD_SYNC_PENDING_KEY);
         setStatus({ state: "saved", lastSavedAt: metadata.updatedAt, message: null });
       })
       .catch((error) => {

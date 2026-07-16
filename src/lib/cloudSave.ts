@@ -1,7 +1,12 @@
 import type { User } from "@supabase/supabase-js";
 import { DIFFICULTY_ORDER, getDifficultyConfig, type GameDifficulty } from "@/config/difficulty";
+import { airportsById } from "@/data/airports";
+import { estimateDemand } from "@/lib/demand";
+import { estimateCargoRatePerTon, estimateTicketPrices, routePricingFromDefaults } from "@/lib/economy";
+import { distanceKm } from "@/lib/geo";
 import { supabase, supabaseConfigError } from "@/lib/supabaseClient";
-import { GAME_SPEED_OPTIONS } from "@/lib/time";
+import { DAY_MS, GAME_SPEED_OPTIONS } from "@/lib/time";
+import { getLocalSaveMetadataSync, safeGetLocalStorage } from "@/lib/gameSaveStorage";
 import type { AircraftInstance, GameState, Route, TimeMultiplier } from "@/types/game";
 
 const LOCAL_SAVE_KEY = "airline-tycoon-v1";
@@ -29,14 +34,7 @@ export type CompactRouteSave = Pick<
   | "id"
   | "originAirportId"
   | "originBaseAirportId"
-  | "originIata"
   | "destinationAirportId"
-  | "destinationIata"
-  | "distanceKm"
-  | "estimatedDemand"
-  | "estimatedTicketPrices"
-  | "estimatedCargoRatePerTon"
-  | "recommendedPricing"
   | "pricing"
   | "isOpen"
 >;
@@ -45,7 +43,6 @@ export type CompactGameSave = Pick<
   GameState,
   | "airlineName"
   | "difficulty"
-  | "difficultyConfig"
   | "gameStatus"
   | "bailoutsUsed"
   | "baseAirportId"
@@ -69,8 +66,12 @@ export type CompactGameSave = Pick<
   flightLogSummary: GameState["flightLog"];
   language?: string;
   updatedAt: string;
-  saveVersion: 1;
+  saveFormatVersion: 2;
 };
+
+const MAX_OPERATIONAL_HISTORY_MS = DAY_MS * 2;
+const MAX_OPERATIONAL_FLIGHTS_PER_AIRCRAFT = 48;
+const MAX_FLIGHT_LOG_ENTRIES = 60;
 
 export type CloudSaveMetadata = {
   saveName: string;
@@ -171,10 +172,9 @@ export async function saveGameToCloud(gameState: GameState): Promise<CloudSaveMe
 
 export function createCompactSaveState(gameState: GameState, updatedAt = new Date().toISOString()): CompactGameSave {
   return {
-    saveVersion: 1,
+    saveFormatVersion: 2,
     airlineName: gameState.airlineName,
     difficulty: gameState.difficulty,
-    difficultyConfig: gameState.difficultyConfig,
     gameStatus: gameState.gameStatus,
     bailoutsUsed: gameState.bailoutsUsed,
     baseAirportId: gameState.baseAirportId,
@@ -194,7 +194,7 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
       homeBaseAirportId: aircraft.homeBaseAirportId,
       currentAirportId: aircraft.currentAirportId,
       status: aircraft.status,
-      schedule: aircraft.schedule,
+      schedule: pruneOperationalFlights(aircraft.schedule, gameState.currentGameTimeMs),
       weeklySchedules: aircraft.weeklySchedules,
       cabinLayout: aircraft.cabinLayout,
       purchasePriceGBP: aircraft.purchasePriceGBP,
@@ -207,18 +207,11 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
       id: route.id,
       originAirportId: route.originAirportId,
       originBaseAirportId: route.originBaseAirportId,
-      originIata: route.originIata,
       destinationAirportId: route.destinationAirportId,
-      destinationIata: route.destinationIata,
-      distanceKm: route.distanceKm,
-      estimatedDemand: route.estimatedDemand,
-      estimatedTicketPrices: route.estimatedTicketPrices,
-      estimatedCargoRatePerTon: route.estimatedCargoRatePerTon,
-      recommendedPricing: route.recommendedPricing,
       pricing: route.pricing,
       isOpen: route.isOpen
     })),
-    flightLogSummary: gameState.flightLog.slice(0, 30),
+    flightLogSummary: gameState.flightLog.slice(0, MAX_FLIGHT_LOG_ENTRIES),
     totalProfit: gameState.totalProfit,
     completedFlights: gameState.completedFlights,
     passengerCount: gameState.passengerCount,
@@ -303,7 +296,10 @@ export async function getCloudSaveMetadata(difficulty: GameDifficulty = "easy"):
 
 export function getLocalSaveMetadata(): LocalSaveMetadata {
   if (typeof window === "undefined") return { hasSave: false, updatedAt: null };
-  const stored = window.localStorage.getItem(LOCAL_SAVE_KEY);
+  const metadata = getLocalSaveMetadataSync();
+  if (metadata.hasSave) return metadata;
+
+  const stored = safeGetLocalStorage(LOCAL_SAVE_KEY);
   if (!stored) return { hasSave: false, updatedAt: null };
 
   try {
@@ -320,7 +316,7 @@ export function restoreGameStateFromCloudSave(saveState: unknown, rowDifficulty?
   return {
     airlineName: compact.airlineName,
     difficulty: compact.difficulty,
-    difficultyConfig: compact.difficultyConfig,
+    difficultyConfig: getDifficultyConfig(compact.difficulty),
     gameStatus: compact.gameStatus,
     bailoutsUsed: compact.bailoutsUsed,
     baseAirportId: compact.baseAirportId,
@@ -334,7 +330,7 @@ export function restoreGameStateFromCloudSave(saveState: unknown, rowDifficulty?
     timeMultiplier: compact.timeMultiplier,
     isPaused: compact.isPaused,
     fleet: compact.fleet,
-    routes: compact.routes,
+    routes: compact.routes.map(restoreCompactRoute),
     flightLog: compact.flightLogSummary ?? [],
     totalProfit: compact.totalProfit,
     completedFlights: compact.completedFlights,
@@ -505,10 +501,9 @@ function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): Comp
   const baseAirports = Array.from(new Set([requestedPrimary, legacyBaseAirport, ...rawBaseAirports].filter(Boolean)));
   const primaryBaseAirport = baseAirports.includes(requestedPrimary) ? requestedPrimary : baseAirports[0] ?? "lhr";
   return {
-    saveVersion: 1,
+    saveFormatVersion: 2,
     airlineName: raw.airlineName ?? "Skyline Airways",
     difficulty: difficultyConfig.difficulty,
-    difficultyConfig,
     gameStatus: raw.gameStatus ?? "active",
     bailoutsUsed: raw.bailoutsUsed ?? 0,
     baseAirportId: primaryBaseAirport,
@@ -534,8 +529,51 @@ function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): Comp
   };
 }
 
+function restoreCompactRoute(route: CompactRouteSave): Route {
+  const origin = airportsById[route.originAirportId];
+  const destination = airportsById[route.destinationAirportId];
+  const distance = origin && destination ? distanceKm(origin, destination) : 0;
+  const estimatedTicketPrices = estimateTicketPrices(distance);
+  const estimatedCargoRatePerTon = estimateCargoRatePerTon(distance);
+  const recommendedPricing = routePricingFromDefaults({ estimatedTicketPrices, estimatedCargoRatePerTon });
+
+  return {
+    id: route.id,
+    originAirportId: route.originAirportId,
+    originBaseAirportId: route.originBaseAirportId,
+    originIata: origin?.iata,
+    destinationAirportId: route.destinationAirportId,
+    destinationIata: destination?.iata,
+    distanceKm: distance,
+    estimatedDemand: origin && destination ? estimateDemand(origin, destination, distance) : { first: 0, business: 0, premiumEconomy: 0, economy: 0, cargoTons: 0 },
+    estimatedTicketPrices,
+    estimatedCargoRatePerTon,
+    recommendedPricing,
+    pricing: route.pricing ?? recommendedPricing,
+    isOpen: route.isOpen !== false
+  };
+}
+
 function getStoredLanguage() {
   if (typeof window === "undefined") return undefined;
-  const language = window.localStorage.getItem("airline-tycoon-language");
+  const language = safeGetLocalStorage("airline-tycoon-language");
   return language === "en" || language === "zh" ? language : undefined;
+}
+
+export function pruneOperationalFlights<T extends { status: string; actualArrivalGameTime?: number; actualDepartureGameTime?: number; scheduledArrivalGameTime?: number; arrivalGameTime?: number }>(
+  flights: T[],
+  now: number
+): T[] {
+  const retained = flights.filter((flight) => {
+    if (flight.status !== "completed") return true;
+    const referenceTime = flight.actualArrivalGameTime ?? flight.scheduledArrivalGameTime ?? flight.arrivalGameTime ?? now;
+    return now - referenceTime <= MAX_OPERATIONAL_HISTORY_MS;
+  });
+  const completed = retained.filter((flight) => flight.status === "completed").slice(-MAX_OPERATIONAL_FLIGHTS_PER_AIRCRAFT);
+  const active = retained.filter((flight) => flight.status !== "completed");
+  return [...completed, ...active].sort((left, right) => {
+    const leftTime = left.actualDepartureGameTime ?? 0;
+    const rightTime = right.actualDepartureGameTime ?? 0;
+    return leftTime - rightTime;
+  });
 }

@@ -1,8 +1,7 @@
-const CACHE_VERSION = "airline-tycoon-v1.2.1";
+const CACHE_VERSION = "airline-tycoon-v1.2.2";
 const PRECACHE_URLS = [
   "/",
   "/offline.html",
-  "/manifest.json",
   "/aircraft-icons/regional.png",
   "/aircraft-icons/narrow-body-twin.png",
   "/aircraft-icons/wide-body-twin.png",
@@ -59,30 +58,58 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/aircraft") || url.pathname.startsWith("/manifest")) {
+  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/aircraft")) {
     event.respondWith(cacheFirst(request));
     return;
   }
 
-  event.respondWith(fetch(request));
+  event.respondWith(fetch(request).catch(() => offlineResponse()));
 });
 
 async function networkFirst(request, fallbackUrl) {
-  const cache = await caches.open(CACHE_VERSION);
+  const cache = await openCache();
   try {
     const response = await fetch(request);
-    if (response.ok) await cache.put(request, response.clone());
+    if (cache && canCache(response)) await cache.put(request, response.clone());
     return response;
   } catch {
-    return (await cache.match(request)) || (await cache.match("/")) || (await cache.match(fallbackUrl));
+    return (await safeCacheMatch(cache, request)) || (await safeCacheMatch(cache, "/")) || (await safeCacheMatch(cache, fallbackUrl)) || offlineResponse();
   }
 }
 
 async function cacheFirst(request) {
-  const cache = await caches.open(CACHE_VERSION);
-  const cached = await cache.match(request);
+  const cache = await openCache();
+  const cached = await safeCacheMatch(cache, request);
   if (cached) return cached;
-  const response = await fetch(request);
-  if (response.ok) await cache.put(request, response.clone());
-  return response;
+  try {
+    const response = await fetch(request);
+    if (cache && canCache(response)) await cache.put(request, response.clone());
+    return response;
+  } catch {
+    return cached || offlineResponse();
+  }
+}
+
+async function openCache() {
+  try {
+    return await caches.open(CACHE_VERSION);
+  } catch {
+    return null;
+  }
+}
+
+async function safeCacheMatch(cache, request) {
+  try {
+    return cache ? await cache.match(request) : null;
+  } catch {
+    return null;
+  }
+}
+
+function canCache(response) {
+  return response.ok && !response.redirected && response.type !== "opaqueredirect";
+}
+
+function offlineResponse() {
+  return new Response("", { status: 503, statusText: "Offline asset unavailable" });
 }

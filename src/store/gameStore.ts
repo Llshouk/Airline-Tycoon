@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { aircraftById } from "@/data/aircraft";
 import { getDifficultyConfig, type GameDifficulty } from "@/config/difficulty";
 import { airports, airportsById } from "@/data/airports";
@@ -15,6 +15,8 @@ import {
 } from "@/lib/economy";
 import { distanceKm, routeIdFor } from "@/lib/geo";
 import { createId, createRegistration } from "@/lib/ids";
+import { createCompactSaveState, pruneOperationalFlights, restoreGameStateFromCloudSave } from "@/lib/cloudSave";
+import { gameSaveStorage, safeGetLocalStorage, safeSetLocalStorage, skipNextGameSaveWrite } from "@/lib/gameSaveStorage";
 import {
   calculateScheduleBlock,
   findDuplicateFlightNumber,
@@ -136,6 +138,8 @@ export const useGameStore = create<GameStore>()(
       hydrateGameTime: () => {
         const game = get().game;
         if (!game) return;
+        // Startup reconciliation should not force a persistence write before migration and hydration settle.
+        skipNextGameSaveWrite();
         advanceSimulation(set, normalizeGame(game), Date.now());
       },
       setTimeMultiplier: (speed) => {
@@ -650,16 +654,19 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: "airline-tycoon-v1",
-      version: 3,
+      version: 4,
+      storage: createJSONStorage(() => gameSaveStorage),
       partialize: (state) => ({
-        game: withUpdatedAt(normalizeGame(state.game)),
-        notice: state.notice
+        game: state.game ? createCompactSaveState(withUpdatedAt(normalizeGame(state.game))!) : null,
+        notice: null
       }),
-      migrate: (persisted) => {
+      migrate: (persisted) => persisted as Partial<GameStore>,
+      merge: (persisted, current) => {
         const state = persisted as Partial<GameStore>;
         return {
-          game: normalizeGame(state.game ?? null),
-          notice: state.notice ?? null
+          ...current,
+          game: state.game ? normalizeGame(restoreGameStateFromCloudSave(state.game)) : null,
+          notice: typeof state.notice === "string" ? state.notice : null
         };
       }
     }
@@ -739,14 +746,15 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
       return item;
     });
 
-    const hasFuture = schedule.some((item) => item.status === "scheduled");
-    const hasActive = schedule.some((item) => item.status === "in-flight");
+    const retainedSchedule = pruneOperationalFlights(schedule, currentGameTimeMs);
+    const hasFuture = retainedSchedule.some((item) => item.status === "scheduled");
+    const hasActive = retainedSchedule.some((item) => item.status === "in-flight");
 
     return {
       ...aircraft,
       currentAirportId,
       status: hasActive ? ("in-flight" as const) : hasFuture ? ("scheduled" as const) : ("idle" as const),
-      schedule,
+      schedule: retainedSchedule,
       totalRevenue,
       totalFlights,
       passengerCount: aircraftPassengers,
@@ -762,7 +770,7 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
     completedFlights,
     passengerCount,
     cargoTransportedTons: Math.round(cargoTransportedTons * 10) / 10,
-    flightLog: flightLog.slice(0, 120),
+    flightLog: flightLog.slice(0, 60),
     expandedAirportIds: unique(expandedAirportIds),
     fleet
   };
@@ -783,7 +791,7 @@ function instantiateRecurringFlights(game: GameState) {
       );
       return {
         ...aircraft,
-        schedule: applyOperationalDelays(merged, aircraft, game.routes)
+        schedule: pruneOperationalFlights(applyOperationalDelays(merged, aircraft, game.routes), game.currentGameTimeMs)
       };
     })
   };
@@ -1180,12 +1188,12 @@ function updateLeaderboard(game: GameState) {
     updatedAt: Date.now()
   };
   const next = [player, ...entries.filter((entry) => !entry.isPlayer)];
-  window.localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(next));
+  safeSetLocalStorage(LEADERBOARD_KEY, JSON.stringify(next));
 }
 
 export function getLeaderboard() {
   if (typeof window === "undefined") return mockLeaderboard();
-  const stored = window.localStorage.getItem(LEADERBOARD_KEY);
+  const stored = safeGetLocalStorage(LEADERBOARD_KEY);
   if (!stored) return mockLeaderboard();
   try {
     const parsed = JSON.parse(stored) as LeaderboardEntry[];

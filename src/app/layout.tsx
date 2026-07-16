@@ -3,9 +3,9 @@ import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistratio
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Airline Tycoon V1.2.1",
+  title: "Airline Tycoon V1.2.2",
   description: "A browser-based airline management simulation MVP.",
-  manifest: "/manifest.json"
+  ...(process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ? {} : { manifest: "/manifest.json" })
 };
 
 export default function RootLayout({
