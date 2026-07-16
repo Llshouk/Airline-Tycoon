@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { GameMap, type MapDisplayMode } from "@/components/GameMap";
 import type { MapEngine } from "@/components/map/mapTypes";
+import { getStoredMapEngine, saveMapEngine } from "@/lib/mapPreferences";
 import { RouteEvaluationCard } from "@/components/RouteEvaluationCard";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
@@ -28,8 +29,6 @@ const mapDisplayModes = [
   { id: "aircraft", label: "Aircraft Only" }
 ] satisfies { id: MapDisplayMode; label: string }[];
 
-const MAP_ENGINE_STORAGE_KEY = "airline-tycoon-map-engine";
-
 export function MapScreen() {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
@@ -40,6 +39,7 @@ export function MapScreen() {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [displayMode, setDisplayMode] = useState<MapDisplayMode>("all");
   const [mapEngine, setMapEngine] = useState<MapEngine>("2d");
+  const [mapNotice, setMapNotice] = useState<string | null>(null);
   const [routeToConfirm, setRouteToConfirm] = useState<RouteOpeningPreview | null>(null);
   const [openedRoute, setOpenedRoute] = useState<RouteOpeningPreview | null>(null);
   const [airportActionAirportId, setAirportActionAirportId] = useState<string | null>(null);
@@ -89,12 +89,11 @@ export function MapScreen() {
   }, [game, selectedAirport, selectedAirportRoute, selectedRouteOriginAirportId]);
 
   useEffect(() => {
-    const savedMapEngine = window.localStorage.getItem(MAP_ENGINE_STORAGE_KEY);
-    if (savedMapEngine === "2d" || savedMapEngine === "globe3d") setMapEngine(savedMapEngine);
+    setMapEngine(getStoredMapEngine());
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(MAP_ENGINE_STORAGE_KEY, mapEngine);
+    saveMapEngine(mapEngine);
   }, [mapEngine]);
 
   useEffect(() => {
@@ -104,6 +103,14 @@ export function MapScreen() {
     if (!baseBoardAirportId || !bases.includes(baseBoardAirportId)) setBaseBoardAirportId(primary);
     if (!routeOriginAirportId || !bases.includes(routeOriginAirportId)) setRouteOriginAirportId(primary);
   }, [baseBoardAirportId, game, routeOriginAirportId]);
+
+  const handleMapEngineFallback = useCallback(
+    (reason: "unsupported" | "initialisation" | "render") => {
+      setMapEngine("2d");
+      setMapNotice(reason === "unsupported" ? t("map.globeUnsupported") : t("map.globeFallback"));
+    },
+    [t]
+  );
 
   if (!game) return null;
 
@@ -133,7 +140,10 @@ export function MapScreen() {
                 <button
                   key={engine}
                   type="button"
-                  onClick={() => setMapEngine(engine)}
+                  onClick={() => {
+                    setMapNotice(null);
+                    setMapEngine(engine);
+                  }}
                   className={`rounded px-2 py-1 text-xs font-black transition ${mapEngine === engine ? "bg-jet text-white" : "text-slate-600 hover:bg-white"}`}
                 >
                   {engine === "2d" ? t("map.engine2d") : t("map.engineGlobe3d")}
@@ -158,6 +168,7 @@ export function MapScreen() {
           </div>
         </div>
       </div>
+      {mapNotice ? <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{mapNotice}</p> : null}
       <section className="grid gap-4 xl:grid-cols-[1fr_340px]">
         <div className="h-[min(72vh,760px)] min-h-[520px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
           <GameMap
@@ -172,6 +183,7 @@ export function MapScreen() {
             selectedRouteId={selectedRouteId}
             displayMode={displayMode}
             mapEngine={mapEngine}
+            onMapEngineFallback={handleMapEngineFallback}
             onSelectAirport={(airportId) => {
               setSelectedAirportId(airportId);
               setSelectedRouteId(null);

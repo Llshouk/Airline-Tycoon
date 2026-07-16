@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
@@ -7,11 +8,19 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useTranslation } from "@/i18n";
 import { calculateBearing } from "@/lib/geo";
 import { buildRoutePolylinePoints, buildRoutePolylineLatLngSegments, interpolateRoutePosition, normalizeLongitude } from "@/lib/mapRoutePath";
+import { supportsWebGL } from "@/lib/mapPreferences";
 import { MapView } from "@/components/map/MapView";
-import { Globe3DMapProvider } from "@/components/map/providers/Globe3DMapProvider";
+import { GlobeErrorBoundary } from "@/components/map/GlobeErrorBoundary";
+import { GlobeLoadingFallback } from "@/components/map/GlobeLoadingFallback";
 import { LEAFLET_2D_MAP_OPTIONS, LEAFLET_2D_TILE_OPTIONS, PRIMARY_WORLD_BOUNDS } from "@/components/map/providers/LeafletMapProvider";
-import type { MapAircraftMarker, MapAirportMarker, MapEngine, MapProviderType, MapRouteLine } from "@/components/map/mapTypes";
+import type { Globe3DMapProviderProps } from "@/components/map/providers/Globe3DMapProvider";
+import type { MapAircraftMarker, MapAirportMarker, MapEngine, MapGlobeFailureReason, MapProviderType, MapRouteLine } from "@/components/map/mapTypes";
 import type { AircraftInstance, AircraftModel, Route } from "@/types/game";
+
+const Globe3DMapProvider = dynamic<Globe3DMapProviderProps>(
+  () => import("@/components/map/providers/Globe3DMapProvider").then((module) => module.Globe3DMapProvider),
+  { ssr: false, loading: () => <GlobeLoadingFallback /> }
+);
 
 export type MapDisplayMode = "all" | "network" | "airports" | "aircraft";
 type AircraftIconCategory = "regional" | "narrowBodyTwin" | "wideBodyTwin" | "wideBodyQuad";
@@ -29,6 +38,7 @@ type Props = {
   selectedRouteId: string | null;
   displayMode: MapDisplayMode;
   mapEngine?: MapEngine;
+  onMapEngineFallback?: (reason: MapGlobeFailureReason) => void;
   onSelectAirport: (airportId: string) => void;
   onSelectRoute: (routeId: string) => void;
   onSelectFlight: (flightId: string) => void;
@@ -50,13 +60,15 @@ export function GameMap(props: Props) {
   const googleLayersRef = useRef<any[]>([]);
   const leafletLayersRef = useRef<any>(null);
   const [globeFailed, setGlobeFailed] = useState(false);
+  const [webglChecked, setWebglChecked] = useState(false);
+  const [webglSupported, setWebglSupported] = useState(false);
   const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const selectedMapEngine = props.mapEngine ?? "2d";
-  const effectiveMapEngine = selectedMapEngine === "globe3d" && !globeFailed ? "globe3d" : "2d";
+  const effectiveMapEngine = selectedMapEngine === "globe3d" && webglChecked && webglSupported && !globeFailed ? "globe3d" : "2d";
   const usesGoogleMap = effectiveMapEngine === "2d" && Boolean(googleKey);
   const mapProvider: MapProviderType = effectiveMapEngine === "globe3d" ? "globe3d" : usesGoogleMap ? "google" : "leaflet2d";
   const globeData = useMemo(
-    () => buildGlobeMapData(props),
+    () => (selectedMapEngine === "globe3d" ? buildGlobeMapData(props) : { airports: [], routes: [], aircraft: [] }),
     [
       props.baseAirportId,
       props.baseAirportIds,
@@ -66,14 +78,30 @@ export function GameMap(props: Props) {
       props.fleet,
       props.currentGameTimeMs,
       props.selectedRouteId,
-      props.displayMode
+      props.displayMode,
+      selectedMapEngine
     ]
   );
-  const handleGlobeError = useCallback(() => setGlobeFailed(true), []);
+  const handleGlobeError = useCallback(
+    (reason: MapGlobeFailureReason) => {
+      setGlobeFailed(true);
+      props.onMapEngineFallback?.(reason);
+    },
+    [props.onMapEngineFallback]
+  );
 
   useEffect(() => {
-    if (selectedMapEngine === "globe3d") setGlobeFailed(false);
-  }, [selectedMapEngine]);
+    if (selectedMapEngine !== "globe3d") {
+      setGlobeFailed(false);
+      setWebglChecked(false);
+      return;
+    }
+
+    const available = supportsWebGL();
+    setWebglSupported(available);
+    setWebglChecked(true);
+    if (!available) handleGlobeError("unsupported");
+  }, [selectedMapEngine, handleGlobeError]);
 
   useEffect(() => {
     if (!mapElementRef.current) return;
@@ -120,24 +148,30 @@ export function GameMap(props: Props) {
       legendLabels={{ title: t("map.legend"), base: t("map.legendBase"), opened: t("map.legendOpened"), unopened: t("map.legendUnopened") }}
     >
       {effectiveMapEngine === "globe3d" ? (
-        <Globe3DMapProvider
-          airports={globeData.airports}
-          routes={globeData.routes}
-          aircraft={globeData.aircraft}
-          selectedRouteId={props.selectedRouteId}
-          baseAirportId={props.primaryBaseAirportId ?? props.baseAirportId}
-          labels={{
-            autoRotate: t("map.autoRotate"),
-            resetView: t("map.resetView"),
-            focusBase: t("map.focusBase"),
-            experimental: t("map.globeExperimental"),
-            performance: t("map.globePerformanceNote")
-          }}
-          onSelectAirport={props.onSelectAirport}
-          onSelectRoute={props.onSelectRoute}
-          onSelectAircraft={props.onSelectFlight}
-          onError={handleGlobeError}
-        />
+        <GlobeErrorBoundary
+          unavailableLabel={t("map.globeUnavailable")}
+          returnTo2dLabel={t("map.returnTo2d")}
+          onFallback={() => handleGlobeError("render")}
+        >
+          <Globe3DMapProvider
+            airports={globeData.airports}
+            routes={globeData.routes}
+            aircraft={globeData.aircraft}
+            selectedRouteId={props.selectedRouteId}
+            baseAirportId={props.primaryBaseAirportId ?? props.baseAirportId}
+            labels={{
+              autoRotate: t("map.autoRotate"),
+              resetView: t("map.resetView"),
+              focusBase: t("map.focusBase"),
+              experimental: t("map.globeExperimental"),
+              performance: t("map.globePerformanceNote")
+            }}
+            onSelectAirport={props.onSelectAirport}
+            onSelectRoute={props.onSelectRoute}
+            onSelectAircraft={props.onSelectFlight}
+            onError={handleGlobeError}
+          />
+        </GlobeErrorBoundary>
       ) : null}
     </MapView>
   );

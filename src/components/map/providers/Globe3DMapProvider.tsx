@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MapAircraftMarker, MapAirportMarker, MapRouteLine } from "@/components/map/mapTypes";
+import { GlobeLoadingFallback } from "@/components/map/GlobeLoadingFallback";
+import { setGlobeBootInProgress, supportsWebGL } from "@/lib/mapPreferences";
+import type { MapAircraftMarker, MapAirportMarker, MapGlobeFailureReason, MapRouteLine } from "@/components/map/mapTypes";
 
-type Globe3DMapProviderProps = {
+export type Globe3DMapProviderProps = {
   airports: MapAirportMarker[];
   routes: MapRouteLine[];
   aircraft: MapAircraftMarker[];
@@ -19,7 +21,7 @@ type Globe3DMapProviderProps = {
   onSelectAirport: (airportId: string) => void;
   onSelectRoute: (routeId: string) => void;
   onSelectAircraft: (aircraftId: string) => void;
-  onError: () => void;
+  onError: (reason: MapGlobeFailureReason) => void;
 };
 
 type HoverInfo = {
@@ -50,24 +52,46 @@ export function Globe3DMapProvider({
   const autoRotateRef = useRef(false);
   const [autoRotate, setAutoRotate] = useState(false);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo>(null);
+  const [mounted, setMounted] = useState(false);
+  const safeAirports = useMemo(() => toArray(airports).filter(isValidAirport), [airports]);
+  const safeRoutes = useMemo(() => toArray(routes).filter(isValidRoute), [routes]);
+  const safeAircraft = useMemo(() => toArray(aircraft).filter(isValidAircraft), [aircraft]);
 
   const baseAirport = useMemo(
-    () => airports.find((airport) => airport.id === baseAirportId) ?? airports.find((airport) => airport.markerType === "base") ?? airports[0],
-    [airports, baseAirportId]
+    () => safeAirports.find((airport) => airport.id === baseAirportId) ?? safeAirports.find((airport) => airport.markerType === "base") ?? safeAirports[0],
+    [safeAirports, baseAirportId]
   );
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     autoRotateRef.current = autoRotate;
   }, [autoRotate]);
 
   useEffect(() => {
+    if (!mounted) return;
+    if (!supportsWebGL()) {
+      onError("unsupported");
+      return;
+    }
+
     let disposed = false;
     let animationFrame = 0;
+    let globeBootSucceeded = false;
     const interactiveObjects: any[] = [];
     const disposables: Array<{ dispose: () => void }> = [];
 
     async function initGlobe() {
       try {
+        if (process.env.NODE_ENV !== "production") {
+          console.debug("[Globe] Initialising", {
+            airportCount: safeAirports.length,
+            routeCount: safeRoutes.length,
+            aircraftCount: safeAircraft.length,
+            webglSupported: true
+          });
+        }
+        setGlobeBootInProgress(true);
         const THREE = await import("three");
         if (disposed || !containerRef.current) return;
 
@@ -108,9 +132,9 @@ export function Globe3DMapProvider({
         globeGroup.add(new THREE.Mesh(earthGeometry, earthMaterial));
 
         addGraticule(THREE, globeGroup, disposables);
-        addRoutes(THREE, globeGroup, routes, selectedRouteId, interactiveObjects, disposables);
-        addAirports(THREE, globeGroup, airports, interactiveObjects, disposables);
-        addAircraft(THREE, globeGroup, aircraft, interactiveObjects, disposables);
+        addRoutes(THREE, globeGroup, safeRoutes, selectedRouteId, interactiveObjects, disposables);
+        addAirports(THREE, globeGroup, safeAirports, interactiveObjects, disposables);
+        addAircraft(THREE, globeGroup, safeAircraft, interactiveObjects, disposables);
 
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
@@ -200,6 +224,10 @@ export function Globe3DMapProvider({
           if (disposed) return;
           if (autoRotateRef.current) globeGroup.rotation.y += 0.002;
           renderer.render(scene, camera);
+          if (!globeBootSucceeded) {
+            globeBootSucceeded = true;
+            setGlobeBootInProgress(false);
+          }
           animationFrame = requestAnimationFrame(animate);
         };
         animate();
@@ -213,8 +241,8 @@ export function Globe3DMapProvider({
           window.removeEventListener("resize", onResize);
         };
       } catch (error) {
-        console.error("3D Globe provider failed to initialize", error);
-        onError();
+        console.error("[Globe] Initialisation failed", error);
+        onError("initialisation");
       }
     }
 
@@ -236,7 +264,9 @@ export function Globe3DMapProvider({
       globeGroupRef.current = null;
       cameraRef.current = null;
     };
-  }, [airports, routes, aircraft, selectedRouteId, onSelectAirport, onSelectRoute, onSelectAircraft, onError]);
+  }, [mounted, safeAirports, safeRoutes, safeAircraft, selectedRouteId, onSelectAirport, onSelectRoute, onSelectAircraft, onError]);
+
+  if (!mounted) return <GlobeLoadingFallback />;
 
   function resetView() {
     if (globeGroupRef.current) {
@@ -278,6 +308,26 @@ export function Globe3DMapProvider({
       ) : null}
     </div>
   );
+}
+
+function toArray<T>(value: T[] | undefined | null): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function isValidCoordinate(lat: unknown, lng: unknown) {
+  return typeof lat === "number" && Number.isFinite(lat) && lat >= -90 && lat <= 90 && typeof lng === "number" && Number.isFinite(lng) && lng >= -180 && lng <= 180;
+}
+
+function isValidAirport(airport: MapAirportMarker): boolean {
+  return Boolean(airport?.id && airport.iata) && isValidCoordinate(airport.lat, airport.lng) && ["base", "opened", "unopened"].includes(airport.markerType);
+}
+
+function isValidRoute(route: MapRouteLine): boolean {
+  return Boolean(route?.id && route.originIata && route.destinationIata) && isValidCoordinate(route.origin?.lat, route.origin?.lng) && isValidCoordinate(route.destination?.lat, route.destination?.lng);
+}
+
+function isValidAircraft(item: MapAircraftMarker): boolean {
+  return Boolean(item?.id && item.registration && item.model) && isValidCoordinate(item.lat, item.lng) && typeof item.heading === "number" && Number.isFinite(item.heading) && typeof item.size === "number" && Number.isFinite(item.size) && item.size > 0;
 }
 
 function addGraticule(THREE: any, globeGroup: any, disposables: Array<{ dispose: () => void }>) {

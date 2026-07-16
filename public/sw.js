@@ -1,4 +1,4 @@
-const CACHE_NAME = "airline-tycoon-v120";
+const CACHE_VERSION = "airline-tycoon-v1.2.1";
 const PRECACHE_URLS = [
   "/",
   "/offline.html",
@@ -32,7 +32,7 @@ const PRECACHE_URLS = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
-      .open(CACHE_NAME)
+      .open(CACHE_VERSION)
       .then((cache) => Promise.allSettled(PRECACHE_URLS.map((url) => cache.add(url))))
       .then(() => self.skipWaiting())
   );
@@ -42,7 +42,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("airline-tycoon-") && key !== CACHE_VERSION).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -64,14 +64,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(staleWhileRevalidate(request));
+  event.respondWith(fetch(request));
 });
 
 async function networkFirst(request, fallbackUrl) {
-  const cache = await caches.open(CACHE_NAME);
+  const cache = await caches.open(CACHE_VERSION);
   try {
     const response = await fetch(request);
-    cache.put(request, response.clone());
+    if (response.ok) await cache.put(request, response.clone());
     return response;
   } catch {
     return (await cache.match(request)) || (await cache.match("/")) || (await cache.match(fallbackUrl));
@@ -79,22 +79,10 @@ async function networkFirst(request, fallbackUrl) {
 }
 
 async function cacheFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
+  const cache = await caches.open(CACHE_VERSION);
   const cached = await cache.match(request);
   if (cached) return cached;
   const response = await fetch(request);
-  cache.put(request, response.clone());
+  if (response.ok) await cache.put(request, response.clone());
   return response;
-}
-
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(request);
-  const network = fetch(request)
-    .then((response) => {
-      cache.put(request, response.clone());
-      return response;
-    })
-    .catch(() => cached);
-  return cached || network;
 }

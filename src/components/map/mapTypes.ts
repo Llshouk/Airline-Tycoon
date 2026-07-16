@@ -3,6 +3,7 @@ import type { GeoPoint } from "@/lib/mapRoutePath";
 export type MapProviderType = "leaflet2d" | "globe3d" | "google" | "apple";
 
 export type MapEngine = "2d" | "globe3d";
+export type MapGlobeFailureReason = "unsupported" | "initialisation" | "render";
 
 export type MapAirportMarker = {
   id: string;
