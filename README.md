@@ -143,3 +143,5 @@ using (auth.uid() = user_id);
 ## Important
 
 Do not commit environment variables, API keys, or local build output.
+
+Deployment trigger for V1.2.2.
