@@ -1,1 +1,1 @@
-export { Globe3DMapProvider as FutureGlobeMapProvider } from "@/components/map/providers/Globe3DMapProvider";
+export { MapLibreGlobeProvider as FutureGlobeMapProvider } from "@/components/map/providers/MapLibreGlobeProvider";

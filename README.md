@@ -1,8 +1,8 @@
-# Airline Tycoon V1.2.2
+# Airline Tycoon V1.3.0
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.2.2 - Save Storage and Service Worker Stability Fix
+Release: V1.3.0 - MapLibre Globe Migration
 
 ## Features
 
@@ -12,7 +12,7 @@ Release: V1.2.2 - Save Storage and Service Worker Stability Fix
 - Adjust ticket prices by cabin class
 - Estimate demand, revenue, cost and profit
 - Create weekly flight schedules
-- View aircraft movement on a 2D map or experimental 3D globe
+- View aircraft movement on a Leaflet 2D map or MapLibre GL 3D globe
 - Evaluate route quality, risk, demand, aircraft fit, and recommended aircraft
 - View full-day airport departure and arrival boards
 - Manage owned fleet and aircraft registrations
@@ -30,6 +30,7 @@ Release: V1.2.2 - Save Storage and Service Worker Stability Fix
 - Tailwind CSS
 - LocalStorage for save data
 - Supabase for optional cloud save
+- MapLibre GL JS for the optional globe map
 - Map-based airline network display
 
 ## Getting Started
@@ -61,7 +62,17 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.2.2 stores compact saves through IndexedDB with a guarded legacy localStorage migration. The 3D Globe remains optional, while save recovery, cache handling, and offline stability are hardened; economy and scheduling systems remain simplified for gameplay balance.
+Airline Tycoon V1.3.0 keeps the stable Leaflet 2D map and moves the optional 3D globe to MapLibre GL JS. Airport, route, and aircraft overlays update through GeoJSON sources without rebuilding the globe; economy and scheduling systems remain simplified for gameplay balance.
+
+## Map Configuration
+
+The optional MapLibre globe uses the public style URL below. The built-in demo style is used when it is unset.
+
+```text
+NEXT_PUBLIC_MAPLIBRE_STYLE_URL=https://demotiles.maplibre.org/style.json
+```
+
+Do not put private map provider keys in source control. Remote map styles and tiles are not stored in game saves or precached by the service worker.
 
 ## Cloud Save
 
@@ -143,5 +154,3 @@ using (auth.uid() = user_id);
 ## Important
 
 Do not commit environment variables, API keys, or local build output.
-
-Deployment trigger for V1.2.2.

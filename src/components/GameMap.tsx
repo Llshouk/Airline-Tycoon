@@ -13,12 +13,12 @@ import { MapView } from "@/components/map/MapView";
 import { GlobeErrorBoundary } from "@/components/map/GlobeErrorBoundary";
 import { GlobeLoadingFallback } from "@/components/map/GlobeLoadingFallback";
 import { LEAFLET_2D_MAP_OPTIONS, LEAFLET_2D_TILE_OPTIONS, PRIMARY_WORLD_BOUNDS } from "@/components/map/providers/LeafletMapProvider";
-import type { Globe3DMapProviderProps } from "@/components/map/providers/Globe3DMapProvider";
+import type { MapLibreGlobeProviderProps } from "@/components/map/providers/MapLibreGlobeProvider";
 import type { MapAircraftMarker, MapAirportMarker, MapEngine, MapGlobeFailureReason, MapProviderType, MapRouteLine } from "@/components/map/mapTypes";
 import type { AircraftInstance, AircraftModel, Route } from "@/types/game";
 
-const Globe3DMapProvider = dynamic<Globe3DMapProviderProps>(
-  () => import("@/components/map/providers/Globe3DMapProvider").then((module) => module.Globe3DMapProvider),
+const MapLibreGlobeProvider = dynamic<MapLibreGlobeProviderProps>(
+  () => import("@/components/map/providers/MapLibreGlobeProvider").then((module) => module.MapLibreGlobeProvider),
   { ssr: false, loading: () => <GlobeLoadingFallback /> }
 );
 
@@ -67,20 +67,25 @@ export function GameMap(props: Props) {
   const effectiveMapEngine = selectedMapEngine === "globe3d" && webglChecked && webglSupported && !globeFailed ? "globe3d" : "2d";
   const usesGoogleMap = effectiveMapEngine === "2d" && Boolean(googleKey);
   const mapProvider: MapProviderType = effectiveMapEngine === "globe3d" ? "globe3d" : usesGoogleMap ? "google" : "leaflet2d";
-  const globeData = useMemo(
-    () => (selectedMapEngine === "globe3d" ? buildGlobeMapData(props) : { airports: [], routes: [], aircraft: [] }),
+  const globeAirports = useMemo(
+    () => (selectedMapEngine === "globe3d" ? buildGlobeAirportData(props) : []),
     [
       props.baseAirportId,
       props.baseAirportIds,
       props.primaryBaseAirportId,
       props.expandedAirportIds,
       props.routes,
-      props.fleet,
-      props.currentGameTimeMs,
-      props.selectedRouteId,
       props.displayMode,
       selectedMapEngine
     ]
+  );
+  const globeRoutes = useMemo(
+    () => (selectedMapEngine === "globe3d" ? buildGlobeRouteData(props) : []),
+    [props.routes, props.selectedRouteId, props.displayMode, selectedMapEngine]
+  );
+  const globeAircraft = useMemo(
+    () => (selectedMapEngine === "globe3d" ? buildGlobeAircraftData(props) : []),
+    [props.fleet, props.currentGameTimeMs, props.displayMode, selectedMapEngine]
   );
   const handleGlobeError = useCallback(
     (reason: MapGlobeFailureReason) => {
@@ -153,17 +158,16 @@ export function GameMap(props: Props) {
           returnTo2dLabel={t("map.returnTo2d")}
           onFallback={() => handleGlobeError("render")}
         >
-          <Globe3DMapProvider
-            airports={globeData.airports}
-            routes={globeData.routes}
-            aircraft={globeData.aircraft}
+          <MapLibreGlobeProvider
+            airports={globeAirports}
+            routes={globeRoutes}
+            aircraft={globeAircraft}
             selectedRouteId={props.selectedRouteId}
+            selectedAirportId={props.selectedAirportId}
             baseAirportId={props.primaryBaseAirportId ?? props.baseAirportId}
             labels={{
-              autoRotate: t("map.autoRotate"),
               resetView: t("map.resetView"),
               focusBase: t("map.focusBase"),
-              experimental: t("map.globeExperimental"),
               performance: t("map.globePerformanceNote")
             }}
             onSelectAirport={props.onSelectAirport}
@@ -196,7 +200,7 @@ function cleanupTwoDMaps(
   }
 }
 
-function buildGlobeMapData(props: Props): { airports: MapAirportMarker[]; routes: MapRouteLine[]; aircraft: MapAircraftMarker[] } {
+function buildGlobeAirportData(props: Props): MapAirportMarker[] {
   const networkAirportIds = getNetworkAirportIds(props);
   const baseAirportIds = props.baseAirportIds ?? [props.baseAirportId];
   const primaryBaseAirportId = props.primaryBaseAirportId ?? props.baseAirportId;
@@ -229,7 +233,11 @@ function buildGlobeMapData(props: Props): { airports: MapAirportMarker[]; routes
         })
     : [];
 
-  const routeLines: MapRouteLine[] = shouldShowRoutes(props.displayMode)
+  return airportMarkers;
+}
+
+function buildGlobeRouteData(props: Props): MapRouteLine[] {
+  return shouldShowRoutes(props.displayMode)
     ? props.routes
         .map((route): MapRouteLine | null => {
           const origin = airportsById[route.originAirportId];
@@ -242,14 +250,16 @@ function buildGlobeMapData(props: Props): { airports: MapAirportMarker[]; routes
             destinationIata: destination.iata,
             origin: { lat: origin.lat, lng: normalizeLongitude(origin.lng) },
             destination: { lat: destination.lat, lng: normalizeLongitude(destination.lng) },
-            points: buildRoutePolylinePoints(origin, destination).map((point) => ({ lat: point.lat, lng: normalizeLongitude(point.lng) })),
+            points: buildRoutePolylinePoints(origin, destination),
             status
           };
         })
         .filter((route): route is MapRouteLine => Boolean(route))
     : [];
+}
 
-  const aircraftMarkers: MapAircraftMarker[] = shouldShowAircraft(props.displayMode)
+function buildGlobeAircraftData(props: Props): MapAircraftMarker[] {
+  return shouldShowAircraft(props.displayMode)
     ? props.fleet.flatMap((aircraft) => {
         const model = aircraftById[aircraft.modelId];
         const iconCategory = getAircraftIconCategory(model);
@@ -281,8 +291,6 @@ function buildGlobeMapData(props: Props): { airports: MapAirportMarker[]; routes
           .filter((marker): marker is MapAircraftMarker => Boolean(marker));
       })
     : [];
-
-  return { airports: airportMarkers, routes: routeLines, aircraft: aircraftMarkers };
 }
 
 async function initLeafletMap(element: HTMLDivElement, mapRef: MutableRefObject<any>) {
