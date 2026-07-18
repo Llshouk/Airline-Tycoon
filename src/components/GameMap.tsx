@@ -52,7 +52,7 @@ declare global {
 }
 
 export function GameMap(props: Props) {
-  const { t } = useTranslation();
+  const { language, t } = useTranslation();
   const isOnline = useOnlineStatus();
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const googleMapRef = useRef<any>(null);
@@ -165,6 +165,7 @@ export function GameMap(props: Props) {
             selectedRouteId={props.selectedRouteId}
             selectedAirportId={props.selectedAirportId}
             baseAirportId={props.primaryBaseAirportId ?? props.baseAirportId}
+            language={language}
             labels={{
               resetView: t("map.resetView"),
               focusBase: t("map.focusBase"),

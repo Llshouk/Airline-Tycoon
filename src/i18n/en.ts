@@ -72,7 +72,7 @@ export const en = {
   "settings.timeSpeed": "Time Speed",
   "settings.loading": "Loading settings...",
   "app.title": "Airline Tycoon V1.3.2",
-  "app.releaseName": "V1.3.2 - Opened Route Visibility Upgrade",
+  "app.releaseName": "V1.3.2 - Globe Route and Marker Visibility Upgrade",
   "save.localStorageFull": "Local save storage is full. Your game is still running, but the save must be compacted or synced to cloud.",
   "save.localStorageUnavailable": "Local save storage is unavailable. Your game is still running, but save persistence needs browser storage access.",
   "common.dismiss": "Dismiss",

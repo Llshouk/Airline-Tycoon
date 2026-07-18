@@ -2,7 +2,7 @@
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.3.2 - Opened Route Visibility Upgrade
+Release: V1.3.2 - Globe Route and Marker Visibility Upgrade
 
 ## Features
 
@@ -62,11 +62,11 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.3.2 keeps the stable Leaflet 2D map and improves opened-route visibility on the optional MapLibre GL JS globe. Airport, route, and aircraft overlays update through GeoJSON sources without rebuilding the globe; economy and scheduling systems remain simplified for gameplay balance.
+Airline Tycoon V1.3.2 keeps the stable Leaflet 2D map and improves route, marker, aircraft, and country-label visibility on the optional MapLibre GL JS globe. Airport, route, and aircraft overlays update through GeoJSON sources without rebuilding the globe; economy and scheduling systems remain simplified for gameplay balance.
 
 ## Map Configuration
 
-The optional MapLibre globe uses NASA GIBS Blue Marble imagery by default with a local starfield backdrop. Set the public style URL below only to replace the globe's satellite basemap.
+The optional MapLibre globe uses NASA GIBS Blue Marble imagery by default with a local starfield backdrop. Country labels and ocean polygons use the OpenFreeMap vector tiles with the required OpenFreeMap, OpenMapTiles, and OpenStreetMap attribution. OpenFreeMap is MIT-licensed; its map data is sourced from OpenStreetMap. Set the public style URL below only to replace the globe's satellite basemap.
 
 ```text
 NEXT_PUBLIC_MAPLIBRE_GLOBE_SATELLITE_STYLE_URL

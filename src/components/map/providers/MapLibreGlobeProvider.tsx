@@ -5,7 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point, Position } from "geojson";
 import { applyDarkGlobeBackdrop, applyGlobeVisualStyle, DARK_GLOBE_BACKDROP, DEFAULT_GLOBE_VISUAL_STYLE } from "@/components/map/maplibreGlobeStyle";
-import { applyBrightSatelliteEarth, applyLightOceanTint, getGlobeSatelliteStyle } from "@/components/map/maplibreGlobeSatelliteStyle";
+import { applyBrightSatelliteEarth, applyCountryLabels, applyLightOceanTint, getGlobeSatelliteStyle } from "@/components/map/maplibreGlobeSatelliteStyle";
 import { splitPolylineAtAntimeridian } from "@/lib/mapRoutePath";
 import type { MapAircraftMarker, MapAirportMarker, MapGlobeFailureReason, MapRouteLine } from "@/components/map/mapTypes";
 
@@ -13,6 +13,7 @@ const AIRCRAFT_IMAGE_ID = "aircraft-icon";
 const AIRPORT_SOURCE_ID = "airports-source";
 const ROUTE_SOURCE_ID = "routes-source";
 const AIRCRAFT_SOURCE_ID = "aircraft-source";
+const AIRCRAFT_HIT_LAYER_ID = "aircraft-hit-layer";
 const AIRPORT_LAYERS = ["airport-base-layer", "airport-opened-layer", "airport-unopened-layer"] as const;
 
 export type MapLibreGlobeProviderProps = {
@@ -22,6 +23,7 @@ export type MapLibreGlobeProviderProps = {
   selectedRouteId: string | null;
   selectedAirportId?: string | null;
   baseAirportId: string;
+  language: "en" | "zh";
   labels: {
     resetView: string;
     focusBase: string;
@@ -40,6 +42,7 @@ export function MapLibreGlobeProvider({
   selectedRouteId,
   selectedAirportId = null,
   baseAirportId,
+  language,
   labels,
   onSelectAirport,
   onSelectRoute,
@@ -108,6 +111,7 @@ export function MapLibreGlobeProvider({
           applyGlobeVisualStyle(map, DEFAULT_GLOBE_VISUAL_STYLE);
           applyBrightSatelliteEarth(map);
           applyLightOceanTint(map);
+          applyCountryLabels(map, language);
           applyDarkGlobeBackdrop(map);
           const mapWithFog = map as maplibregl.Map & { setFog?: (fog: Record<string, string | number>) => void };
           mapWithFog.setFog?.({
@@ -141,9 +145,9 @@ export function MapLibreGlobeProvider({
           void addAircraftImage(map)
             .then(() => {
               if (disposed) return;
-              map.on("click", "aircraft-layer", handleAircraftClick);
-              map.on("mouseenter", "aircraft-layer", handlePointerEnter);
-              map.on("mouseleave", "aircraft-layer", handlePointerLeave);
+              map.on("click", AIRCRAFT_HIT_LAYER_ID, handleAircraftClick);
+              map.on("mouseenter", AIRCRAFT_HIT_LAYER_ID, handlePointerEnter);
+              map.on("mouseleave", AIRCRAFT_HIT_LAYER_ID, handlePointerLeave);
               aircraftLayerListenersAdded = true;
             })
             .catch((error) => console.error("[MapLibre Globe] Aircraft icon could not be loaded", error));
@@ -215,9 +219,9 @@ export function MapLibreGlobeProvider({
           map.off("mouseleave", "route-hit-layer", handlePointerLeave);
         }
         if (aircraftLayerListenersAdded) {
-          map.off("click", "aircraft-layer", handleAircraftClick);
-          map.off("mouseenter", "aircraft-layer", handlePointerEnter);
-          map.off("mouseleave", "aircraft-layer", handlePointerLeave);
+          map.off("click", AIRCRAFT_HIT_LAYER_ID, handleAircraftClick);
+          map.off("mouseenter", AIRCRAFT_HIT_LAYER_ID, handlePointerEnter);
+          map.off("mouseleave", AIRCRAFT_HIT_LAYER_ID, handlePointerLeave);
         }
         map.off("style.load", handleStyleLoad);
         map.off("load", handleLoad);
@@ -230,6 +234,11 @@ export function MapLibreGlobeProvider({
       reportFatalError();
     }
   }, []);
+
+  useEffect(() => {
+    if (!isReady || !mapRef.current) return;
+    applyCountryLabels(mapRef.current, language);
+  }, [isReady, language]);
 
   useEffect(() => {
     if (!isReady || !mapRef.current) return;
@@ -404,12 +413,12 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     paint: { "line-color": "#000000", "line-width": 14, "line-opacity": 0.01 }
   });
 
-  addAirportLayer(map, "airport-base-layer", "base", "#d76745", 6);
-  addAirportLayer(map, "airport-opened-layer", "opened", "#4f9d7e", 5);
-  addAirportLayer(map, "airport-unopened-layer", "unopened", "#ffffff", 3);
+  addAirportLayer(map, "airport-base-layer", "base", "#d76745", ["interpolate", ["linear"], ["zoom"], 0, 8, 2, 9, 4, 10, 7, 12]);
+  addAirportLayer(map, "airport-opened-layer", "opened", "#4f9d7e", ["interpolate", ["linear"], ["zoom"], 0, 6.5, 2, 7.5, 4, 8.5, 7, 10]);
+  addAirportLayer(map, "airport-unopened-layer", "unopened", "#ffffff", ["interpolate", ["linear"], ["zoom"], 0, 4, 2, 4.5, 4, 5.5, 7, 7]);
 }
 
-function addAirportLayer(map: maplibregl.Map, id: string, markerType: MapAirportMarker["markerType"], color: string, radius: number) {
+function addAirportLayer(map: maplibregl.Map, id: string, markerType: MapAirportMarker["markerType"], color: string, radius: unknown[]) {
   map.addLayer({
     id,
     type: "circle",
@@ -417,9 +426,9 @@ function addAirportLayer(map: maplibregl.Map, id: string, markerType: MapAirport
     filter: ["==", ["get", "markerType"], markerType],
     paint: {
       "circle-color": color,
-      "circle-radius": ["case", ["==", ["get", "selected"], true], radius + 3, radius],
+      "circle-radius": ["case", ["==", ["get", "selected"], true], ["+", radius, 3], radius] as never,
       "circle-stroke-color": ["case", ["==", ["get", "selected"], true], "#f4b942", "#102026"],
-      "circle-stroke-width": ["case", ["==", ["get", "selected"], true], 2, 1]
+      "circle-stroke-width": ["case", ["==", ["get", "selected"], true], 3, 1.5]
     }
   });
 }
@@ -434,12 +443,32 @@ async function addAircraftImage(map: maplibregl.Map) {
   }
 
   map.addLayer({
+    id: AIRCRAFT_HIT_LAYER_ID,
+    type: "circle",
+    source: AIRCRAFT_SOURCE_ID,
+    paint: {
+      "circle-color": "#000000",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 13, 4, 16, 7, 18],
+      "circle-opacity": 0.01
+    }
+  });
+  map.addLayer({
     id: "aircraft-layer",
     type: "symbol",
     source: AIRCRAFT_SOURCE_ID,
     layout: {
       "icon-image": AIRCRAFT_IMAGE_ID,
-      "icon-size": ["interpolate", ["linear"], ["get", "size"], 36, 0.28, 58, 0.44],
+      "icon-size": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        0,
+        ["interpolate", ["linear"], ["get", "size"], 36, 0.48, 58, 0.68],
+        4,
+        ["interpolate", ["linear"], ["get", "size"], 36, 0.58, 58, 0.8],
+        7,
+        ["interpolate", ["linear"], ["get", "size"], 36, 0.68, 58, 0.92]
+      ],
       "icon-rotate": ["get", "heading"],
       "icon-rotation-alignment": "map",
       "icon-allow-overlap": true,
