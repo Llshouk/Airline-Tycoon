@@ -4,7 +4,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point, Position } from "geojson";
-import { applyGlobeVisualStyle, DEFAULT_GLOBE_VISUAL_STYLE } from "@/components/map/maplibreGlobeStyle";
+import { applyDarkGlobeBackdrop, applyGlobeVisualStyle, DARK_GLOBE_BACKDROP, DEFAULT_GLOBE_VISUAL_STYLE } from "@/components/map/maplibreGlobeStyle";
 import { splitPolylineAtAntimeridian } from "@/lib/mapRoutePath";
 import type { MapAircraftMarker, MapAirportMarker, MapGlobeFailureReason, MapRouteLine } from "@/components/map/mapTypes";
 
@@ -106,12 +106,13 @@ export function MapLibreGlobeProvider({
         try {
           map.setProjection({ type: "globe" });
           applyGlobeVisualStyle(map, DEFAULT_GLOBE_VISUAL_STYLE);
+          applyDarkGlobeBackdrop(map);
           const mapWithFog = map as maplibregl.Map & { setFog?: (fog: Record<string, string | number>) => void };
           mapWithFog.setFog?.({
             color: "#dcecf4",
             "high-color": "#f7fbfc",
             "horizon-blend": 0.04,
-            "space-color": "#dcecf4",
+            "space-color": DARK_GLOBE_BACKDROP,
             "star-intensity": 0
           });
         } catch (error) {
@@ -254,8 +255,8 @@ export function MapLibreGlobeProvider({
   }, [airports, baseAirportId]);
 
   return (
-    <div className="relative h-full min-h-[560px] overflow-hidden bg-[#dcecf4]">
-      <div ref={containerRef} className="h-full w-full" />
+    <div className="airline-maplibre-globe relative h-full min-h-[560px] overflow-hidden" style={{ backgroundColor: DARK_GLOBE_BACKDROP }}>
+      <div ref={containerRef} className="h-full w-full" style={{ backgroundColor: DARK_GLOBE_BACKDROP }} />
       <div className="absolute right-3 top-3 flex gap-2">
         <button type="button" onClick={resetView} className="rounded-md bg-white/95 px-3 py-2 text-xs font-black text-ink shadow-soft">
           {labels.resetView}

@@ -37,6 +37,12 @@ select {
   background: #dbe8ea;
 }
 
+.airline-maplibre-globe,
+.airline-maplibre-globe .maplibregl-canvas-container,
+.airline-maplibre-globe .maplibregl-canvas {
+  background: #07111f;
+}
+
 .airport-marker {
   align-items: center;
   background: transparent;
