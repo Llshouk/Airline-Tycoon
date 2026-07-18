@@ -5,7 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point, Position } from "geojson";
 import { applyDarkGlobeBackdrop, applyGlobeVisualStyle, DARK_GLOBE_BACKDROP, DEFAULT_GLOBE_VISUAL_STYLE } from "@/components/map/maplibreGlobeStyle";
-import { applySatelliteBrightness, getGlobeSatelliteStyle } from "@/components/map/maplibreGlobeSatelliteStyle";
+import { applyBrightSatelliteEarth, applyLightOceanTint, getGlobeSatelliteStyle } from "@/components/map/maplibreGlobeSatelliteStyle";
 import { splitPolylineAtAntimeridian } from "@/lib/mapRoutePath";
 import type { MapAircraftMarker, MapAirportMarker, MapGlobeFailureReason, MapRouteLine } from "@/components/map/mapTypes";
 
@@ -106,7 +106,8 @@ export function MapLibreGlobeProvider({
         try {
           map.setProjection({ type: "globe" });
           applyGlobeVisualStyle(map, DEFAULT_GLOBE_VISUAL_STYLE);
-          applySatelliteBrightness(map);
+          applyBrightSatelliteEarth(map);
+          applyLightOceanTint(map);
           applyDarkGlobeBackdrop(map);
           const mapWithFog = map as maplibregl.Map & { setFog?: (fog: Record<string, string | number>) => void };
           mapWithFog.setFog?.({
@@ -347,12 +348,28 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
   map.addSource(AIRCRAFT_SOURCE_ID, { type: "geojson", data: emptyFeatureCollection() });
 
   map.addLayer({
+    id: "route-normal-outline-layer",
+    type: "line",
+    source: ROUTE_SOURCE_ID,
+    filter: ["!=", ["get", "selected"], true],
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#0a2632", "line-width": 3.5, "line-opacity": 0.38 }
+  });
+  map.addLayer({
     id: "route-normal-layer",
     type: "line",
     source: ROUTE_SOURCE_ID,
     filter: ["!=", ["get", "selected"], true],
     layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#2f7f97", "line-width": 2, "line-opacity": 0.78 }
+    paint: { "line-color": "#2f7f97", "line-width": 2, "line-opacity": 0.92 }
+  });
+  map.addLayer({
+    id: "route-selected-outline-layer",
+    type: "line",
+    source: ROUTE_SOURCE_ID,
+    filter: ["==", ["get", "selected"], true],
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#5b3a0c", "line-width": 5.5, "line-opacity": 0.5 }
   });
   map.addLayer({
     id: "route-selected-layer",
