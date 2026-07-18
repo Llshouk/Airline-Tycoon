@@ -5,7 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point, Position } from "geojson";
 import { applyDarkGlobeBackdrop, applyGlobeVisualStyle, DARK_GLOBE_BACKDROP, DEFAULT_GLOBE_VISUAL_STYLE } from "@/components/map/maplibreGlobeStyle";
-import { getGlobeSatelliteStyle } from "@/components/map/maplibreGlobeSatelliteStyle";
+import { applySatelliteBrightness, getGlobeSatelliteStyle } from "@/components/map/maplibreGlobeSatelliteStyle";
 import { splitPolylineAtAntimeridian } from "@/lib/mapRoutePath";
 import type { MapAircraftMarker, MapAirportMarker, MapGlobeFailureReason, MapRouteLine } from "@/components/map/mapTypes";
 
@@ -106,6 +106,7 @@ export function MapLibreGlobeProvider({
         try {
           map.setProjection({ type: "globe" });
           applyGlobeVisualStyle(map, DEFAULT_GLOBE_VISUAL_STYLE);
+          applySatelliteBrightness(map);
           applyDarkGlobeBackdrop(map);
           const mapWithFog = map as maplibregl.Map & { setFog?: (fog: Record<string, string | number>) => void };
           mapWithFog.setFog?.({
