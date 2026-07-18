@@ -5,7 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point, Position } from "geojson";
 import { applyDarkGlobeBackdrop, applyGlobeVisualStyle, DARK_GLOBE_BACKDROP, DEFAULT_GLOBE_VISUAL_STYLE } from "@/components/map/maplibreGlobeStyle";
-import { applyBrightSatelliteEarth, applyCountryLabels, applyLightOceanTint, getGlobeSatelliteStyle } from "@/components/map/maplibreGlobeSatelliteStyle";
+import { applyBrightSatelliteEarth, applyCountryLabels, applyLightOceanTint, getGlobeSatelliteStyle, updateCountryLabelLanguage } from "@/components/map/maplibreGlobeSatelliteStyle";
 import { splitPolylineAtAntimeridian } from "@/lib/mapRoutePath";
 import type { MapAircraftMarker, MapAirportMarker, MapGlobeFailureReason, MapRouteLine } from "@/components/map/mapTypes";
 
@@ -15,6 +15,9 @@ const ROUTE_SOURCE_ID = "routes-source";
 const AIRCRAFT_SOURCE_ID = "aircraft-source";
 const AIRCRAFT_HIT_LAYER_ID = "aircraft-hit-layer";
 const AIRPORT_LAYERS = ["airport-base-layer", "airport-opened-layer", "airport-unopened-layer"] as const;
+const OPTIONAL_SOURCE_IDS = new Set(["openfreemap-vector"]);
+const OPTIONAL_LAYER_PREFIXES = ["country-label-", "airline-globe-ocean-tint"];
+const CORE_INITIALISATION_TIMEOUT_MS = 12000;
 
 export type MapLibreGlobeProviderProps = {
   airports: MapAirportMarker[];
@@ -51,7 +54,8 @@ export function MapLibreGlobeProvider({
 }: MapLibreGlobeProviderProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const loadedRef = useRef(false);
+  const coreReadyRef = useRef(false);
+  const optionalLabelsReadyRef = useRef(false);
   const fallbackReportedRef = useRef(false);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const onErrorRef = useRef(onError);
@@ -77,8 +81,10 @@ export function MapLibreGlobeProvider({
 
     let disposed = false;
     let resizeObserver: ResizeObserver | null = null;
+    let coreInitialisationTimeout: number | null = null;
     let baseLayerListenersAdded = false;
     let aircraftLayerListenersAdded = false;
+    const reportedMapErrors = new Set<string>();
     const reportFatalError = () => {
       if (fallbackReportedRef.current || disposed) return;
       fallbackReportedRef.current = true;
@@ -105,63 +111,82 @@ export function MapLibreGlobeProvider({
       mapRef.current = map;
       map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: false }), "bottom-right");
 
-      const handleStyleLoad = () => {
+      const initialiseOptionalGlobeLayers = () => {
+        if (disposed || !coreReadyRef.current) return;
         try {
-          map.setProjection({ type: "globe" });
-          applyGlobeVisualStyle(map, DEFAULT_GLOBE_VISUAL_STYLE);
-          applyBrightSatelliteEarth(map);
           applyLightOceanTint(map);
-          applyCountryLabels(map, language);
-          applyDarkGlobeBackdrop(map);
-          const mapWithFog = map as maplibregl.Map & { setFog?: (fog: Record<string, string | number>) => void };
-          mapWithFog.setFog?.({
-            color: "#dcecf4",
-            "high-color": "#f7fbfc",
-            "horizon-blend": 0.04,
-            "space-color": DARK_GLOBE_BACKDROP,
-            "star-intensity": 0
-          });
         } catch (error) {
-          console.error("[MapLibre Globe] Failed to apply globe projection", error);
-          reportFatalError();
+          console.warn("[MapLibre Globe] Ocean tint unavailable; using satellite imagery only", error);
+        }
+        try {
+          applyCountryLabels(map, language);
+          optionalLabelsReadyRef.current = true;
+        } catch (error) {
+          optionalLabelsReadyRef.current = false;
+          console.warn("[MapLibre Globe] Country labels unavailable; continuing without labels", error);
         }
       };
 
-      const handleLoad = () => {
-        if (disposed) return;
-        try {
-          addAirlineSourcesAndLayers(map);
-          AIRPORT_LAYERS.forEach((layerId) => {
-            map.on("click", layerId, handleAirportClick);
-            map.on("mouseenter", layerId, handleAirportEnter);
-            map.on("mouseleave", layerId, handlePointerLeave);
-          });
-          map.on("click", "route-hit-layer", handleRouteClick);
-          map.on("mouseenter", "route-hit-layer", handlePointerEnter);
-          map.on("mouseleave", "route-hit-layer", handlePointerLeave);
-          baseLayerListenersAdded = true;
-          loadedRef.current = true;
-          setIsReady(true);
-          void addAircraftImage(map)
-            .then(() => {
-              if (disposed) return;
-              map.on("click", AIRCRAFT_HIT_LAYER_ID, handleAircraftClick);
-              map.on("mouseenter", AIRCRAFT_HIT_LAYER_ID, handlePointerEnter);
-              map.on("mouseleave", AIRCRAFT_HIT_LAYER_ID, handlePointerLeave);
-              aircraftLayerListenersAdded = true;
-            })
-            .catch((error) => console.error("[MapLibre Globe] Aircraft icon could not be loaded", error));
-        } catch (error) {
-          console.error("[MapLibre Globe] Initialisation failed", error);
-          reportFatalError();
-        }
+      const handleStyleLoad = () => {
+        if (disposed || coreReadyRef.current) return;
+        void (async () => {
+          try {
+            map.setProjection({ type: "globe" });
+            applyGlobeVisualStyle(map, DEFAULT_GLOBE_VISUAL_STYLE);
+            applyBrightSatelliteEarth(map);
+            applyDarkGlobeBackdrop(map);
+            const mapWithFog = map as maplibregl.Map & { setFog?: (fog: Record<string, string | number>) => void };
+            try {
+              mapWithFog.setFog?.({
+                color: "#dcecf4",
+                "high-color": "#f7fbfc",
+                "horizon-blend": 0.04,
+                "space-color": DARK_GLOBE_BACKDROP,
+                "star-intensity": 0
+              });
+            } catch (error) {
+              console.warn("[MapLibre Globe] Atmosphere polish unavailable; continuing with the base globe", error);
+            }
+
+            addAirlineSourcesAndLayers(map);
+            await addAircraftImage(map);
+            if (disposed) return;
+
+            AIRPORT_LAYERS.forEach((layerId) => {
+              map.on("click", layerId, handleAirportClick);
+              map.on("mouseenter", layerId, handleAirportEnter);
+              map.on("mouseleave", layerId, handlePointerLeave);
+            });
+            map.on("click", "route-hit-layer", handleRouteClick);
+            map.on("mouseenter", "route-hit-layer", handlePointerEnter);
+            map.on("mouseleave", "route-hit-layer", handlePointerLeave);
+            baseLayerListenersAdded = true;
+            map.on("click", AIRCRAFT_HIT_LAYER_ID, handleAircraftClick);
+            map.on("mouseenter", AIRCRAFT_HIT_LAYER_ID, handlePointerEnter);
+            map.on("mouseleave", AIRCRAFT_HIT_LAYER_ID, handlePointerLeave);
+            aircraftLayerListenersAdded = true;
+
+            coreReadyRef.current = true;
+            setIsReady(true);
+            if (coreInitialisationTimeout !== null) window.clearTimeout(coreInitialisationTimeout);
+            queueMicrotask(initialiseOptionalGlobeLayers);
+          } catch (error) {
+            console.error("[MapLibre Globe] Core initialisation failed", error);
+            reportFatalError();
+          }
+        })();
       };
 
       const handleMapError = (event: maplibregl.ErrorEvent) => {
-        console.error("[MapLibre Globe] Map error", event.error);
-        // Tile errors after a successful load are recoverable. A style failure before
-        // load is not, so only that case returns players to the stable 2D map.
-        if (!loadedRef.current) reportFatalError();
+        const diagnostics = getMapErrorDiagnostics(event, map, coreReadyRef.current);
+        const severity = classifyMapLibreError(diagnostics);
+        const errorKey = `${severity}:${diagnostics.sourceId ?? "none"}:${diagnostics.tile ?? "none"}:${diagnostics.message ?? "unknown"}`;
+        if (!reportedMapErrors.has(errorKey)) {
+          reportedMapErrors.add(errorKey);
+          const log = severity === "fatal" ? console.error : console.warn;
+          log("[MapLibre Globe] Map error", { ...diagnostics, severity });
+        }
+        if (severity === "fatal") reportFatalError();
       };
 
       const handleAirportClick = (event: maplibregl.MapLayerMouseEvent) => {
@@ -195,16 +220,23 @@ export function MapLibreGlobeProvider({
         popupRef.current = null;
       };
 
-      map.on("style.load", handleStyleLoad);
-      map.on("load", handleLoad);
+      coreInitialisationTimeout = window.setTimeout(() => {
+        if (disposed || coreReadyRef.current) return;
+        console.error("[MapLibre Globe] Core initialisation timed out", { styleLoaded: map.isStyleLoaded(), coreReady: false });
+        reportFatalError();
+      }, CORE_INITIALISATION_TIMEOUT_MS);
+
+      map.once("style.load", handleStyleLoad);
       map.on("error", handleMapError);
       resizeObserver = new ResizeObserver(() => map.resize());
       resizeObserver.observe(container);
 
       return () => {
         disposed = true;
-        loadedRef.current = false;
+        coreReadyRef.current = false;
+        optionalLabelsReadyRef.current = false;
         setIsReady(false);
+        if (coreInitialisationTimeout !== null) window.clearTimeout(coreInitialisationTimeout);
         resizeObserver?.disconnect();
         popupRef.current?.remove();
         popupRef.current = null;
@@ -224,7 +256,6 @@ export function MapLibreGlobeProvider({
           map.off("mouseleave", AIRCRAFT_HIT_LAYER_ID, handlePointerLeave);
         }
         map.off("style.load", handleStyleLoad);
-        map.off("load", handleLoad);
         map.off("error", handleMapError);
         map.remove();
         mapRef.current = null;
@@ -236,8 +267,13 @@ export function MapLibreGlobeProvider({
   }, []);
 
   useEffect(() => {
-    if (!isReady || !mapRef.current) return;
-    applyCountryLabels(mapRef.current, language);
+    if (!isReady || !mapRef.current || !optionalLabelsReadyRef.current) return;
+    try {
+      updateCountryLabelLanguage(mapRef.current, language);
+    } catch (error) {
+      optionalLabelsReadyRef.current = false;
+      console.warn("[MapLibre Globe] Country label language update failed; continuing without labels", error);
+    }
   }, [isReady, language]);
 
   useEffect(() => {
@@ -352,11 +388,11 @@ export function buildAircraftGeoJson(aircraft: MapAircraftMarker[]): FeatureColl
 }
 
 function addAirlineSourcesAndLayers(map: maplibregl.Map) {
-  map.addSource(AIRPORT_SOURCE_ID, { type: "geojson", data: emptyFeatureCollection() });
-  map.addSource(ROUTE_SOURCE_ID, { type: "geojson", data: emptyFeatureCollection() });
-  map.addSource(AIRCRAFT_SOURCE_ID, { type: "geojson", data: emptyFeatureCollection() });
+  if (!map.getSource(AIRPORT_SOURCE_ID)) map.addSource(AIRPORT_SOURCE_ID, { type: "geojson", data: emptyFeatureCollection() });
+  if (!map.getSource(ROUTE_SOURCE_ID)) map.addSource(ROUTE_SOURCE_ID, { type: "geojson", data: emptyFeatureCollection() });
+  if (!map.getSource(AIRCRAFT_SOURCE_ID)) map.addSource(AIRCRAFT_SOURCE_ID, { type: "geojson", data: emptyFeatureCollection() });
 
-  map.addLayer({
+  addLayerIfMissing(map, {
     id: "route-normal-outline-layer",
     type: "line",
     source: ROUTE_SOURCE_ID,
@@ -369,7 +405,7 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
       "line-blur": 0.5
     }
   });
-  map.addLayer({
+  addLayerIfMissing(map, {
     id: "route-normal-layer",
     type: "line",
     source: ROUTE_SOURCE_ID,
@@ -381,7 +417,7 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
       "line-opacity": 0.96
     }
   });
-  map.addLayer({
+  addLayerIfMissing(map, {
     id: "route-selected-outline-layer",
     type: "line",
     source: ROUTE_SOURCE_ID,
@@ -393,7 +429,7 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
       "line-opacity": 0.55
     }
   });
-  map.addLayer({
+  addLayerIfMissing(map, {
     id: "route-selected-layer",
     type: "line",
     source: ROUTE_SOURCE_ID,
@@ -405,7 +441,7 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
       "line-opacity": 1
     }
   });
-  map.addLayer({
+  addLayerIfMissing(map, {
     id: "route-hit-layer",
     type: "line",
     source: ROUTE_SOURCE_ID,
@@ -419,7 +455,7 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
 }
 
 function addAirportLayer(map: maplibregl.Map, id: string, markerType: MapAirportMarker["markerType"], color: string, radius: unknown[]) {
-  map.addLayer({
+  addLayerIfMissing(map, {
     id,
     type: "circle",
     source: AIRPORT_SOURCE_ID,
@@ -434,15 +470,16 @@ function addAirportLayer(map: maplibregl.Map, id: string, markerType: MapAirport
 }
 
 async function addAircraftImage(map: maplibregl.Map) {
-  if (map.hasImage(AIRCRAFT_IMAGE_ID)) return;
-  try {
-    map.addImage(AIRCRAFT_IMAGE_ID, await loadTransparentAircraftImage(), { pixelRatio: 2 });
-  } catch (error) {
-    console.error("[MapLibre Globe] Falling back to generated aircraft icon", error);
-    map.addImage(AIRCRAFT_IMAGE_ID, createFallbackAircraftImage(), { pixelRatio: 2 });
+  if (!map.hasImage(AIRCRAFT_IMAGE_ID)) {
+    try {
+      map.addImage(AIRCRAFT_IMAGE_ID, await loadTransparentAircraftImage(), { pixelRatio: 2 });
+    } catch (error) {
+      console.error("[MapLibre Globe] Falling back to generated aircraft icon", error);
+      if (!map.hasImage(AIRCRAFT_IMAGE_ID)) map.addImage(AIRCRAFT_IMAGE_ID, createFallbackAircraftImage(), { pixelRatio: 2 });
+    }
   }
 
-  map.addLayer({
+  addLayerIfMissing(map, {
     id: AIRCRAFT_HIT_LAYER_ID,
     type: "circle",
     source: AIRCRAFT_SOURCE_ID,
@@ -452,7 +489,7 @@ async function addAircraftImage(map: maplibregl.Map) {
       "circle-opacity": 0.01
     }
   });
-  map.addLayer({
+  addLayerIfMissing(map, {
     id: "aircraft-layer",
     type: "symbol",
     source: AIRCRAFT_SOURCE_ID,
@@ -480,6 +517,56 @@ async function addAircraftImage(map: maplibregl.Map) {
 function setGeoJsonSourceData(map: maplibregl.Map, sourceId: string, data: FeatureCollection) {
   const source = map.getSource(sourceId) as maplibregl.GeoJSONSource | undefined;
   source?.setData(data);
+}
+
+function addLayerIfMissing(map: maplibregl.Map, layer: Parameters<maplibregl.Map["addLayer"]>[0]) {
+  if (!map.getLayer(layer.id)) map.addLayer(layer);
+}
+
+type GlobeMapErrorSeverity = "fatal" | "optional" | "recoverable";
+type GlobeMapErrorDiagnostics = {
+  message?: string;
+  sourceId?: string;
+  tile?: string;
+  styleLoaded: boolean;
+  coreReady: boolean;
+};
+
+function getMapErrorDiagnostics(event: maplibregl.ErrorEvent, map: maplibregl.Map, coreReady: boolean): GlobeMapErrorDiagnostics {
+  const details = event as maplibregl.ErrorEvent & {
+    sourceId?: unknown;
+    source?: { id?: unknown };
+    tile?: unknown;
+    error?: { message?: unknown; sourceId?: unknown };
+  };
+  const sourceId = [details.sourceId, details.source?.id, details.error?.sourceId].find((value): value is string => typeof value === "string");
+  return {
+    message: typeof details.error?.message === "string" ? details.error.message : undefined,
+    sourceId,
+    tile: describeMapTile(details.tile),
+    styleLoaded: Boolean(map.isStyleLoaded()),
+    coreReady
+  };
+}
+
+function classifyMapLibreError({ message = "", sourceId, tile, coreReady }: GlobeMapErrorDiagnostics): GlobeMapErrorSeverity {
+  const normalizedMessage = message.toLowerCase();
+  const isOptionalLayerError = OPTIONAL_LAYER_PREFIXES.some((prefix) => normalizedMessage.includes(prefix));
+  const isOptionalMessage = ["openfreemap", "glyph", "fontstack", "source-layer place", "source-layer water", "country-label"].some((value) => normalizedMessage.includes(value));
+  if (sourceId && OPTIONAL_SOURCE_IDS.has(sourceId)) return "optional";
+  if (isOptionalLayerError || isOptionalMessage) return "optional";
+  if (coreReady || tile || sourceId === "nasa-blue-marble") return "recoverable";
+  if (["webgl", "context", "style", "projection", "parse"].some((value) => normalizedMessage.includes(value))) return "fatal";
+  return "recoverable";
+}
+
+function describeMapTile(tile: unknown) {
+  if (typeof tile === "string") return tile;
+  if (!tile || typeof tile !== "object") return undefined;
+  const record = tile as { tileID?: { canonical?: { z?: unknown; x?: unknown; y?: unknown } } };
+  const canonical = record.tileID?.canonical;
+  if ([canonical?.z, canonical?.x, canonical?.y].every((value) => typeof value === "number")) return `${canonical?.z}/${canonical?.x}/${canonical?.y}`;
+  return "requested";
 }
 
 function emptyFeatureCollection(): FeatureCollection {

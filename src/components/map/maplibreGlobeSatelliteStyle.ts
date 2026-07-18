@@ -131,13 +131,22 @@ export function applyCountryLabels(map: maplibregl.Map, language: GlobeLabelLang
   });
 }
 
+export function updateCountryLabelLanguage(map: maplibregl.Map, language: GlobeLabelLanguage) {
+  const textField = countryLabelTextField(language);
+  COUNTRY_LABEL_LAYERS.forEach(({ id }) => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, "text-field", textField as never);
+  });
+}
+
 function ensureOpenFreeMapSource(map: maplibregl.Map) {
   if (map.getSource(OPENFREEMAP_SOURCE_ID)) return;
 
   map.addSource(OPENFREEMAP_SOURCE_ID, {
     type: "vector",
     url: OPENFREEMAP_TILEJSON_URL,
-    attribution: '<a href="https://openfreemap.org/">OpenFreeMap</a> © <a href="https://openmaptiles.org/">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    // Verified OpenFreeMap TileJSON source: vector layers `water` and `place`,
+    // with Noto Sans glyphs served from OPENFREEMAP_GLYPHS_URL.
+    attribution: '<a href="https://openfreemap.org/">OpenFreeMap</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   });
 }
 
