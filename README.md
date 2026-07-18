@@ -66,10 +66,10 @@ Airline Tycoon V1.3.1 keeps the stable Leaflet 2D map and gives the optional Map
 
 ## Map Configuration
 
-The optional MapLibre globe uses the public style URL below. The built-in demo style is used when it is unset, then restyled locally with the light-modern globe preset.
+The optional MapLibre globe uses NASA GIBS Blue Marble imagery by default with a local starfield backdrop. Set the public style URL below only to replace the globe's satellite basemap.
 
 ```text
-NEXT_PUBLIC_MAPLIBRE_STYLE_URL=https://demotiles.maplibre.org/style.json
+NEXT_PUBLIC_MAPLIBRE_GLOBE_SATELLITE_STYLE_URL
 ```
 
 Do not put private map provider keys in source control. Remote map styles and tiles are not stored in game saves or precached by the service worker.

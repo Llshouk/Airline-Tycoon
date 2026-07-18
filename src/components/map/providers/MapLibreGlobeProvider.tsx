@@ -5,10 +5,10 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point, Position } from "geojson";
 import { applyDarkGlobeBackdrop, applyGlobeVisualStyle, DARK_GLOBE_BACKDROP, DEFAULT_GLOBE_VISUAL_STYLE } from "@/components/map/maplibreGlobeStyle";
+import { getGlobeSatelliteStyle } from "@/components/map/maplibreGlobeSatelliteStyle";
 import { splitPolylineAtAntimeridian } from "@/lib/mapRoutePath";
 import type { MapAircraftMarker, MapAirportMarker, MapGlobeFailureReason, MapRouteLine } from "@/components/map/mapTypes";
 
-const MAP_STYLE_URL = process.env.NEXT_PUBLIC_MAPLIBRE_STYLE_URL ?? "https://demotiles.maplibre.org/style.json";
 const AIRCRAFT_IMAGE_ID = "aircraft-icon";
 const AIRPORT_SOURCE_ID = "airports-source";
 const ROUTE_SOURCE_ID = "routes-source";
@@ -90,7 +90,7 @@ export function MapLibreGlobeProvider({
     try {
       const map = new maplibregl.Map({
         container,
-        style: MAP_STYLE_URL,
+        style: getGlobeSatelliteStyle(),
         center: [0, 20],
         zoom: 1.35,
         minZoom: 0.6,
@@ -257,7 +257,8 @@ export function MapLibreGlobeProvider({
   return (
     <div className="airline-maplibre-globe relative h-full min-h-[560px] overflow-hidden" style={{ backgroundColor: DARK_GLOBE_BACKDROP }}>
       <div ref={containerRef} className="h-full w-full" style={{ backgroundColor: DARK_GLOBE_BACKDROP }} />
-      <div className="absolute right-3 top-3 flex gap-2">
+      <div aria-hidden="true" className="airline-globe-starfield absolute inset-0 pointer-events-none" />
+      <div className="absolute right-3 top-3 z-10 flex gap-2">
         <button type="button" onClick={resetView} className="rounded-md bg-white/95 px-3 py-2 text-xs font-black text-ink shadow-soft">
           {labels.resetView}
         </button>
@@ -265,7 +266,7 @@ export function MapLibreGlobeProvider({
           {labels.focusBase}
         </button>
       </div>
-      <div className="pointer-events-none absolute bottom-3 right-16 max-w-xs rounded-md border border-slate-300/80 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-600 shadow-soft">
+      <div className="pointer-events-none absolute bottom-3 right-16 z-10 max-w-xs rounded-md border border-slate-300/80 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-600 shadow-soft">
         {labels.performance}
       </div>
     </div>

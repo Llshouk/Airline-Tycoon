@@ -3,7 +3,7 @@ import type maplibregl from "maplibre-gl";
 export type GlobeVisualStyle = "light-modern";
 
 export const DEFAULT_GLOBE_VISUAL_STYLE: GlobeVisualStyle = "light-modern";
-export const DARK_GLOBE_BACKDROP = "#07111f";
+export const DARK_GLOBE_BACKDROP = "#020611";
 
 export function applyGlobeVisualStyle(map: maplibregl.Map, style: GlobeVisualStyle = DEFAULT_GLOBE_VISUAL_STYLE) {
   if (style !== "light-modern") return;

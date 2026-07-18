@@ -40,7 +40,21 @@ select {
 .airline-maplibre-globe,
 .airline-maplibre-globe .maplibregl-canvas-container,
 .airline-maplibre-globe .maplibregl-canvas {
-  background: #07111f;
+  background: #020611;
+}
+
+.airline-globe-starfield {
+  background-image:
+    radial-gradient(circle at 11% 18%, rgba(255, 255, 255, 0.9) 0 0.7px, transparent 1.2px),
+    radial-gradient(circle at 72% 14%, rgba(181, 214, 255, 0.75) 0 0.8px, transparent 1.3px),
+    radial-gradient(circle at 88% 67%, rgba(255, 255, 255, 0.7) 0 0.65px, transparent 1.15px),
+    radial-gradient(circle at 23% 81%, rgba(190, 219, 255, 0.72) 0 0.7px, transparent 1.2px),
+    radial-gradient(circle at 48% 5%, rgba(255, 255, 255, 0.65) 0 0.55px, transparent 1px);
+  background-position: 0 0, 31px 47px, 74px 12px, 15px 86px, 112px 33px;
+  background-size: 197px 181px, 263px 229px, 311px 277px, 233px 313px, 359px 337px;
+  mask-image: radial-gradient(ellipse 45% 68% at 50% 50%, transparent 0 64%, #000 78%);
+  opacity: 0.78;
+  -webkit-mask-image: radial-gradient(ellipse 45% 68% at 50% 50%, transparent 0 64%, #000 78%);
 }
 
 .airport-marker {
