@@ -353,7 +353,12 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     source: ROUTE_SOURCE_ID,
     filter: ["!=", ["get", "selected"], true],
     layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#0a2632", "line-width": 3.5, "line-opacity": 0.38 }
+    paint: {
+      "line-color": "#062832",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 0, 4.4, 2, 4.8, 4, 5.4, 7, 6],
+      "line-opacity": 0.5,
+      "line-blur": 0.5
+    }
   });
   map.addLayer({
     id: "route-normal-layer",
@@ -361,7 +366,11 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     source: ROUTE_SOURCE_ID,
     filter: ["!=", ["get", "selected"], true],
     layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#2f7f97", "line-width": 2, "line-opacity": 0.92 }
+    paint: {
+      "line-color": "#45a9c2",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 0, 2.4, 2, 2.6, 4, 3, 7, 3.4],
+      "line-opacity": 0.96
+    }
   });
   map.addLayer({
     id: "route-selected-outline-layer",
@@ -369,7 +378,11 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     source: ROUTE_SOURCE_ID,
     filter: ["==", ["get", "selected"], true],
     layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#5b3a0c", "line-width": 5.5, "line-opacity": 0.5 }
+    paint: {
+      "line-color": "#5b3a0c",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 0, 6.4, 2, 6.8, 4, 7.4, 7, 8],
+      "line-opacity": 0.55
+    }
   });
   map.addLayer({
     id: "route-selected-layer",
@@ -377,7 +390,11 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     source: ROUTE_SOURCE_ID,
     filter: ["==", ["get", "selected"], true],
     layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#d88b1f", "line-width": 4, "line-opacity": 1 }
+    paint: {
+      "line-color": "#f0a52b",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 0, 4.4, 2, 4.6, 4, 4.8, 7, 5.2],
+      "line-opacity": 1
+    }
   });
   map.addLayer({
     id: "route-hit-layer",
@@ -518,5 +535,5 @@ function createFallbackAircraftImage(): ImageData {
   return context.getImageData(0, 0, size, size);
 }
 
-// TODO V1.3.1: optional MapLibre custom Three.js layer
+// TODO: optional MapLibre custom Three.js layer
 // for glTF aircraft models.
