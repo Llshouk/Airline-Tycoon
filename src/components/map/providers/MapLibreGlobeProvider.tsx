@@ -25,12 +25,12 @@ const AIRPORT_LAYERS = [
 const OPTIONAL_SOURCE_IDS = new Set(["openfreemap-vector"]);
 const OPTIONAL_LAYER_PREFIXES = ["country-label-", "airline-globe-ocean-tint"];
 const CORE_INITIALISATION_TIMEOUT_MS = 12000;
-const BASE_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 10, 2, 12, 4, 14, 7, 17];
-const OPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 8, 2, 9.5, 4, 11.5, 7, 14];
-const UNOPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 5, 2, 6, 4, 7.5, 7, 9.5];
-const BASE_AIRPORT_HALO_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 15, 2, 17, 4, 19, 7, 22];
-const OPENED_AIRPORT_HALO_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 12, 2, 14, 4, 16, 7, 19];
-const SELECTED_AIRPORT_SIZE_BONUS = 5;
+const BASE_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 8.5, 2, 10, 4, 11.5, 7, 14];
+const OPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 6.8, 2, 8, 4, 9.5, 7, 11.5];
+const UNOPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 4.2, 2, 5, 4, 6.2, 7, 8];
+const BASE_AIRPORT_HALO_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 12.5, 2, 14.5, 4, 16.5, 7, 19];
+const OPENED_AIRPORT_HALO_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 10, 2, 11.5, 4, 13.5, 7, 16];
+const SELECTED_AIRPORT_SIZE_BONUS = 4;
 const AIRPORT_CIRCLE_VIEWPORT_PAINT = {
   "circle-pitch-alignment": "viewport",
   "circle-pitch-scale": "viewport"
@@ -528,9 +528,9 @@ function addAirportHaloLayer(
 function addSelectedAirportHaloLayer(map: maplibregl.Map) {
   const selectedRadius = [
     "case",
-    ["==", ["get", "markerType"], "base"], ["+", BASE_AIRPORT_RADIUS, 10],
-    ["==", ["get", "markerType"], "opened"], ["+", OPENED_AIRPORT_RADIUS, 10],
-    ["+", UNOPENED_AIRPORT_RADIUS, 10]
+    ["==", ["get", "markerType"], "base"], ["+", BASE_AIRPORT_RADIUS, 8],
+    ["==", ["get", "markerType"], "opened"], ["+", OPENED_AIRPORT_RADIUS, 8],
+    ["+", UNOPENED_AIRPORT_RADIUS, 8]
   ];
 
   addLayerIfMissing(map, {
