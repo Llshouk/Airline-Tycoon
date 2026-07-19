@@ -1,8 +1,8 @@
-# Airline Tycoon V1.3.4
+# Airline Tycoon V1.3.5
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.3.4 - Globe Marker Scale Upgrade
+Release: V1.3.5 - Aircraft Heading and Globe Marker Polish
 
 ## Features
 
@@ -62,7 +62,7 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.3.4 keeps the stable Leaflet 2D map and the resilient optional MapLibre GL JS globe. The 3D globe now uses larger, viewport-aligned airport and aircraft markers with restrained halos and larger aircraft touch targets; country labels, glyphs, and water polygons remain optional enhancements. Economy and scheduling systems remain simplified for gameplay balance.
+Airline Tycoon V1.3.5 keeps the stable Leaflet 2D map and the resilient optional MapLibre GL JS globe. Aircraft now use a shared forward-looking route heading, a north-normalized 3D icon, and smooth MapLibre zoom scaling. Layered airport halos and contrast rings improve readability without changing the satellite Earth, routes, or optional country-label behavior.
 
 ## Map Configuration
 

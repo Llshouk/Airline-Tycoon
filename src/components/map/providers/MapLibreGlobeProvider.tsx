@@ -14,13 +14,22 @@ const AIRPORT_SOURCE_ID = "airports-source";
 const ROUTE_SOURCE_ID = "routes-source";
 const AIRCRAFT_SOURCE_ID = "aircraft-source";
 const AIRCRAFT_HIT_LAYER_ID = "aircraft-hit-layer";
-const AIRPORT_LAYERS = ["airport-base-layer", "airport-opened-layer", "airport-unopened-layer"] as const;
+const AIRPORT_LAYERS = [
+  "airport-base-layer",
+  "airport-opened-layer",
+  "airport-unopened-layer",
+  "airport-selected-base-layer",
+  "airport-selected-opened-layer",
+  "airport-selected-unopened-layer"
+] as const;
 const OPTIONAL_SOURCE_IDS = new Set(["openfreemap-vector"]);
 const OPTIONAL_LAYER_PREFIXES = ["country-label-", "airline-globe-ocean-tint"];
 const CORE_INITIALISATION_TIMEOUT_MS = 12000;
-const BASE_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 12, 2, 13.5, 4, 15, 7, 17];
-const OPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 9.5, 2, 11, 4, 12.5, 7, 14.5];
-const UNOPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 6, 2, 7, 4, 8.5, 7, 10];
+const BASE_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 10, 2, 12, 4, 14, 7, 17];
+const OPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 8, 2, 9.5, 4, 11.5, 7, 14];
+const UNOPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 5, 2, 6, 4, 7.5, 7, 9.5];
+const BASE_AIRPORT_HALO_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 15, 2, 17, 4, 19, 7, 22];
+const OPENED_AIRPORT_HALO_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 12, 2, 14, 4, 16, 7, 19];
 const SELECTED_AIRPORT_SIZE_BONUS = 5;
 const AIRPORT_CIRCLE_VIEWPORT_PAINT = {
   "circle-pitch-alignment": "viewport",
@@ -457,26 +466,38 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     paint: { "line-color": "#000000", "line-width": 14, "line-opacity": 0.01 }
   });
 
-  addAirportHaloLayer(map, "airport-base-halo-layer", "base", "#d76745", BASE_AIRPORT_RADIUS, 4, 0.2);
-  addAirportHaloLayer(map, "airport-opened-halo-layer", "opened", "#4f9d7e", OPENED_AIRPORT_RADIUS, 3, 0.15);
+  addAirportHaloLayer(map, "airport-base-halo-layer", "base", "#f27a56", BASE_AIRPORT_HALO_RADIUS, 0.22);
+  addAirportHaloLayer(map, "airport-opened-halo-layer", "opened", "#65c49c", OPENED_AIRPORT_HALO_RADIUS, 0.18);
+  addAirportLayer(map, "airport-base-layer", "base", "#d76745", "#351811", 2.5, BASE_AIRPORT_RADIUS, false);
+  addAirportLayer(map, "airport-opened-layer", "opened", "#4f9d7e", "#102d25", 2.5, OPENED_AIRPORT_RADIUS, false);
+  addAirportLayer(map, "airport-unopened-layer", "unopened", "#ffffff", "#15242a", 2, UNOPENED_AIRPORT_RADIUS, false);
   addSelectedAirportHaloLayer(map);
-  addAirportLayer(map, "airport-base-layer", "base", "#d76745", BASE_AIRPORT_RADIUS);
-  addAirportLayer(map, "airport-opened-layer", "opened", "#4f9d7e", OPENED_AIRPORT_RADIUS);
-  addAirportLayer(map, "airport-unopened-layer", "unopened", "#ffffff", UNOPENED_AIRPORT_RADIUS);
+  addAirportLayer(map, "airport-selected-base-layer", "base", "#d76745", "#351811", 2.5, BASE_AIRPORT_RADIUS, true);
+  addAirportLayer(map, "airport-selected-opened-layer", "opened", "#4f9d7e", "#102d25", 2.5, OPENED_AIRPORT_RADIUS, true);
+  addAirportLayer(map, "airport-selected-unopened-layer", "unopened", "#ffffff", "#15242a", 2, UNOPENED_AIRPORT_RADIUS, true);
 }
 
-function addAirportLayer(map: maplibregl.Map, id: string, markerType: MapAirportMarker["markerType"], color: string, radius: unknown[]) {
+function addAirportLayer(
+  map: maplibregl.Map,
+  id: string,
+  markerType: MapAirportMarker["markerType"],
+  color: string,
+  strokeColor: string,
+  strokeWidth: number,
+  radius: unknown[],
+  selected: boolean
+) {
   addLayerIfMissing(map, {
     id,
     type: "circle",
     source: AIRPORT_SOURCE_ID,
-    filter: ["==", ["get", "markerType"], markerType],
+    filter: ["all", ["==", ["get", "markerType"], markerType], [selected ? "==" : "!=", ["get", "selected"], true]],
     paint: {
       ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
       "circle-color": color,
-      "circle-radius": ["case", ["==", ["get", "selected"], true], ["+", radius, SELECTED_AIRPORT_SIZE_BONUS], radius] as never,
-      "circle-stroke-color": ["case", ["==", ["get", "selected"], true], "#f4b942", "#102026"],
-      "circle-stroke-width": ["case", ["==", ["get", "selected"], true], 4, 1.5]
+      "circle-radius": (selected ? ["+", radius, SELECTED_AIRPORT_SIZE_BONUS] : radius) as never,
+      "circle-stroke-color": selected ? "#f4b942" : strokeColor,
+      "circle-stroke-width": selected ? 4 : strokeWidth
     }
   });
 }
@@ -487,20 +508,19 @@ function addAirportHaloLayer(
   markerType: MapAirportMarker["markerType"],
   color: string,
   radius: unknown[],
-  radiusBonus: number,
   opacity: number
 ) {
   addLayerIfMissing(map, {
     id,
     type: "circle",
     source: AIRPORT_SOURCE_ID,
-    filter: ["==", ["get", "markerType"], markerType],
+    filter: ["all", ["==", ["get", "markerType"], markerType], ["!=", ["get", "selected"], true]],
     paint: {
       ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
       "circle-color": color,
-      "circle-radius": ["+", radius, radiusBonus] as never,
+      "circle-radius": radius as never,
       "circle-opacity": opacity,
-      "circle-blur": 0.5
+      "circle-blur": 0.65
     }
   });
 }
@@ -508,9 +528,9 @@ function addAirportHaloLayer(
 function addSelectedAirportHaloLayer(map: maplibregl.Map) {
   const selectedRadius = [
     "case",
-    ["==", ["get", "markerType"], "base"], ["+", BASE_AIRPORT_RADIUS, 9],
-    ["==", ["get", "markerType"], "opened"], ["+", OPENED_AIRPORT_RADIUS, 9],
-    ["+", UNOPENED_AIRPORT_RADIUS, 9]
+    ["==", ["get", "markerType"], "base"], ["+", BASE_AIRPORT_RADIUS, 10],
+    ["==", ["get", "markerType"], "opened"], ["+", OPENED_AIRPORT_RADIUS, 10],
+    ["+", UNOPENED_AIRPORT_RADIUS, 10]
   ];
 
   addLayerIfMissing(map, {
@@ -522,8 +542,8 @@ function addSelectedAirportHaloLayer(map: maplibregl.Map) {
       ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
       "circle-color": "#f4b942",
       "circle-radius": selectedRadius as never,
-      "circle-opacity": 0.24,
-      "circle-blur": 0.5
+      "circle-opacity": 0.25,
+      "circle-blur": 0.55
     }
   });
 }
@@ -545,8 +565,8 @@ async function addAircraftImage(map: maplibregl.Map) {
     paint: {
       ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
       "circle-color": "#102a3a",
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 10, 2, 11, 4, 13, 7, 15],
-      "circle-opacity": 0.22,
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 7, 2, 9, 4, 12, 7, 16],
+      "circle-opacity": 0.2,
       "circle-blur": 0.5
     }
   });
@@ -556,7 +576,7 @@ async function addAircraftImage(map: maplibregl.Map) {
     source: AIRCRAFT_SOURCE_ID,
     paint: {
       "circle-color": "#000000",
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 20, 2, 22, 4, 24, 7, 27],
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 16, 2, 19, 4, 23, 7, 28],
       "circle-opacity": 0.01
     }
   });
@@ -571,13 +591,15 @@ async function addAircraftImage(map: maplibregl.Map) {
         ["linear"],
         ["zoom"],
         0,
-        ["interpolate", ["linear"], ["get", "size"], 36, 0.78, 58, 1.02],
-        2,
-        ["interpolate", ["linear"], ["get", "size"], 36, 0.86, 58, 1.12],
-        4,
-        ["interpolate", ["linear"], ["get", "size"], 36, 0.94, 58, 1.22],
+        ["interpolate", ["linear"], ["get", "size"], 36, 0.6, 58, 0.8],
+        1.5,
+        ["interpolate", ["linear"], ["get", "size"], 36, 0.72, 58, 0.94],
+        3,
+        ["interpolate", ["linear"], ["get", "size"], 36, 0.88, 58, 1.14],
+        5,
+        ["interpolate", ["linear"], ["get", "size"], 36, 1.08, 58, 1.4],
         7,
-        ["interpolate", ["linear"], ["get", "size"], 36, 1.08, 58, 1.38]
+        ["interpolate", ["linear"], ["get", "size"], 36, 1.28, 58, 1.68]
       ],
       "icon-rotate": ["get", "heading"],
       "icon-rotation-alignment": "map",
@@ -686,7 +708,7 @@ async function loadTransparentAircraftImage(): Promise<ImageData> {
   if (!context) throw new Error("Aircraft icon canvas is unavailable");
 
   context.translate(size / 2, size / 2);
-  context.rotate(-Math.PI / 2);
+  context.rotate(Math.PI / 2);
   // Crop the padded source art while preserving room for heading rotation.
   context.drawImage(image, 17, 27, 48, 45, -46, -43.125, 92, 86.25);
   const imageData = context.getImageData(0, 0, size, size);
