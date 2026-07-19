@@ -17,8 +17,8 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
   ref
 ) {
   return (
-    <div className="flex h-full min-h-[620px] w-full flex-col" data-map-provider={provider}>
-      <div className="relative min-h-[560px] flex-1">
+    <div className="flex h-full min-h-[520px] w-full flex-col overflow-x-hidden" data-map-provider={provider}>
+      <div className="relative min-h-[520px] flex-1 sm:min-h-[560px]">
         {children ?? <div ref={ref} className="h-full w-full" />}
         <div className="absolute left-3 top-3 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
           {engineLabel}

@@ -5,16 +5,17 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObjec
 import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useThrottledMapTime } from "@/hooks/useThrottledMapTime";
 import { useTranslation } from "@/i18n";
 import { calculateBearing } from "@/lib/geo";
 import { buildRoutePolylinePoints, buildRoutePolylineLatLngSegments, interpolateRoutePosition, normalizeLongitude, normalizeLongitudeDelta } from "@/lib/mapRoutePath";
-import { supportsWebGL } from "@/lib/mapPreferences";
+import { getEffectiveGlobeQuality, getGlobeAircraftUpdateInterval, supportsWebGL } from "@/lib/mapPreferences";
 import { MapView } from "@/components/map/MapView";
 import { GlobeErrorBoundary } from "@/components/map/GlobeErrorBoundary";
 import { GlobeLoadingFallback } from "@/components/map/GlobeLoadingFallback";
 import { LEAFLET_2D_MAP_OPTIONS, LEAFLET_2D_TILE_OPTIONS, PRIMARY_WORLD_BOUNDS } from "@/components/map/providers/LeafletMapProvider";
 import type { MapLibreGlobeProviderProps } from "@/components/map/providers/MapLibreGlobeProvider";
-import type { MapAircraftMarker, MapAirportMarker, MapEngine, MapGlobeFailureReason, MapProviderType, MapRouteLine } from "@/components/map/mapTypes";
+import type { GlobeQuality, MapAircraftMarker, MapAirportMarker, MapEngine, MapGlobeFailureReason, MapProviderType, MapRouteLine } from "@/components/map/mapTypes";
 import type { AircraftInstance, AircraftModel, Route } from "@/types/game";
 
 const MapLibreGlobeProvider = dynamic<MapLibreGlobeProviderProps>(
@@ -25,6 +26,7 @@ const MapLibreGlobeProvider = dynamic<MapLibreGlobeProviderProps>(
 export type MapDisplayMode = "all" | "network" | "airports" | "aircraft";
 type AircraftIconCategory = "regional" | "narrowBodyTwin" | "wideBodyTwin" | "wideBodyQuad";
 type AirportMarkerKind = "base" | "opened" | "unopened";
+type RouteMapStatistics = { assignedAircraftIds: Set<string>; weeklyFlightCount: number };
 
 type Props = {
   baseAirportId: string;
@@ -38,6 +40,7 @@ type Props = {
   selectedRouteId: string | null;
   displayMode: MapDisplayMode;
   mapEngine?: MapEngine;
+  globeQuality?: GlobeQuality;
   onMapEngineFallback?: (reason: MapGlobeFailureReason) => void;
   onSelectAirport: (airportId: string) => void;
   onSelectRoute: (routeId: string) => void;
@@ -59,14 +62,26 @@ export function GameMap(props: Props) {
   const leafletMapRef = useRef<any>(null);
   const googleLayersRef = useRef<any[]>([]);
   const leafletLayersRef = useRef<any>(null);
+  const renderMetricsRef = useRef({ renders: 0, routeBuilds: 0, aircraftBuilds: 0, lastReportedAt: 0 });
   const [globeFailed, setGlobeFailed] = useState(false);
   const [webglChecked, setWebglChecked] = useState(false);
   const [webglSupported, setWebglSupported] = useState(false);
   const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const selectedMapEngine = props.mapEngine ?? "2d";
+  const effectiveGlobeQuality = useMemo(() => getEffectiveGlobeQuality(props.globeQuality ?? "auto"), [props.globeQuality]);
   const effectiveMapEngine = selectedMapEngine === "globe3d" && webglChecked && webglSupported && !globeFailed ? "globe3d" : "2d";
   const usesGoogleMap = effectiveMapEngine === "2d" && Boolean(googleKey);
   const mapProvider: MapProviderType = effectiveMapEngine === "globe3d" ? "globe3d" : usesGoogleMap ? "google" : "leaflet2d";
+  if (process.env.NODE_ENV === "development") renderMetricsRef.current.renders += 1;
+  const weeklyScheduleSignature = useMemo(() => getWeeklyScheduleSignature(props.fleet), [props.fleet]);
+  const routeStatistics = useMemo(() => buildRouteMapStatistics(props.fleet), [weeklyScheduleSignature]);
+  const aircraftStructuralKey = useMemo(() => getGlobeAircraftStructuralKey(props.fleet, props.displayMode), [props.fleet, props.displayMode]);
+  const renderedGameTimeMs = useThrottledMapTime(
+    props.currentGameTimeMs,
+    getGlobeAircraftUpdateInterval(effectiveGlobeQuality),
+    effectiveMapEngine === "globe3d",
+    aircraftStructuralKey
+  );
   const globeAirports = useMemo(
     () => (selectedMapEngine === "globe3d" ? buildGlobeAirportData(props) : []),
     [
@@ -80,13 +95,30 @@ export function GameMap(props: Props) {
     ]
   );
   const globeRoutes = useMemo(
-    () => (selectedMapEngine === "globe3d" ? buildGlobeRouteData(props) : []),
-    [props.routes, props.selectedRouteId, props.displayMode, selectedMapEngine]
+    () => {
+      if (process.env.NODE_ENV === "development") renderMetricsRef.current.routeBuilds += 1;
+      return selectedMapEngine === "globe3d" ? buildGlobeRouteData(props, routeStatistics) : [];
+    },
+    [props.routes, props.selectedRouteId, props.displayMode, routeStatistics, selectedMapEngine]
   );
   const globeAircraft = useMemo(
-    () => (selectedMapEngine === "globe3d" ? buildGlobeAircraftData(props) : []),
-    [props.fleet, props.currentGameTimeMs, props.displayMode, selectedMapEngine]
+    () => {
+      if (process.env.NODE_ENV === "development") renderMetricsRef.current.aircraftBuilds += 1;
+      return selectedMapEngine === "globe3d" ? buildGlobeAircraftData(props, renderedGameTimeMs) : [];
+    },
+    [props.fleet, props.displayMode, renderedGameTimeMs, selectedMapEngine]
   );
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development" || effectiveMapEngine !== "globe3d") return;
+    const now = Date.now();
+    if (now - renderMetricsRef.current.lastReportedAt < 5000) return;
+    renderMetricsRef.current.lastReportedAt = now;
+    console.debug("[GameMap] Globe render metrics", {
+      ...renderMetricsRef.current,
+      aircraftFeatures: globeAircraft.length,
+      routeFeatures: globeRoutes.length
+    });
+  }, [effectiveMapEngine, globeAircraft, globeRoutes]);
   const handleGlobeError = useCallback(
     (reason: MapGlobeFailureReason) => {
       setGlobeFailed(true);
@@ -165,6 +197,7 @@ export function GameMap(props: Props) {
             selectedRouteId={props.selectedRouteId}
             selectedAirportId={props.selectedAirportId}
             baseAirportId={props.primaryBaseAirportId ?? props.baseAirportId}
+            quality={effectiveGlobeQuality}
             language={language}
             labels={{
               resetView: t("map.resetView"),
@@ -262,7 +295,30 @@ function buildGlobeAirportData(props: Props): MapAirportMarker[] {
   return airportMarkers;
 }
 
-function buildGlobeRouteData(props: Props): MapRouteLine[] {
+function buildRouteMapStatistics(fleet: AircraftInstance[]) {
+  const statistics = new Map<string, RouteMapStatistics>();
+  fleet.forEach((aircraft) => {
+    aircraft.weeklySchedules.forEach((schedule) => {
+      const current = statistics.get(schedule.routeId) ?? { assignedAircraftIds: new Set<string>(), weeklyFlightCount: 0 };
+      current.assignedAircraftIds.add(aircraft.id);
+      current.weeklyFlightCount += schedule.daysOfWeek.length * (schedule.isRoundTrip ? 2 : 1);
+      statistics.set(schedule.routeId, current);
+    });
+  });
+  return statistics;
+}
+
+function getWeeklyScheduleSignature(fleet: AircraftInstance[]) {
+  return fleet
+    .map((aircraft) => `${aircraft.id}:${aircraft.weeklySchedules.map((schedule) => `${schedule.id}:${schedule.routeId}:${schedule.updatedAt}`).join(",")}`)
+    .join("|");
+}
+
+function getGlobeAircraftStructuralKey(fleet: AircraftInstance[], displayMode: MapDisplayMode) {
+  return `${displayMode}|${fleet.flatMap((aircraft) => aircraft.schedule.filter((item) => item.status === "in-flight").map((item) => item.id)).join(",")}`;
+}
+
+function buildGlobeRouteData(props: Props, routeStatistics: Map<string, RouteMapStatistics>): MapRouteLine[] {
   return shouldShowRoutes(props.displayMode)
     ? props.routes
         .map((route): MapRouteLine | null => {
@@ -270,11 +326,7 @@ function buildGlobeRouteData(props: Props): MapRouteLine[] {
           const destination = airportsById[route.destinationAirportId];
           if (!origin || !destination) return null;
           const status: MapRouteLine["status"] = props.selectedRouteId === route.id ? "active" : undefined;
-          const assignments = props.fleet.filter((aircraft) => aircraft.weeklySchedules.some((schedule) => schedule.routeId === route.id));
-          const weeklySchedules = props.fleet.flatMap((aircraft) => aircraft.weeklySchedules.filter((schedule) => schedule.routeId === route.id));
-          const weeklyFlightCount = weeklySchedules.length > 0
-            ? weeklySchedules.reduce((total, schedule) => total + schedule.daysOfWeek.length * (schedule.isRoundTrip ? 2 : 1), 0)
-            : undefined;
+          const statistics = routeStatistics.get(route.id);
           return {
             id: route.id,
             originIata: origin.iata,
@@ -284,8 +336,8 @@ function buildGlobeRouteData(props: Props): MapRouteLine[] {
             points: buildRoutePolylinePoints(origin, destination),
             status,
             distanceKm: route.distanceKm,
-            assignedAircraftCount: assignments.length || undefined,
-            weeklyFlightCount,
+            assignedAircraftCount: statistics?.assignedAircraftIds.size || undefined,
+            weeklyFlightCount: statistics?.weeklyFlightCount || undefined,
             isOpen: route.isOpen
           };
         })
@@ -293,7 +345,7 @@ function buildGlobeRouteData(props: Props): MapRouteLine[] {
     : [];
 }
 
-function buildGlobeAircraftData(props: Props): MapAircraftMarker[] {
+function buildGlobeAircraftData(props: Props, currentGameTimeMs: number): MapAircraftMarker[] {
   return shouldShowAircraft(props.displayMode)
     ? props.fleet.flatMap((aircraft) => {
         const model = aircraftById[aircraft.modelId];
@@ -305,7 +357,7 @@ function buildGlobeAircraftData(props: Props): MapAircraftMarker[] {
             const origin = airportsById[item.originAirportId];
             const destination = airportsById[item.destinationAirportId];
             if (!origin || !destination) return null;
-            const progress = (props.currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
+            const progress = (currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
             const { position, heading } = getAircraftPositionAndHeading(origin, destination, progress);
             const safeProgress = Number.isFinite(progress) ? Math.max(0, Math.min(1, progress)) : 0;
             const arrivalGameTime = item.actualArrivalGameTime ?? item.arrivalGameTime;
@@ -325,7 +377,7 @@ function buildGlobeAircraftData(props: Props): MapAircraftMarker[] {
               originIata: origin.iata,
               destinationIata: destination.iata,
               progress: safeProgress,
-              remainingMinutes: Math.max(0, Math.ceil((arrivalGameTime - props.currentGameTimeMs) / 60000)),
+              remainingMinutes: Math.max(0, Math.ceil((arrivalGameTime - currentGameTimeMs) / 60000)),
               delayMinutes: item.delayMinutes && item.delayMinutes > 0 ? item.delayMinutes : undefined,
               operationalStatus: item.operationalStatus ?? "inFlight"
             };

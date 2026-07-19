@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GameMap, type MapDisplayMode } from "@/components/GameMap";
-import type { MapEngine } from "@/components/map/mapTypes";
-import { getStoredMapEngine, saveMapEngine } from "@/lib/mapPreferences";
+import type { GlobeQuality, MapEngine } from "@/components/map/mapTypes";
+import { getStoredGlobeQuality, getStoredMapEngine, saveGlobeQuality, saveMapEngine } from "@/lib/mapPreferences";
 import { RouteEvaluationCard } from "@/components/RouteEvaluationCard";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
@@ -39,6 +39,8 @@ export function MapScreen() {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [displayMode, setDisplayMode] = useState<MapDisplayMode>("all");
   const [mapEngine, setMapEngine] = useState<MapEngine>("2d");
+  const [globeQuality, setGlobeQuality] = useState<GlobeQuality>("auto");
+  const [globeQualityHydrated, setGlobeQualityHydrated] = useState(false);
   const [mapNotice, setMapNotice] = useState<string | null>(null);
   const [routeToConfirm, setRouteToConfirm] = useState<RouteOpeningPreview | null>(null);
   const [openedRoute, setOpenedRoute] = useState<RouteOpeningPreview | null>(null);
@@ -90,11 +92,17 @@ export function MapScreen() {
 
   useEffect(() => {
     setMapEngine(getStoredMapEngine());
+    setGlobeQuality(getStoredGlobeQuality());
+    setGlobeQualityHydrated(true);
   }, []);
 
   useEffect(() => {
     saveMapEngine(mapEngine);
   }, [mapEngine]);
+
+  useEffect(() => {
+    if (globeQualityHydrated) saveGlobeQuality(globeQuality);
+  }, [globeQuality, globeQualityHydrated]);
 
   useEffect(() => {
     if (!game) return;
@@ -152,6 +160,21 @@ export function MapScreen() {
             </div>
             {mapEngine === "globe3d" ? <span className="text-coral">{t("map.globeExperimental")}</span> : null}
           </div>
+          {mapEngine === "globe3d" ? (
+            <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600 shadow-soft">
+              <span>{t("map.globeQuality")}</span>
+              <select
+                value={globeQuality}
+                onChange={(event) => setGlobeQuality(event.target.value as GlobeQuality)}
+                aria-label={t("map.globeQuality")}
+                className="min-h-10 rounded border border-slate-300 bg-white px-2 text-xs font-black text-ink outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+              >
+                <option value="auto">{t("map.qualityAuto")}</option>
+                <option value="high">{t("map.qualityHigh")}</option>
+                <option value="reduced">{t("map.qualityReduced")}</option>
+              </select>
+            </label>
+          ) : null}
           <div className="flex flex-wrap gap-1 rounded-md border border-slate-200 bg-white p-1 shadow-soft">
             {mapDisplayModes.map((mode) => (
               <button
@@ -183,6 +206,7 @@ export function MapScreen() {
             selectedRouteId={selectedRouteId}
             displayMode={displayMode}
             mapEngine={mapEngine}
+            globeQuality={globeQuality}
             onMapEngineFallback={handleMapEngineFallback}
             onSelectAirport={(airportId) => {
               setSelectedAirportId(airportId);
