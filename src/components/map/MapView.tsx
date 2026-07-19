@@ -6,25 +6,36 @@ import type { MapLegendLabels, MapProviderType } from "@/components/map/mapTypes
 type MapViewProps = {
   provider: MapProviderType;
   engineLabel: string;
+  isGlobeActive: boolean;
   isOffline: boolean;
   offlineMessage: string;
   legendLabels: MapLegendLabels;
-  children?: ReactNode;
+  globeContent?: ReactNode;
 };
 
 export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView(
-  { provider, engineLabel, isOffline, offlineMessage, legendLabels, children },
+  { provider, engineLabel, isGlobeActive, isOffline, offlineMessage, legendLabels, globeContent },
   ref
 ) {
   return (
     <div className="flex h-full min-h-[520px] w-full flex-col overflow-x-hidden" data-map-provider={provider}>
       <div className="relative min-h-[520px] flex-1 sm:min-h-[560px]">
-        {children ?? <div ref={ref} className="h-full w-full" />}
-        <div className="absolute left-3 top-3 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
+        <div
+          ref={ref}
+          aria-hidden={isGlobeActive}
+          className={`absolute inset-0 h-full w-full ${isGlobeActive ? "invisible z-0 opacity-0 pointer-events-none" : "visible z-10 opacity-100 pointer-events-auto"}`}
+        />
+        <div
+          aria-hidden={!isGlobeActive}
+          className={`absolute inset-0 h-full w-full ${isGlobeActive ? "visible z-10 opacity-100 pointer-events-auto" : "invisible z-0 opacity-0 pointer-events-none"}`}
+        >
+          {globeContent}
+        </div>
+        <div className="absolute left-3 top-3 z-20 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
           {engineLabel}
         </div>
         {!isOffline ? null : (
-          <div className="absolute bottom-3 left-3 right-3 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:right-auto md:max-w-md">
+          <div className="absolute bottom-3 left-3 right-3 z-20 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:right-auto md:max-w-md">
             {offlineMessage}
           </div>
         )}

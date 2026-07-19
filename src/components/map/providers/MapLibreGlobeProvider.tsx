@@ -88,6 +88,7 @@ export type MapLibreGlobeProviderProps = {
   selectedAirportId?: string | null;
   baseAirportId: string;
   quality: EffectiveGlobeQuality;
+  isActive: boolean;
   language: "en" | "zh";
   labels: {
     resetView: string;
@@ -109,6 +110,7 @@ export function MapLibreGlobeProvider({
   selectedAirportId = null,
   baseAirportId,
   quality,
+  isActive,
   language,
   labels,
   onSelectAirport,
@@ -127,6 +129,7 @@ export function MapLibreGlobeProvider({
   const onSelectRouteRef = useRef(onSelectRoute);
   const onSelectAircraftRef = useRef(onSelectAircraft);
   const mapInstanceCountRef = useRef(0);
+  const isActiveRef = useRef(isActive);
   const [isReady, setIsReady] = useState(false);
   const [isPageVisible, setIsPageVisible] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
   const [isContainerVisible, setIsContainerVisible] = useState(true);
@@ -136,11 +139,16 @@ export function MapLibreGlobeProvider({
   const airportGeoJson = useMemo(() => buildAirportGeoJson(airports, selectedAirportId), [airports, selectedAirportId]);
   const routeGeoJson = useMemo(() => buildRouteGeoJson(routes, selectedRouteId), [routes, selectedRouteId]);
   const aircraftGeoJson = useMemo(() => buildAircraftGeoJson(aircraft, selectedAircraftId), [aircraft, selectedAircraftId]);
+  const latestAirportGeoJsonRef = useRef<FeatureCollection<Point>>(airportGeoJson);
+  const latestRouteGeoJsonRef = useRef<FeatureCollection<LineString>>(routeGeoJson);
   const latestAircraftGeoJsonRef = useRef<FeatureCollection<Point>>(aircraftGeoJson);
   const sourceMetricsRef = useRef({ airportUpdates: 0, routeUpdates: 0, aircraftUpdates: 0, lastReportedAt: 0 });
   const airportByMapId = useMemo(() => new Map(airports.map((item) => [item.id, item])), [airports]);
   const routeByMapId = useMemo(() => new Map(routes.map((item) => [item.id, item])), [routes]);
   const aircraftByMapId = useMemo(() => new Map(aircraft.map((item) => [item.id, item])), [aircraft]);
+  isActiveRef.current = isActive;
+  latestAirportGeoJsonRef.current = airportGeoJson;
+  latestRouteGeoJsonRef.current = routeGeoJson;
   latestAircraftGeoJsonRef.current = aircraftGeoJson;
 
   useEffect(() => {
@@ -162,7 +170,7 @@ export function MapLibreGlobeProvider({
     let aircraftLayerListenersAdded = false;
     const reportedMapErrors = new Set<string>();
     const reportFatalError = () => {
-      if (fallbackReportedRef.current || disposed) return;
+      if (fallbackReportedRef.current || disposed || !isActiveRef.current) return;
       fallbackReportedRef.current = true;
       onErrorRef.current("initialisation");
     };
@@ -331,7 +339,7 @@ export function MapLibreGlobeProvider({
         if (resizeFrame !== null) return;
         resizeFrame = window.requestAnimationFrame(() => {
           resizeFrame = null;
-          if (!disposed) map.resize();
+          if (!disposed && isActiveRef.current) map.resize();
         });
       });
       resizeObserver.observe(container);
@@ -381,19 +389,19 @@ export function MapLibreGlobeProvider({
   }, [isReady, language]);
 
   useEffect(() => {
-    if (!isReady || !mapRef.current) return;
+    if (!isActive || !isPageVisible || !isContainerVisible || !isReady || !mapRef.current) return;
     setGeoJsonSourceData(mapRef.current, AIRPORT_SOURCE_ID, airportGeoJson);
     recordSourceUpdate(sourceMetricsRef, "airport", airportGeoJson.features.length);
-  }, [airportGeoJson, isReady]);
+  }, [airportGeoJson, isActive, isContainerVisible, isPageVisible, isReady]);
 
   useEffect(() => {
-    if (!isReady || !mapRef.current) return;
+    if (!isActive || !isPageVisible || !isContainerVisible || !isReady || !mapRef.current) return;
     setGeoJsonSourceData(mapRef.current, ROUTE_SOURCE_ID, routeGeoJson);
     recordSourceUpdate(sourceMetricsRef, "route", routeGeoJson.features.length);
-  }, [routeGeoJson, isReady]);
+  }, [isActive, isContainerVisible, isPageVisible, isReady, routeGeoJson]);
 
   useEffect(() => {
-    if (!isReady || !isPageVisible || !isContainerVisible || !mapRef.current) return;
+    if (!isActive || !isReady || !isPageVisible || !isContainerVisible || !mapRef.current) return;
     const latestAircraftGeoJson = latestAircraftGeoJsonRef.current;
     setGeoJsonSourceData(mapRef.current, AIRCRAFT_SOURCE_ID, latestAircraftGeoJson);
     recordSourceUpdate(sourceMetricsRef, "aircraft", latestAircraftGeoJson.features.length, {
@@ -401,7 +409,7 @@ export function MapLibreGlobeProvider({
       normalLayerExists: Boolean(mapRef.current.getLayer("aircraft-layer")),
       selectedLayerExists: Boolean(mapRef.current.getLayer("aircraft-selected-layer"))
     });
-  }, [aircraftGeoJson, isContainerVisible, isPageVisible, isReady]);
+  }, [aircraftGeoJson, isActive, isContainerVisible, isPageVisible, isReady]);
 
   useEffect(() => {
     const handleVisibilityChange = () => setIsPageVisible(document.visibilityState !== "hidden");
@@ -420,7 +428,7 @@ export function MapLibreGlobeProvider({
       if (!entry.isIntersecting || resizeFrame !== null) return;
       resizeFrame = window.requestAnimationFrame(() => {
         resizeFrame = null;
-        map.resize();
+        if (isActiveRef.current) map.resize();
       });
     }, { threshold: 0.01 });
     observer.observe(container);
@@ -431,9 +439,31 @@ export function MapLibreGlobeProvider({
   }, [isReady]);
 
   useEffect(() => {
-    if (!isReady || !mapRef.current) return;
+    const map = mapRef.current;
+    if (!map || !isReady) return;
+    if (!isActive) {
+      map.stop();
+      popupRef.current?.remove();
+      popupRef.current = null;
+      return;
+    }
+
+    if (!isPageVisible || !isContainerVisible) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (!isActiveRef.current || !mapRef.current) return;
+      mapRef.current.resize();
+      setGeoJsonSourceData(mapRef.current, AIRPORT_SOURCE_ID, latestAirportGeoJsonRef.current);
+      setGeoJsonSourceData(mapRef.current, ROUTE_SOURCE_ID, latestRouteGeoJsonRef.current);
+      setGeoJsonSourceData(mapRef.current, AIRCRAFT_SOURCE_ID, latestAircraftGeoJsonRef.current);
+      mapRef.current.triggerRepaint();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isActive, isContainerVisible, isPageVisible, isReady]);
+
+  useEffect(() => {
+    if (!isActive || !isReady || !mapRef.current) return;
     applyGlobeQuality(mapRef.current, quality);
-  }, [isReady, quality]);
+  }, [isActive, isReady, quality]);
 
   useEffect(() => {
     setSelectedObject((current) => {
@@ -445,12 +475,13 @@ export function MapLibreGlobeProvider({
   }, [aircraftByMapId, airportByMapId, routeByMapId, selectedAirportId, selectedRouteId]);
 
   useEffect(() => {
+    if (!isActive) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setSelectedObject(null);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [isActive]);
 
   const resetView = useCallback(() => {
     mapRef.current?.flyTo({ center: [0, 20], zoom: 1.35, pitch: 0, bearing: 0, duration: 1000 });
@@ -489,22 +520,22 @@ export function MapLibreGlobeProvider({
   }, [aircraftByMapId, airportByMapId, routeByMapId, selectedObject]);
 
   return (
-    <div className="airline-maplibre-globe relative h-full min-h-[560px] overflow-hidden" style={{ backgroundColor: DARK_GLOBE_BACKDROP }}>
+    <div aria-hidden={!isActive} className="airline-maplibre-globe relative h-full min-h-[560px] overflow-hidden" style={{ backgroundColor: DARK_GLOBE_BACKDROP }}>
       <div ref={containerRef} className="h-full w-full" style={{ backgroundColor: DARK_GLOBE_BACKDROP }} />
       <div aria-hidden="true" className="airline-globe-starfield absolute inset-0 pointer-events-none" />
-      <div className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex flex-col items-end gap-2 sm:flex-row">
+      {isActive ? <div className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex flex-col items-end gap-2 sm:flex-row">
         <button type="button" onClick={resetView} className="min-h-11 rounded-md bg-white/95 px-3 py-2 text-xs font-black text-ink shadow-soft outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
           {labels.resetView}
         </button>
         <button type="button" onClick={focusBase} className="min-h-11 rounded-md bg-white/95 px-3 py-2 text-xs font-black text-ink shadow-soft outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
           {labels.focusBase}
         </button>
-      </div>
-      <div className="pointer-events-none absolute bottom-3 right-16 z-10 hidden max-w-xs rounded-md border border-slate-300/80 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-600 shadow-soft sm:block">
+      </div> : null}
+      {isActive ? <div className="pointer-events-none absolute bottom-3 right-16 z-10 hidden max-w-xs rounded-md border border-slate-300/80 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-600 shadow-soft sm:block">
         {labels.performance}
-      </div>
-      <span title={labels.performance} aria-label={labels.performance} className="absolute bottom-3 left-3 z-10 grid h-10 w-10 place-items-center rounded-full border border-white/30 bg-slate-950/80 text-sm font-black text-white sm:hidden">i</span>
-      <GlobeInformationCard selected={selectedObject} airports={airportByMapId} routes={routeByMapId} aircraft={aircraftByMapId} labels={labels.interaction} onFocus={focusSelectedObject} onClose={() => setSelectedObject(null)} />
+      </div> : null}
+      {isActive ? <span title={labels.performance} aria-label={labels.performance} className="absolute bottom-3 left-3 z-10 grid h-10 w-10 place-items-center rounded-full border border-white/30 bg-slate-950/80 text-sm font-black text-white sm:hidden">i</span> : null}
+      {isActive ? <GlobeInformationCard selected={selectedObject} airports={airportByMapId} routes={routeByMapId} aircraft={aircraftByMapId} labels={labels.interaction} onFocus={focusSelectedObject} onClose={() => setSelectedObject(null)} /> : null}
     </div>
   );
 }

@@ -62,16 +62,29 @@ export function GameMap(props: Props) {
   const leafletMapRef = useRef<any>(null);
   const googleLayersRef = useRef<any[]>([]);
   const leafletLayersRef = useRef<any>(null);
+  const leafletModuleRef = useRef<typeof import("leaflet") | null>(null);
+  const leafletInitialisationRef = useRef<Promise<typeof import("leaflet")> | null>(null);
+  const previousTwoDProviderRef = useRef<"google" | "leaflet" | null>(null);
+  const latestPropsRef = useRef(props);
+  const effectiveMapEngineRef = useRef<MapEngine>("2d");
+  const mapSwitchGenerationRef = useRef(0);
   const renderMetricsRef = useRef({ renders: 0, routeBuilds: 0, aircraftBuilds: 0, lastReportedAt: 0 });
   const [globeFailed, setGlobeFailed] = useState(false);
+  const [hasMountedGlobe, setHasMountedGlobe] = useState(false);
   const [webglChecked, setWebglChecked] = useState(false);
   const [webglSupported, setWebglSupported] = useState(false);
   const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const selectedMapEngine = props.mapEngine ?? "2d";
   const effectiveGlobeQuality = useMemo(() => getEffectiveGlobeQuality(props.globeQuality ?? "auto"), [props.globeQuality]);
   const effectiveMapEngine = selectedMapEngine === "globe3d" && webglChecked && webglSupported && !globeFailed ? "globe3d" : "2d";
-  const usesGoogleMap = effectiveMapEngine === "2d" && Boolean(googleKey);
+  const usesGoogleMap = Boolean(googleKey);
+  const twoDProvider: "google" | "leaflet" = usesGoogleMap ? "google" : "leaflet";
   const mapProvider: MapProviderType = effectiveMapEngine === "globe3d" ? "globe3d" : usesGoogleMap ? "google" : "leaflet2d";
+  const isGlobeActive = effectiveMapEngine === "globe3d";
+  const shouldRenderGlobe = (hasMountedGlobe || isGlobeActive) && !globeFailed;
+  const shouldPrepareGlobeData = hasMountedGlobe || selectedMapEngine === "globe3d";
+  latestPropsRef.current = props;
+  effectiveMapEngineRef.current = effectiveMapEngine;
   if (process.env.NODE_ENV === "development") renderMetricsRef.current.renders += 1;
   const weeklyScheduleSignature = useMemo(() => getWeeklyScheduleSignature(props.fleet), [props.fleet]);
   const routeStatistics = useMemo(() => buildRouteMapStatistics(props.fleet), [weeklyScheduleSignature]);
@@ -79,11 +92,11 @@ export function GameMap(props: Props) {
   const renderedGameTimeMs = useThrottledMapTime(
     props.currentGameTimeMs,
     getGlobeAircraftUpdateInterval(effectiveGlobeQuality),
-    effectiveMapEngine === "globe3d",
+    isGlobeActive,
     aircraftStructuralKey
   );
   const globeAirports = useMemo(
-    () => (selectedMapEngine === "globe3d" ? buildGlobeAirportData(props) : []),
+    () => (shouldPrepareGlobeData ? buildGlobeAirportData(props) : []),
     [
       props.baseAirportId,
       props.baseAirportIds,
@@ -91,22 +104,22 @@ export function GameMap(props: Props) {
       props.expandedAirportIds,
       props.routes,
       props.displayMode,
-      selectedMapEngine
+      shouldPrepareGlobeData
     ]
   );
   const globeRoutes = useMemo(
     () => {
       if (process.env.NODE_ENV === "development") renderMetricsRef.current.routeBuilds += 1;
-      return selectedMapEngine === "globe3d" ? buildGlobeRouteData(props, routeStatistics) : [];
+      return shouldPrepareGlobeData ? buildGlobeRouteData(props, routeStatistics) : [];
     },
-    [props.routes, props.selectedRouteId, props.displayMode, routeStatistics, selectedMapEngine]
+    [props.routes, props.selectedRouteId, props.displayMode, routeStatistics, shouldPrepareGlobeData]
   );
   const globeAircraft = useMemo(
     () => {
       if (process.env.NODE_ENV === "development") renderMetricsRef.current.aircraftBuilds += 1;
-      return selectedMapEngine === "globe3d" ? buildGlobeAircraftData(props, renderedGameTimeMs) : [];
+      return shouldPrepareGlobeData ? buildGlobeAircraftData(props, renderedGameTimeMs) : [];
     },
-    [props.fleet, props.displayMode, renderedGameTimeMs, selectedMapEngine]
+    [props.fleet, props.displayMode, renderedGameTimeMs, shouldPrepareGlobeData]
   );
   useEffect(() => {
     if (process.env.NODE_ENV !== "development" || effectiveMapEngine !== "globe3d") return;
@@ -129,11 +142,11 @@ export function GameMap(props: Props) {
 
   useEffect(() => {
     if (selectedMapEngine !== "globe3d") {
-      setGlobeFailed(false);
       setWebglChecked(false);
       return;
     }
 
+    setGlobeFailed(false);
     const available = supportsWebGL();
     setWebglSupported(available);
     setWebglChecked(true);
@@ -141,50 +154,127 @@ export function GameMap(props: Props) {
   }, [selectedMapEngine, handleGlobeError]);
 
   useEffect(() => {
-    if (!mapElementRef.current) return;
-    if (effectiveMapEngine === "globe3d") {
+    if (isGlobeActive) setHasMountedGlobe(true);
+  }, [isGlobeActive]);
+
+  const drawLatestTwoDMap = useCallback(() => {
+    if (twoDProvider === "google") {
+      drawGoogleLayers(latestPropsRef.current, googleMapRef.current, googleLayersRef);
+      return;
+    }
+    if (leafletModuleRef.current && leafletMapRef.current) {
+      drawLeafletLayers(latestPropsRef.current, leafletModuleRef.current, leafletMapRef.current, leafletLayersRef);
+    }
+  }, [twoDProvider]);
+
+  useEffect(() => {
+    if (previousTwoDProviderRef.current && previousTwoDProviderRef.current !== twoDProvider) {
       cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef);
-      return;
     }
+    previousTwoDProviderRef.current = twoDProvider;
+  }, [twoDProvider]);
 
-    if (usesGoogleMap) {
-      initGoogleMap(mapElementRef.current, googleMapRef).then(() => {
-        drawGoogleLayers(props, googleMapRef.current, googleLayersRef);
-      });
-      return;
-    }
-
+  useEffect(() => {
     let cancelled = false;
-    initLeafletMap(mapElementRef.current, leafletMapRef).then((L) => {
-      if (cancelled) return;
-      drawLeafletLayers(props, L, leafletMapRef.current, leafletLayersRef);
-    });
+    let retryFrame: number | null = null;
+    const initialise = async () => {
+      const container = mapElementRef.current;
+      if (cancelled || !container || !container.isConnected || !container.clientWidth || !container.clientHeight) {
+        if (!cancelled) retryFrame = window.requestAnimationFrame(() => void initialise());
+        return;
+      }
 
+      try {
+        if (twoDProvider === "google") {
+          await initGoogleMap(container, googleMapRef);
+        } else {
+          if (!leafletInitialisationRef.current) leafletInitialisationRef.current = import("leaflet");
+          const leaflet = await leafletInitialisationRef.current;
+          if (cancelled || !container.isConnected || leafletMapRef.current) return;
+          leafletModuleRef.current = leaflet;
+          leafletMapRef.current = leaflet.map(container, LEAFLET_2D_MAP_OPTIONS);
+          leaflet.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { ...LEAFLET_2D_TILE_OPTIONS }).addTo(leafletMapRef.current);
+        }
+        if (!cancelled && effectiveMapEngineRef.current === "2d") drawLatestTwoDMap();
+      } catch (error) {
+        console.error("[GameMap] 2D map initialisation failed", error);
+      }
+    };
+    void initialise();
     return () => {
       cancelled = true;
+      if (retryFrame !== null) window.cancelAnimationFrame(retryFrame);
     };
-  }, [effectiveMapEngine, usesGoogleMap, googleKey]);
+  }, [drawLatestTwoDMap, twoDProvider]);
+
+  useEffect(() => {
+    return () => cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef);
+  }, []);
 
   useEffect(() => {
     if (effectiveMapEngine === "globe3d") return;
-    if (usesGoogleMap && googleMapRef.current) {
-      drawGoogleLayers(props, googleMapRef.current, googleLayersRef);
+    drawLatestTwoDMap();
+  }, [drawLatestTwoDMap, effectiveMapEngine, props]);
+
+  useEffect(() => {
+    const generation = ++mapSwitchGenerationRef.current;
+    if (process.env.NODE_ENV === "development") {
+      const container = mapElementRef.current;
+      console.debug("[GameMap] Map engine switch", {
+        selectedEngine: selectedMapEngine,
+        effectiveEngine: effectiveMapEngine,
+        twoDContainerConnected: Boolean(container?.isConnected),
+        twoDContainerSize: container ? { width: container.clientWidth, height: container.clientHeight } : null,
+        leafletInstanceExists: Boolean(leafletMapRef.current),
+        globeMounted: hasMountedGlobe,
+        globeActive: isGlobeActive
+      });
     }
-    if (!usesGoogleMap && leafletMapRef.current) {
-      import("leaflet").then((leaflet) => drawLeafletLayers(props, leaflet, leafletMapRef.current, leafletLayersRef));
-    }
-  }, [props, effectiveMapEngine, usesGoogleMap]);
+    if (effectiveMapEngine !== "2d") return;
+
+    let firstFrame: number | null = null;
+    let secondFrame: number | null = null;
+    firstFrame = window.requestAnimationFrame(() => {
+      firstFrame = null;
+      secondFrame = window.requestAnimationFrame(() => {
+        secondFrame = null;
+        if (generation !== mapSwitchGenerationRef.current) return;
+        const container = mapElementRef.current;
+        if (!container?.isConnected || !container.clientWidth || !container.clientHeight) return;
+        if (twoDProvider === "google" && googleMapRef.current && window.google) {
+          const center = googleMapRef.current.getCenter?.();
+          window.google.maps.event.trigger(googleMapRef.current, "resize");
+          if (center) googleMapRef.current.setCenter(center);
+        }
+        if (twoDProvider === "leaflet" && leafletMapRef.current) {
+          leafletMapRef.current.invalidateSize({ animate: false, pan: false });
+        }
+        drawLatestTwoDMap();
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[GameMap] 2D map restored", {
+            width: container.clientWidth,
+            height: container.clientHeight,
+            leafletReady: Boolean(leafletMapRef.current)
+          });
+        }
+      });
+    });
+    return () => {
+      if (firstFrame !== null) window.cancelAnimationFrame(firstFrame);
+      if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [drawLatestTwoDMap, effectiveMapEngine, hasMountedGlobe, isGlobeActive, selectedMapEngine, twoDProvider]);
 
   return (
     <MapView
       ref={mapElementRef}
       provider={mapProvider}
+      isGlobeActive={isGlobeActive}
       engineLabel={effectiveMapEngine === "globe3d" ? t("map.engineGlobe3d") : googleKey ? "Google Maps" : t("map.engine2d")}
       isOffline={!isOnline}
       offlineMessage={t("map.offlineFallback")}
       legendLabels={{ title: t("map.legend"), base: t("map.legendBase"), opened: t("map.legendOpened"), unopened: t("map.legendUnopened") }}
-    >
-      {effectiveMapEngine === "globe3d" ? (
+      globeContent={shouldRenderGlobe ? (
         <GlobeErrorBoundary
           unavailableLabel={t("map.globeUnavailable")}
           returnTo2dLabel={t("map.returnTo2d")}
@@ -198,6 +288,7 @@ export function GameMap(props: Props) {
             selectedAirportId={props.selectedAirportId}
             baseAirportId={props.primaryBaseAirportId ?? props.baseAirportId}
             quality={effectiveGlobeQuality}
+            isActive={isGlobeActive}
             language={language}
             labels={{
               resetView: t("map.resetView"),
@@ -235,7 +326,7 @@ export function GameMap(props: Props) {
           />
         </GlobeErrorBoundary>
       ) : null}
-    </MapView>
+    />
   );
 }
 
