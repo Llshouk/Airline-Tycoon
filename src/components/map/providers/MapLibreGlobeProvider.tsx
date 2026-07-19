@@ -40,6 +40,14 @@ const AIRCRAFT_ICON_SIZE = [
   5, ["interpolate", ["linear"], ["get", "size"], 36, 1.08, 58, 1.4],
   7, ["interpolate", ["linear"], ["get", "size"], 36, 1.28, 58, 1.68]
 ];
+const SELECTED_AIRCRAFT_ICON_SIZE = [
+  "interpolate", ["linear"], ["zoom"],
+  0, ["interpolate", ["linear"], ["get", "size"], 36, 0.71, 58, 0.94],
+  1.5, ["interpolate", ["linear"], ["get", "size"], 36, 0.85, 58, 1.11],
+  3, ["interpolate", ["linear"], ["get", "size"], 36, 1.04, 58, 1.35],
+  5, ["interpolate", ["linear"], ["get", "size"], 36, 1.27, 58, 1.65],
+  7, ["interpolate", ["linear"], ["get", "size"], 36, 1.51, 58, 1.98]
+];
 const AIRPORT_CIRCLE_VIEWPORT_PAINT = {
   "circle-pitch-alignment": "viewport",
   "circle-pitch-scale": "viewport"
@@ -362,6 +370,14 @@ export function MapLibreGlobeProvider({
   useEffect(() => {
     if (!isReady || !mapRef.current) return;
     setGeoJsonSourceData(mapRef.current, AIRCRAFT_SOURCE_ID, aircraftGeoJson);
+    if (process.env.NODE_ENV === "development") {
+      console.debug("[MapLibre Globe] Aircraft render diagnostics", {
+        featureCount: aircraftGeoJson.features.length,
+        imageLoaded: mapRef.current.hasImage(AIRCRAFT_IMAGE_ID),
+        normalLayerExists: Boolean(mapRef.current.getLayer("aircraft-layer")),
+        selectedLayerExists: Boolean(mapRef.current.getLayer("aircraft-selected-layer"))
+      });
+    }
   }, [aircraftGeoJson, isReady]);
 
   useEffect(() => {
@@ -727,15 +743,34 @@ async function addAircraftImage(map: maplibregl.Map) {
     id: "aircraft-layer",
     type: "symbol",
     source: AIRCRAFT_SOURCE_ID,
+    filter: ["!=", ["get", "selected"], true],
     layout: {
       "icon-image": AIRCRAFT_IMAGE_ID,
-      "icon-size": ["case", ["==", ["get", "selected"], true], ["*", AIRCRAFT_ICON_SIZE, 1.18], AIRCRAFT_ICON_SIZE] as never,
+      "icon-size": AIRCRAFT_ICON_SIZE as never,
       "icon-rotate": ["get", "heading"],
       "icon-rotation-alignment": "map",
       "icon-allow-overlap": true,
       "icon-ignore-placement": true
     }
   });
+  try {
+    addLayerIfMissing(map, {
+      id: "aircraft-selected-layer",
+      type: "symbol",
+      source: AIRCRAFT_SOURCE_ID,
+      filter: ["==", ["get", "selected"], true],
+      layout: {
+        "icon-image": AIRCRAFT_IMAGE_ID,
+        "icon-size": SELECTED_AIRCRAFT_ICON_SIZE as never,
+        "icon-rotate": ["get", "heading"],
+        "icon-rotation-alignment": "map",
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": true
+      }
+    });
+  } catch (error) {
+    console.warn("[MapLibre Globe] Selected-aircraft highlight unavailable; continuing with normal aircraft icons", error);
+  }
 }
 
 function setGeoJsonSourceData(map: maplibregl.Map, sourceId: string, data: FeatureCollection) {
