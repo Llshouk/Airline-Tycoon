@@ -169,7 +169,31 @@ export function GameMap(props: Props) {
             labels={{
               resetView: t("map.resetView"),
               focusBase: t("map.focusBase"),
-              performance: t("map.globePerformanceNote")
+              performance: t("map.globePerformanceNote"),
+              interaction: {
+                focus: t("map.focus"),
+                focusAirport: t("map.focusAirport"),
+                focusRoute: t("map.focusRoute"),
+                focusAircraft: t("map.focusAircraft"),
+                close: t("common.close"),
+                baseAirport: t("map.baseAirport"),
+                openedAirport: t("map.openedAirport"),
+                unopenedAirport: t("map.unopenedAirport"),
+                primaryBase: t("map.primaryBase"),
+                inFlight: t("map.inFlight"),
+                delayed: t("map.delayed"),
+                onTime: t("map.onTime"),
+                assignedAircraft: t("map.assignedAircraft"),
+                weeklyFlights: t("map.weeklyFlights"),
+                remaining: t("map.remaining"),
+                complete: t("map.complete"),
+                distance: t("map.distance"),
+                routeStatus: t("map.routeStatus"),
+                opened: t("map.opened"),
+                kilometres: t("map.kilometres"),
+                minutes: t("map.minutes"),
+                hours: t("map.hours")
+              }
             }}
             onSelectAirport={props.onSelectAirport}
             onSelectRoute={props.onSelectRoute}
@@ -229,7 +253,8 @@ function buildGlobeAirportData(props: Props): MapAirportMarker[] {
             country: airport.country,
             lat: airport.lat,
             lng: normalizeLongitude(airport.lng),
-            markerType: airportMarkerKind(isBase, isExpanded)
+            markerType: airportMarkerKind(isBase, isExpanded),
+            isPrimaryBase
           } satisfies MapAirportMarker;
         })
     : [];
@@ -245,6 +270,11 @@ function buildGlobeRouteData(props: Props): MapRouteLine[] {
           const destination = airportsById[route.destinationAirportId];
           if (!origin || !destination) return null;
           const status: MapRouteLine["status"] = props.selectedRouteId === route.id ? "active" : undefined;
+          const assignments = props.fleet.filter((aircraft) => aircraft.weeklySchedules.some((schedule) => schedule.routeId === route.id));
+          const weeklySchedules = props.fleet.flatMap((aircraft) => aircraft.weeklySchedules.filter((schedule) => schedule.routeId === route.id));
+          const weeklyFlightCount = weeklySchedules.length > 0
+            ? weeklySchedules.reduce((total, schedule) => total + schedule.daysOfWeek.length * (schedule.isRoundTrip ? 2 : 1), 0)
+            : undefined;
           return {
             id: route.id,
             originIata: origin.iata,
@@ -252,7 +282,11 @@ function buildGlobeRouteData(props: Props): MapRouteLine[] {
             origin: { lat: origin.lat, lng: normalizeLongitude(origin.lng) },
             destination: { lat: destination.lat, lng: normalizeLongitude(destination.lng) },
             points: buildRoutePolylinePoints(origin, destination),
-            status
+            status,
+            distanceKm: route.distanceKm,
+            assignedAircraftCount: assignments.length || undefined,
+            weeklyFlightCount,
+            isOpen: route.isOpen
           };
         })
         .filter((route): route is MapRouteLine => Boolean(route))
@@ -273,6 +307,8 @@ function buildGlobeAircraftData(props: Props): MapAircraftMarker[] {
             if (!origin || !destination) return null;
             const progress = (props.currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
             const { position, heading } = getAircraftPositionAndHeading(origin, destination, progress);
+            const safeProgress = Number.isFinite(progress) ? Math.max(0, Math.min(1, progress)) : 0;
+            const arrivalGameTime = item.actualArrivalGameTime ?? item.arrivalGameTime;
             return {
               id: item.id,
               registration: aircraft.registration,
@@ -283,8 +319,15 @@ function buildGlobeAircraftData(props: Props): MapAircraftMarker[] {
               size: iconSize,
               iconType: iconCategory,
               status: item.status,
-              routeId: `${item.originAirportId}-${item.destinationAirportId}`,
-              title: item.flightNumber ? `${item.flightNumber} ${aircraft.registration}` : aircraft.registration
+              routeId: item.routeId,
+              title: item.flightNumber ? `${item.flightNumber} ${aircraft.registration}` : aircraft.registration,
+              flightNumber: item.flightNumber,
+              originIata: origin.iata,
+              destinationIata: destination.iata,
+              progress: safeProgress,
+              remainingMinutes: Math.max(0, Math.ceil((arrivalGameTime - props.currentGameTimeMs) / 60000)),
+              delayMinutes: item.delayMinutes && item.delayMinutes > 0 ? item.delayMinutes : undefined,
+              operationalStatus: item.operationalStatus ?? "inFlight"
             };
           })
           .filter((marker): marker is MapAircraftMarker => Boolean(marker));

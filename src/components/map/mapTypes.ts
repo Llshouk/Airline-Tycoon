@@ -14,6 +14,7 @@ export type MapAirportMarker = {
   lat: number;
   lng: number;
   markerType: "base" | "opened" | "unopened";
+  isPrimaryBase?: boolean;
 };
 
 export type MapRouteLine = {
@@ -24,6 +25,10 @@ export type MapRouteLine = {
   destination: GeoPoint;
   points: GeoPoint[];
   status?: "active" | "preview";
+  distanceKm?: number;
+  assignedAircraftCount?: number;
+  weeklyFlightCount?: number;
+  isOpen?: boolean;
 };
 
 export type MapAircraftMarker = {
@@ -38,6 +43,13 @@ export type MapAircraftMarker = {
   status?: string;
   routeId?: string;
   title?: string;
+  flightNumber?: string;
+  originIata?: string;
+  destinationIata?: string;
+  progress?: number;
+  remainingMinutes?: number;
+  delayMinutes?: number;
+  operationalStatus?: string;
 };
 
 export type MapLegendLabels = {
