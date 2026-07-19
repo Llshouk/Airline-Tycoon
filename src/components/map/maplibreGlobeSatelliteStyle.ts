@@ -10,6 +10,7 @@ const OPENFREEMAP_TILEJSON_URL = "https://tiles.openfreemap.org/planet";
 const OPENFREEMAP_GLYPHS_URL = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
 const OPENFREEMAP_WATER_SOURCE_LAYER = "water";
 const OPENFREEMAP_PLACE_SOURCE_LAYER = "place";
+const AIRLINE_OVERLAY_FIRST_LAYER_ID = "route-outline-layer";
 
 export type GlobeLabelLanguage = "en" | "zh";
 
@@ -79,13 +80,16 @@ export function applyLightOceanTint(map: maplibregl.Map) {
 
   if (map.getLayer(OCEAN_TINT_LAYER_ID)) return;
 
-  map.addLayer({
-    id: OCEAN_TINT_LAYER_ID,
-    type: "fill",
-    source: OPENFREEMAP_SOURCE_ID,
-    "source-layer": OPENFREEMAP_WATER_SOURCE_LAYER,
-    paint: OCEAN_TINT_PAINT
-  });
+  map.addLayer(
+    {
+      id: OCEAN_TINT_LAYER_ID,
+      type: "fill",
+      source: OPENFREEMAP_SOURCE_ID,
+      "source-layer": OPENFREEMAP_WATER_SOURCE_LAYER,
+      paint: OCEAN_TINT_PAINT
+    },
+    getAirlineOverlayInsertBeforeId(map)
+  );
 }
 
 const COUNTRY_LABEL_LAYERS = [
@@ -104,30 +108,33 @@ export function applyCountryLabels(map: maplibregl.Map, language: GlobeLabelLang
       return;
     }
 
-    map.addLayer({
-      id,
-      type: "symbol",
-      source: OPENFREEMAP_SOURCE_ID,
-      "source-layer": OPENFREEMAP_PLACE_SOURCE_LAYER,
-      minzoom,
-      filter: ["all", ["==", ["get", "class"], "country"], rankFilter] as never,
-      layout: {
-        "text-field": textField as never,
-        "text-font": ["Noto Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 0, 9, 2, 11, 4, 13, 7, 15],
-        "text-allow-overlap": false,
-        "text-ignore-placement": false,
-        "text-optional": true,
-        "text-max-width": 8,
-        "text-letter-spacing": 0.02
+    map.addLayer(
+      {
+        id,
+        type: "symbol",
+        source: OPENFREEMAP_SOURCE_ID,
+        "source-layer": OPENFREEMAP_PLACE_SOURCE_LAYER,
+        minzoom,
+        filter: ["all", ["==", ["get", "class"], "country"], rankFilter] as never,
+        layout: {
+          "text-field": textField as never,
+          "text-font": ["Noto Sans Bold"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 0, 9, 2, 11, 4, 13, 7, 15],
+          "text-allow-overlap": false,
+          "text-ignore-placement": false,
+          "text-optional": true,
+          "text-max-width": 8,
+          "text-letter-spacing": 0.02
+        },
+        paint: {
+          "text-color": "#f8fafc",
+          "text-halo-color": "rgba(15, 23, 42, 0.88)",
+          "text-halo-width": 1.5,
+          "text-halo-blur": 0.5
+        }
       },
-      paint: {
-        "text-color": "#f8fafc",
-        "text-halo-color": "rgba(15, 23, 42, 0.88)",
-        "text-halo-width": 1.5,
-        "text-halo-blur": 0.5
-      }
-    });
+      getAirlineOverlayInsertBeforeId(map)
+    );
   });
 }
 
@@ -148,6 +155,10 @@ function ensureOpenFreeMapSource(map: maplibregl.Map) {
     // with Noto Sans glyphs served from OPENFREEMAP_GLYPHS_URL.
     attribution: '<a href="https://openfreemap.org/">OpenFreeMap</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   });
+}
+
+function getAirlineOverlayInsertBeforeId(map: maplibregl.Map) {
+  return map.getLayer(AIRLINE_OVERLAY_FIRST_LAYER_ID) ? AIRLINE_OVERLAY_FIRST_LAYER_ID : undefined;
 }
 
 function countryLabelTextField(language: GlobeLabelLanguage) {

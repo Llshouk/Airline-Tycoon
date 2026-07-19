@@ -18,6 +18,14 @@ const AIRPORT_LAYERS = ["airport-base-layer", "airport-opened-layer", "airport-u
 const OPTIONAL_SOURCE_IDS = new Set(["openfreemap-vector"]);
 const OPTIONAL_LAYER_PREFIXES = ["country-label-", "airline-globe-ocean-tint"];
 const CORE_INITIALISATION_TIMEOUT_MS = 12000;
+const BASE_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 12, 2, 13.5, 4, 15, 7, 17];
+const OPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 9.5, 2, 11, 4, 12.5, 7, 14.5];
+const UNOPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 6, 2, 7, 4, 8.5, 7, 10];
+const SELECTED_AIRPORT_SIZE_BONUS = 5;
+const AIRPORT_CIRCLE_VIEWPORT_PAINT = {
+  "circle-pitch-alignment": "viewport",
+  "circle-pitch-scale": "viewport"
+} as const;
 
 export type MapLibreGlobeProviderProps = {
   airports: MapAirportMarker[];
@@ -449,9 +457,12 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     paint: { "line-color": "#000000", "line-width": 14, "line-opacity": 0.01 }
   });
 
-  addAirportLayer(map, "airport-base-layer", "base", "#d76745", ["interpolate", ["linear"], ["zoom"], 0, 8, 2, 9, 4, 10, 7, 12]);
-  addAirportLayer(map, "airport-opened-layer", "opened", "#4f9d7e", ["interpolate", ["linear"], ["zoom"], 0, 6.5, 2, 7.5, 4, 8.5, 7, 10]);
-  addAirportLayer(map, "airport-unopened-layer", "unopened", "#ffffff", ["interpolate", ["linear"], ["zoom"], 0, 4, 2, 4.5, 4, 5.5, 7, 7]);
+  addAirportHaloLayer(map, "airport-base-halo-layer", "base", "#d76745", BASE_AIRPORT_RADIUS, 4, 0.2);
+  addAirportHaloLayer(map, "airport-opened-halo-layer", "opened", "#4f9d7e", OPENED_AIRPORT_RADIUS, 3, 0.15);
+  addSelectedAirportHaloLayer(map);
+  addAirportLayer(map, "airport-base-layer", "base", "#d76745", BASE_AIRPORT_RADIUS);
+  addAirportLayer(map, "airport-opened-layer", "opened", "#4f9d7e", OPENED_AIRPORT_RADIUS);
+  addAirportLayer(map, "airport-unopened-layer", "unopened", "#ffffff", UNOPENED_AIRPORT_RADIUS);
 }
 
 function addAirportLayer(map: maplibregl.Map, id: string, markerType: MapAirportMarker["markerType"], color: string, radius: unknown[]) {
@@ -461,10 +472,58 @@ function addAirportLayer(map: maplibregl.Map, id: string, markerType: MapAirport
     source: AIRPORT_SOURCE_ID,
     filter: ["==", ["get", "markerType"], markerType],
     paint: {
+      ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
       "circle-color": color,
-      "circle-radius": ["case", ["==", ["get", "selected"], true], ["+", radius, 3], radius] as never,
+      "circle-radius": ["case", ["==", ["get", "selected"], true], ["+", radius, SELECTED_AIRPORT_SIZE_BONUS], radius] as never,
       "circle-stroke-color": ["case", ["==", ["get", "selected"], true], "#f4b942", "#102026"],
-      "circle-stroke-width": ["case", ["==", ["get", "selected"], true], 3, 1.5]
+      "circle-stroke-width": ["case", ["==", ["get", "selected"], true], 4, 1.5]
+    }
+  });
+}
+
+function addAirportHaloLayer(
+  map: maplibregl.Map,
+  id: string,
+  markerType: MapAirportMarker["markerType"],
+  color: string,
+  radius: unknown[],
+  radiusBonus: number,
+  opacity: number
+) {
+  addLayerIfMissing(map, {
+    id,
+    type: "circle",
+    source: AIRPORT_SOURCE_ID,
+    filter: ["==", ["get", "markerType"], markerType],
+    paint: {
+      ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
+      "circle-color": color,
+      "circle-radius": ["+", radius, radiusBonus] as never,
+      "circle-opacity": opacity,
+      "circle-blur": 0.5
+    }
+  });
+}
+
+function addSelectedAirportHaloLayer(map: maplibregl.Map) {
+  const selectedRadius = [
+    "case",
+    ["==", ["get", "markerType"], "base"], ["+", BASE_AIRPORT_RADIUS, 9],
+    ["==", ["get", "markerType"], "opened"], ["+", OPENED_AIRPORT_RADIUS, 9],
+    ["+", UNOPENED_AIRPORT_RADIUS, 9]
+  ];
+
+  addLayerIfMissing(map, {
+    id: "airport-selected-halo-layer",
+    type: "circle",
+    source: AIRPORT_SOURCE_ID,
+    filter: ["==", ["get", "selected"], true],
+    paint: {
+      ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
+      "circle-color": "#f4b942",
+      "circle-radius": selectedRadius as never,
+      "circle-opacity": 0.24,
+      "circle-blur": 0.5
     }
   });
 }
@@ -480,12 +539,24 @@ async function addAircraftImage(map: maplibregl.Map) {
   }
 
   addLayerIfMissing(map, {
+    id: "aircraft-halo-layer",
+    type: "circle",
+    source: AIRCRAFT_SOURCE_ID,
+    paint: {
+      ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
+      "circle-color": "#102a3a",
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 10, 2, 11, 4, 13, 7, 15],
+      "circle-opacity": 0.22,
+      "circle-blur": 0.5
+    }
+  });
+  addLayerIfMissing(map, {
     id: AIRCRAFT_HIT_LAYER_ID,
     type: "circle",
     source: AIRCRAFT_SOURCE_ID,
     paint: {
       "circle-color": "#000000",
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 13, 4, 16, 7, 18],
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 20, 2, 22, 4, 24, 7, 27],
       "circle-opacity": 0.01
     }
   });
@@ -500,11 +571,13 @@ async function addAircraftImage(map: maplibregl.Map) {
         ["linear"],
         ["zoom"],
         0,
-        ["interpolate", ["linear"], ["get", "size"], 36, 0.48, 58, 0.68],
+        ["interpolate", ["linear"], ["get", "size"], 36, 0.78, 58, 1.02],
+        2,
+        ["interpolate", ["linear"], ["get", "size"], 36, 0.86, 58, 1.12],
         4,
-        ["interpolate", ["linear"], ["get", "size"], 36, 0.58, 58, 0.8],
+        ["interpolate", ["linear"], ["get", "size"], 36, 0.94, 58, 1.22],
         7,
-        ["interpolate", ["linear"], ["get", "size"], 36, 0.68, 58, 0.92]
+        ["interpolate", ["linear"], ["get", "size"], 36, 1.08, 58, 1.38]
       ],
       "icon-rotate": ["get", "heading"],
       "icon-rotation-alignment": "map",
@@ -614,7 +687,8 @@ async function loadTransparentAircraftImage(): Promise<ImageData> {
 
   context.translate(size / 2, size / 2);
   context.rotate(-Math.PI / 2);
-  context.drawImage(image, -size / 2, -size / 2, size, size);
+  // Crop the padded source art while preserving room for heading rotation.
+  context.drawImage(image, 17, 27, 48, 45, -46, -43.125, 92, 86.25);
   const imageData = context.getImageData(0, 0, size, size);
   for (let index = 0; index < imageData.data.length; index += 4) {
     const red = imageData.data[index];
