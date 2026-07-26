@@ -17,5 +17,8 @@ export const LEAFLET_2D_TILE_OPTIONS = {
   attribution: "&copy; OpenStreetMap contributors",
   maxZoom: 10,
   noWrap: true,
-  bounds: PRIMARY_WORLD_BOUNDS
+  bounds: PRIMARY_WORLD_BOUNDS,
+  updateWhenIdle: false,
+  updateWhenZooming: false,
+  keepBuffer: 2
 };

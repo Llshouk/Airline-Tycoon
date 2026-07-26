@@ -9,25 +9,26 @@ type MapViewProps = {
   isGlobeActive: boolean;
   isOffline: boolean;
   offlineMessage: string;
+  baseMapWarning?: string | null;
   legendLabels: MapLegendLabels;
   globeContent?: ReactNode;
 };
 
 export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView(
-  { provider, engineLabel, isGlobeActive, isOffline, offlineMessage, legendLabels, globeContent },
+  { provider, engineLabel, isGlobeActive, isOffline, offlineMessage, baseMapWarning, legendLabels, globeContent },
   ref
 ) {
   return (
-    <div className="flex h-full min-h-[520px] w-full flex-col overflow-x-hidden" data-map-provider={provider}>
-      <div className="relative min-h-[520px] flex-1 sm:min-h-[560px]">
+    <div className="flex h-full min-h-[520px] min-w-0 w-full flex-col overflow-hidden" data-map-provider={provider}>
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden sm:min-h-[560px]">
         <div
           ref={ref}
           aria-hidden={isGlobeActive}
-          className={`absolute inset-0 h-full w-full ${isGlobeActive ? "invisible z-0 opacity-0 pointer-events-none" : "visible z-10 opacity-100 pointer-events-auto"}`}
+          className={`absolute inset-0 h-full w-full overflow-hidden ${isGlobeActive ? "invisible z-0 opacity-0 pointer-events-none" : "visible z-10 opacity-100 pointer-events-auto"}`}
         />
         <div
           aria-hidden={!isGlobeActive}
-          className={`absolute inset-0 h-full w-full ${isGlobeActive ? "visible z-10 opacity-100 pointer-events-auto" : "invisible z-0 opacity-0 pointer-events-none"}`}
+          className={`absolute inset-0 h-full w-full overflow-hidden ${isGlobeActive ? "visible z-10 opacity-100 pointer-events-auto" : "invisible z-0 opacity-0 pointer-events-none"}`}
         >
           {globeContent}
         </div>
@@ -37,6 +38,11 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
         {!isOffline ? null : (
           <div className="absolute bottom-3 left-3 right-3 z-20 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:right-auto md:max-w-md">
             {offlineMessage}
+          </div>
+        )}
+        {!baseMapWarning ? null : (
+          <div role="status" className={`absolute left-3 right-3 z-20 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:left-auto md:max-w-md ${isOffline ? "bottom-14" : "bottom-3"}`}>
+            {baseMapWarning}
           </div>
         )}
       </div>

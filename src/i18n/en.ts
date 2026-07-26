@@ -232,6 +232,7 @@ export const en = {
   "map.selectRouteDetails": "Select a route to view details.",
   "map.estimatedRevenue": "Estimated Revenue",
   "map.offlineFallback": "Offline mode: map tiles may be unavailable, but routes and aircraft continue to simulate.",
+  "map.baseTilesUnavailable": "Base map tiles are temporarily unavailable.",
   "seat.title": "Seat Configuration",
   "seat.cabinDiagram": "Cabin Diagram",
   "seat.noFirstClass": "No First Class",

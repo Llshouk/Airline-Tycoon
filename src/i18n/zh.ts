@@ -406,6 +406,7 @@ export const zh = {
   "map.selectRouteDetails": "è¯·é€‰æ‹©ä¸€æ¡èˆªçº¿æŸ¥çœ‹è¯¦æƒ…ã€‚",
   "map.estimatedRevenue": "é¢„ä¼°æ”¶ç›Š",
   "map.offlineFallback": "离线模式：地图瓦片可能无法加载，但航线和飞机模拟会继续运行。",
+  "map.baseTilesUnavailable": "二维底图暂时无法加载。",
   "routes.originBase": "å‡ºå‘åŸºåœ°",
   "routes.sortByDistance": "æŒ‰è·ç¦»æŽ’åº",
   "routes.shortestFirst": "è·ç¦»ç”±çŸ­åˆ°é•¿",
