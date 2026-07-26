@@ -24,11 +24,11 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
         <div
           ref={ref}
           aria-hidden={isGlobeActive}
-          className={`absolute inset-0 h-full w-full overflow-hidden ${isGlobeActive ? "invisible z-0 opacity-0 pointer-events-none" : "visible z-10 opacity-100 pointer-events-auto"}`}
+          className={`absolute inset-0 h-full w-full overflow-hidden ${isGlobeActive ? "z-0 opacity-0 pointer-events-none" : "z-10 opacity-100 pointer-events-auto"}`}
         />
         <div
           aria-hidden={!isGlobeActive}
-          className={`absolute inset-0 h-full w-full overflow-hidden ${isGlobeActive ? "visible z-10 opacity-100 pointer-events-auto" : "invisible z-0 opacity-0 pointer-events-none"}`}
+          className={`absolute inset-0 h-full w-full overflow-hidden ${isGlobeActive ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"}`}
         >
           {globeContent}
         </div>

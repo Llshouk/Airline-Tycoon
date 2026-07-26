@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import type { Map as LeafletMap, TileLayer } from "leaflet";
+import type { LayerGroup, Map as LeafletMap, TileLayer } from "leaflet";
 import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -70,7 +70,7 @@ export function GameMap(props: Props) {
   const googleMapRef = useRef<any>(null);
   const leafletMapRef = useRef<any>(null);
   const googleLayersRef = useRef<any[]>([]);
-  const leafletLayersRef = useRef<any>(null);
+  const leafletLayersRef = useRef<LayerGroup | null>(null);
   const leafletBaseLayerRef = useRef<TileLayer | null>(null);
   const leafletModuleRef = useRef<typeof import("leaflet") | null>(null);
   const leafletInitialisationRef = useRef<Promise<typeof import("leaflet")> | null>(null);
@@ -79,6 +79,8 @@ export function GameMap(props: Props) {
   const leafletTileRecoveryAttemptRef = useRef(0);
   const leafletTileRecoveryTimeoutRef = useRef<number | null>(null);
   const leafletTileErrorUrlsRef = useRef(new Set<string>());
+  const leafletViewportListenersCleanupRef = useRef<(() => void) | null>(null);
+  const leafletOverlayRedrawFrameRef = useRef<number | null>(null);
   const previousTwoDProviderRef = useRef<"google" | "leaflet" | null>(null);
   const latestPropsRef = useRef(props);
   const effectiveMapEngineRef = useRef<MapEngine>("2d");
@@ -185,7 +187,7 @@ export function GameMap(props: Props) {
 
   useEffect(() => {
     if (previousTwoDProviderRef.current && previousTwoDProviderRef.current !== twoDProvider) {
-      cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileRecoveryTimeoutRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileRecoveryAttemptRef, leafletTileErrorUrlsRef);
+      cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileRecoveryTimeoutRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileRecoveryAttemptRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef);
     }
     previousTwoDProviderRef.current = twoDProvider;
   }, [twoDProvider]);
@@ -210,6 +212,16 @@ export function GameMap(props: Props) {
           leafletModuleRef.current = leaflet;
           leafletMapRef.current = leaflet.map(container, LEAFLET_2D_MAP_OPTIONS);
           ensureLeafletBaseLayer(leaflet, leafletMapRef.current, leafletBaseLayerRef, createLeafletTileDiagnostics(leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileErrorUrlsRef, () => setLeafletBaseTilesUnavailable(false)));
+          attachLeafletViewportListeners(
+            leafletMapRef.current,
+            leaflet,
+            leafletMapRef,
+            leafletModuleRef,
+            latestPropsRef,
+            leafletLayersRef,
+            leafletViewportListenersCleanupRef,
+            leafletOverlayRedrawFrameRef
+          );
         }
         if (!cancelled && effectiveMapEngineRef.current === "2d") drawLatestTwoDMap();
       } catch (error) {
@@ -224,7 +236,7 @@ export function GameMap(props: Props) {
   }, [drawLatestTwoDMap, twoDProvider]);
 
   useEffect(() => {
-    return () => cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileRecoveryTimeoutRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileRecoveryAttemptRef, leafletTileErrorUrlsRef);
+    return () => cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileRecoveryTimeoutRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileRecoveryAttemptRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef);
   }, []);
 
   useEffect(() => {
@@ -267,15 +279,31 @@ export function GameMap(props: Props) {
           const map = leafletMapRef.current as LeafletMap;
           const leaflet = leafletModuleRef.current;
           const initialSize = { width: container.clientWidth, height: container.clientHeight };
+          const tileLoadCountBeforeRestore = leafletTileLoadCountRef.current;
+          map.stop();
+          normalizeLeafletRestoreCenter(map);
           map.invalidateSize({ animate: false, pan: false });
           const baseLayer = ensureLeafletBaseLayer(leaflet, map, leafletBaseLayerRef, createLeafletTileDiagnostics(leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileErrorUrlsRef, () => setLeafletBaseTilesUnavailable(false)));
           baseLayer.redraw();
           baseLayer.bringToBack();
+          setLeafletBaseTilesUnavailable(false);
           leafletTileRecoveryAttemptRef.current = 0;
           if (leafletTileRecoveryTimeoutRef.current !== null) window.clearTimeout(leafletTileRecoveryTimeoutRef.current);
           leafletTileRecoveryTimeoutRef.current = window.setTimeout(() => {
             if (generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d" || leafletTileRecoveryAttemptRef.current >= 1) return;
-            if (getLoadedLeafletTileCount(map) > 0) return;
+            const visibleLoadedTiles = getVisibleLoadedLeafletTileCount(map);
+            const tileLoadsSinceRestore = leafletTileLoadCountRef.current - tileLoadCountBeforeRestore;
+            if (process.env.NODE_ENV === "development") {
+              console.debug("[Leaflet] Restore diagnostics", {
+                containerSize: { width: container.clientWidth, height: container.clientHeight },
+                center: map.getCenter(),
+                zoom: map.getZoom(),
+                visibleLoadedTiles,
+                tileLoadsSinceRestore,
+                baseLayerExists: Boolean(leafletBaseLayerRef.current && map.hasLayer(leafletBaseLayerRef.current))
+              });
+            }
+            if (visibleLoadedTiles > 0) return;
             leafletTileRecoveryAttemptRef.current += 1;
             setLeafletBaseTilesUnavailable(true);
             const staleLayer = leafletBaseLayerRef.current;
@@ -292,6 +320,10 @@ export function GameMap(props: Props) {
               map.invalidateSize({ animate: false, pan: false });
             }
           });
+        }
+        if (twoDProvider === "leaflet" && leafletOverlayRedrawFrameRef.current !== null) {
+          window.cancelAnimationFrame(leafletOverlayRedrawFrameRef.current);
+          leafletOverlayRedrawFrameRef.current = null;
         }
         drawLatestTwoDMap();
         if (process.env.NODE_ENV === "development") {
@@ -390,7 +422,9 @@ function cleanupTwoDMaps(
   leafletTileErrorCountRef: MutableRefObject<number>,
   leafletTileLoadCountRef: MutableRefObject<number>,
   leafletTileRecoveryAttemptRef: MutableRefObject<number>,
-  leafletTileErrorUrlsRef: MutableRefObject<Set<string>>
+  leafletTileErrorUrlsRef: MutableRefObject<Set<string>>,
+  leafletViewportListenersCleanupRef: MutableRefObject<(() => void) | null>,
+  leafletOverlayRedrawFrameRef: MutableRefObject<number | null>
 ) {
   googleLayersRef.current.forEach((layer) => layer.setMap?.(null));
   googleLayersRef.current = [];
@@ -398,6 +432,12 @@ function cleanupTwoDMaps(
   if (leafletTileRecoveryTimeoutRef.current !== null) {
     window.clearTimeout(leafletTileRecoveryTimeoutRef.current);
     leafletTileRecoveryTimeoutRef.current = null;
+  }
+  leafletViewportListenersCleanupRef.current?.();
+  leafletViewportListenersCleanupRef.current = null;
+  if (leafletOverlayRedrawFrameRef.current !== null) {
+    window.cancelAnimationFrame(leafletOverlayRedrawFrameRef.current);
+    leafletOverlayRedrawFrameRef.current = null;
   }
   if (leafletLayersRef.current) {
     leafletLayersRef.current.remove();
@@ -625,34 +665,132 @@ function ensureLeafletBaseLayer(
   return tileLayer;
 }
 
-function getLoadedLeafletTileCount(map: LeafletMap) {
+const MAX_LEAFLET_WORLD_COPIES = 7;
+
+function attachLeafletViewportListeners(
+  map: LeafletMap,
+  L: typeof import("leaflet"),
+  mapRef: MutableRefObject<any>,
+  moduleRef: MutableRefObject<typeof import("leaflet") | null>,
+  latestPropsRef: MutableRefObject<Props>,
+  layerRef: MutableRefObject<LayerGroup | null>,
+  cleanupRef: MutableRefObject<(() => void) | null>,
+  overlayFrameRef: MutableRefObject<number | null>
+) {
+  if (cleanupRef.current) return;
+
+  const scheduleLeafletOverlayRedraw = () => {
+    if (overlayFrameRef.current !== null) return;
+    overlayFrameRef.current = window.requestAnimationFrame(() => {
+      overlayFrameRef.current = null;
+      if (mapRef.current !== map || moduleRef.current !== L) return;
+      drawLeafletLayers(latestPropsRef.current, L, map, layerRef);
+    });
+  };
+
+  map.on("moveend", scheduleLeafletOverlayRedraw);
+  map.on("zoomend", scheduleLeafletOverlayRedraw);
+  cleanupRef.current = () => {
+    map.off("moveend", scheduleLeafletOverlayRedraw);
+    map.off("zoomend", scheduleLeafletOverlayRedraw);
+    if (overlayFrameRef.current !== null) {
+      window.cancelAnimationFrame(overlayFrameRef.current);
+      overlayFrameRef.current = null;
+    }
+  };
+}
+
+function getVisibleLeafletWorldOffsets(map: LeafletMap) {
+  const size = map.getSize();
+  if (!size.x || !size.y) return [0];
+
+  const midpointY = size.y / 2;
+  const leftLng = map.containerPointToLatLng([0, midpointY]).lng;
+  const rightLng = map.containerPointToLatLng([size.x, midpointY]).lng;
+  if (!Number.isFinite(leftLng) || !Number.isFinite(rightLng)) return [0];
+
+  const west = Math.min(leftLng, rightLng);
+  const east = Math.max(leftLng, rightLng);
+  let firstWorld = Math.floor((west + 180) / 360) - 1;
+  let lastWorld = Math.floor((east + 180) / 360) + 1;
+
+  if (lastWorld - firstWorld + 1 > MAX_LEAFLET_WORLD_COPIES) {
+    const centerWorld = Math.round(map.getCenter().lng / 360);
+    firstWorld = centerWorld - Math.floor(MAX_LEAFLET_WORLD_COPIES / 2);
+    lastWorld = firstWorld + MAX_LEAFLET_WORLD_COPIES - 1;
+  }
+
+  const offsets: number[] = [];
+  for (let worldIndex = firstWorld; worldIndex <= lastWorld; worldIndex += 1) {
+    offsets.push(worldIndex * 360);
+  }
+  return offsets;
+}
+
+function shiftRouteSegments(segments: [number, number][][], longitudeOffset: number): [number, number][][] {
+  return segments.map((segment) => segment.map(([lat, lng]) => [lat, lng + longitudeOffset]));
+}
+
+function getVisibleLoadedLeafletTileCount(map: LeafletMap) {
   const tilePane = map.getPane("tilePane");
-  if (!tilePane) return 0;
+  const containerRect = map.getContainer().getBoundingClientRect();
+  if (!tilePane || !containerRect.width || !containerRect.height) return 0;
+
   return Array.from(tilePane.querySelectorAll<HTMLImageElement>("img.leaflet-tile-loaded")).filter(
-    (tile) => tile.complete && tile.naturalWidth > 0 && tile.naturalHeight > 0
+    (tile) => {
+      if (!tile.complete || tile.naturalWidth <= 0 || tile.naturalHeight <= 0) return false;
+      const style = window.getComputedStyle(tile);
+      const opacity = Number.parseFloat(style.opacity);
+      if (style.visibility === "hidden" || style.display === "none" || (!Number.isNaN(opacity) && opacity <= 0)) return false;
+
+      const tileRect = tile.getBoundingClientRect();
+      return (
+        tileRect.right > containerRect.left &&
+        tileRect.left < containerRect.right &&
+        tileRect.bottom > containerRect.top &&
+        tileRect.top < containerRect.bottom
+      );
+    }
   ).length;
 }
 
-function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, layerRef: MutableRefObject<any>) {
+function normalizeLeafletRestoreCenter(map: LeafletMap) {
+  const center = map.getCenter();
+  const centerIsFinite = Number.isFinite(center.lat) && Number.isFinite(center.lng);
+  if (centerIsFinite && Math.abs(center.lng) <= 720) return;
+
+  const nextCenter = centerIsFinite ? map.wrapLatLng(center) : LEAFLET_2D_MAP_OPTIONS.center;
+  map.setView(nextCenter, map.getZoom(), { animate: false });
+}
+
+function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: LeafletMap, layerRef: MutableRefObject<LayerGroup | null>) {
   if (!map) return;
   if (layerRef.current) {
     layerRef.current.remove();
   }
   const layer = L.layerGroup().addTo(map);
   layerRef.current = layer;
+  const worldOffsets = getVisibleLeafletWorldOffsets(map);
+  let routeCopies = 0;
+  let airportCopies = 0;
+  let aircraftCopies = 0;
 
   if (shouldShowRoutes(props.displayMode)) {
     props.routes.forEach((route) => {
       const origin = airportsById[route.originAirportId];
       const destination = airportsById[route.destinationAirportId];
       const active = props.selectedRouteId === route.id;
-      L.polyline(buildRoutePolylineLatLngSegments(origin, destination), {
-        color: active ? "#d76745" : "#18545c",
-        weight: active ? 4 : 2,
-        opacity: 0.85
-      })
-        .on("click", () => props.onSelectRoute(route.id))
-        .addTo(layer);
+      const canonicalSegments = buildRoutePolylineLatLngSegments(origin, destination);
+      worldOffsets.forEach((longitudeOffset) => {
+        L.polyline(shiftRouteSegments(canonicalSegments, longitudeOffset), {
+          color: active ? "#d76745" : "#18545c",
+          weight: active ? 4 : 2,
+          opacity: 0.85
+        })
+          .on("click", () => props.onSelectRoute(route.id))
+          .addTo(layer);
+        routeCopies += 1;
+      });
     });
   }
 
@@ -660,33 +798,38 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
     props.fleet.forEach((aircraft) => {
       const model = aircraftById[aircraft.modelId];
       const iconCategory = getAircraftIconCategory(model);
-      const iconSize = aircraftIconSize(iconCategory);
-      aircraft.schedule
-        .filter((item) => item.status === "in-flight")
-        .forEach((item) => {
-          const origin = airportsById[item.originAirportId];
-          const destination = airportsById[item.destinationAirportId];
-          const progress = (props.currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
-          const { position, heading: bearing } = getAircraftPositionAndHeading(origin, destination, progress);
-          L.marker([position.lat, normalizeLongitude(position.lng)], {
-            icon: L.divIcon({
-              html: aircraftIconHtml(bearing, iconCategory),
-              className: `aircraft-map-icon aircraft-map-icon-${iconCategory}`,
-              iconSize: [iconSize, iconSize],
-              iconAnchor: [iconSize / 2, iconSize / 2]
-            }),
-            title: item.flightNumber ? `${item.flightNumber} ${aircraft.registration}` : aircraft.registration
-          })
-            .on("click", () => {
-              props.onSelectFlight(item.id);
-              window.setTimeout(() => {
-                L.popup({ offset: [0, -10] })
-                  .setLatLng([position.lat, normalizeLongitude(position.lng)])
-                  .setContent(aircraftDetailsHtml(aircraft, model, item, props.currentGameTimeMs))
-                  .openOn(map);
-              }, 0);
-            })
-            .addTo(layer);
+          const iconSize = aircraftIconSize(iconCategory);
+          aircraft.schedule
+            .filter((item) => item.status === "in-flight")
+            .forEach((item) => {
+              const origin = airportsById[item.originAirportId];
+              const destination = airportsById[item.destinationAirportId];
+              const progress = (props.currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
+              const { position, heading: bearing } = getAircraftPositionAndHeading(origin, destination, progress);
+              const canonicalLng = normalizeLongitude(position.lng);
+              worldOffsets.forEach((longitudeOffset) => {
+                const copyLng = canonicalLng + longitudeOffset;
+                L.marker([position.lat, copyLng], {
+                  icon: L.divIcon({
+                    html: aircraftIconHtml(bearing, iconCategory),
+                    className: `aircraft-map-icon aircraft-map-icon-${iconCategory}`,
+                    iconSize: [iconSize, iconSize],
+                    iconAnchor: [iconSize / 2, iconSize / 2]
+                  }),
+                  title: item.flightNumber ? `${item.flightNumber} ${aircraft.registration}` : aircraft.registration
+                })
+                  .on("click", () => {
+                    props.onSelectFlight(item.id);
+                    window.setTimeout(() => {
+                      L.popup({ offset: [0, -10] })
+                        .setLatLng([position.lat, copyLng])
+                        .setContent(aircraftDetailsHtml(aircraft, model, item, props.currentGameTimeMs))
+                        .openOn(map);
+                    }, 0);
+                  })
+                  .addTo(layer);
+                aircraftCopies += 1;
+              });
         });
     });
   }
@@ -704,26 +847,35 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: any, 
       const isExpanded = props.expandedAirportIds.includes(airport.id);
       const markerKind = airportMarkerKind(isBase, isExpanded);
       const pinSize = airportPinSize(isBase, isExpanded);
-      const marker = L.marker([airport.lat, normalizeLongitude(airport.lng)], {
-        icon: L.divIcon({
-          html: airportPinHtml(markerKind),
-          className: `airport-marker airport-marker-${markerKind}`,
-          iconSize: [pinSize.width, pinSize.height],
-          iconAnchor: [pinSize.width / 2, pinSize.height - 1]
-        }),
-        title: `${airport.iata} ${airport.name}`
+      const canonicalLng = normalizeLongitude(airport.lng);
+      worldOffsets.forEach((longitudeOffset) => {
+        const copyLng = canonicalLng + longitudeOffset;
+        const marker = L.marker([airport.lat, copyLng], {
+          icon: L.divIcon({
+            html: airportPinHtml(markerKind),
+            className: `airport-marker airport-marker-${markerKind}`,
+            iconSize: [pinSize.width, pinSize.height],
+            iconAnchor: [pinSize.width / 2, pinSize.height - 1]
+          }),
+          title: `${airport.iata} ${airport.name}`
+        });
+        marker.on("click", () => {
+          props.onSelectAirport(airport.id);
+          window.setTimeout(() => {
+            L.popup({ offset: [0, -26] })
+              .setLatLng([airport.lat, copyLng])
+              .setContent(airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded))
+              .openOn(map);
+          }, 0);
+        });
+        marker.addTo(layer);
+        airportCopies += 1;
       });
-      marker.on("click", () => {
-        props.onSelectAirport(airport.id);
-        window.setTimeout(() => {
-          L.popup({ offset: [0, -26] })
-            .setLatLng([airport.lat, normalizeLongitude(airport.lng)])
-            .setContent(airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded))
-            .openOn(map);
-        }, 0);
-      });
-      marker.addTo(layer);
     });
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.debug("[Leaflet] Overlay redraw", { worldOffsets, routeCopies, airportCopies, aircraftCopies });
   }
 }
 
