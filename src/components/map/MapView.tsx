@@ -7,6 +7,8 @@ type MapViewProps = {
   provider: MapProviderType;
   engineLabel: string;
   isGlobeActive: boolean;
+  isPreparingTwoD?: boolean;
+  preparingTwoDLabel?: string;
   isOffline: boolean;
   offlineMessage: string;
   baseMapWarning?: string | null;
@@ -15,23 +17,35 @@ type MapViewProps = {
 };
 
 export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView(
-  { provider, engineLabel, isGlobeActive, isOffline, offlineMessage, baseMapWarning, legendLabels, globeContent },
+  { provider, engineLabel, isGlobeActive, isPreparingTwoD = false, preparingTwoDLabel, isOffline, offlineMessage, baseMapWarning, legendLabels, globeContent },
   ref
 ) {
+  const leafletsPaneClass = isPreparingTwoD || isGlobeActive ? "z-0 opacity-100 pointer-events-none" : "z-10 opacity-100 pointer-events-auto";
+  const globePaneClass = isPreparingTwoD
+    ? "z-10 bg-ink opacity-100 pointer-events-none"
+    : isGlobeActive
+      ? "z-10 opacity-100 pointer-events-auto"
+      : "z-0 opacity-0 pointer-events-none";
+
   return (
     <div className="flex h-full min-h-[520px] min-w-0 w-full flex-col overflow-hidden" data-map-provider={provider}>
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden sm:min-h-[560px]">
         <div
           ref={ref}
-          aria-hidden={isGlobeActive}
-          className={`absolute inset-0 h-full w-full overflow-hidden ${isGlobeActive ? "z-0 opacity-0 pointer-events-none" : "z-10 opacity-100 pointer-events-auto"}`}
+          aria-hidden={isGlobeActive || isPreparingTwoD}
+          className={`absolute inset-0 h-full w-full overflow-hidden ${leafletsPaneClass}`}
         />
         <div
-          aria-hidden={!isGlobeActive}
-          className={`absolute inset-0 h-full w-full overflow-hidden ${isGlobeActive ? "z-10 opacity-100 pointer-events-auto" : "z-0 opacity-0 pointer-events-none"}`}
+          aria-hidden={!isGlobeActive || isPreparingTwoD}
+          className={`absolute inset-0 h-full w-full overflow-hidden ${globePaneClass}`}
         >
           {globeContent}
         </div>
+        {!isPreparingTwoD ? null : (
+          <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-md bg-ink/90 px-3 py-2 text-xs font-bold text-white shadow-soft" role="status">
+            {preparingTwoDLabel}
+          </div>
+        )}
         <div className="absolute left-3 top-3 z-20 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
           {engineLabel}
         </div>

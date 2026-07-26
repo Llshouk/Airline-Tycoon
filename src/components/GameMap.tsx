@@ -32,10 +32,20 @@ type LeafletTileDiagnostics = {
   errorCountRef: MutableRefObject<number>;
   loadCountRef: MutableRefObject<number>;
   errorUrlsRef: MutableRefObject<Set<string>>;
+  tileGeneration: number;
+  isCurrent: () => boolean;
   onTileLoaded: () => void;
 };
+type MapTransitionState = "idle" | "preparing-2d" | "preparing-3d";
+type LeafletTileReadiness = {
+  ready: boolean;
+  tileLoadEvents: number;
+  tileErrorEvents: number;
+  visibleLoadedTiles: number;
+  durationMs: number;
+};
 
-const LEAFLET_BASE_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const LEAFLET_BASE_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 type Props = {
   baseAirportId: string;
@@ -76,8 +86,8 @@ export function GameMap(props: Props) {
   const leafletInitialisationRef = useRef<Promise<typeof import("leaflet")> | null>(null);
   const leafletTileErrorCountRef = useRef(0);
   const leafletTileLoadCountRef = useRef(0);
-  const leafletTileRecoveryAttemptRef = useRef(0);
-  const leafletTileRecoveryTimeoutRef = useRef<number | null>(null);
+  const leafletTileGenerationRef = useRef(0);
+  const leafletTileReadinessCancelRef = useRef<(() => void) | null>(null);
   const leafletTileErrorUrlsRef = useRef(new Set<string>());
   const leafletViewportListenersCleanupRef = useRef<(() => void) | null>(null);
   const leafletOverlayRedrawFrameRef = useRef<number | null>(null);
@@ -85,12 +95,15 @@ export function GameMap(props: Props) {
   const latestPropsRef = useRef(props);
   const effectiveMapEngineRef = useRef<MapEngine>("2d");
   const mapSwitchGenerationRef = useRef(0);
+  const previousEffectiveMapEngineRef = useRef<MapEngine>("2d");
+  const globeWasActiveRef = useRef(false);
   const renderMetricsRef = useRef({ renders: 0, routeBuilds: 0, aircraftBuilds: 0, lastReportedAt: 0 });
   const [globeFailed, setGlobeFailed] = useState(false);
   const [hasMountedGlobe, setHasMountedGlobe] = useState(false);
   const [webglChecked, setWebglChecked] = useState(false);
   const [webglSupported, setWebglSupported] = useState(false);
   const [leafletBaseTilesUnavailable, setLeafletBaseTilesUnavailable] = useState(false);
+  const [mapTransitionState, setMapTransitionState] = useState<MapTransitionState>("idle");
   const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const selectedMapEngine = props.mapEngine ?? "2d";
   const effectiveGlobeQuality = useMemo(() => getEffectiveGlobeQuality(props.globeQuality ?? "auto"), [props.globeQuality]);
@@ -99,6 +112,8 @@ export function GameMap(props: Props) {
   const twoDProvider: "google" | "leaflet" = usesGoogleMap ? "google" : "leaflet";
   const mapProvider: MapProviderType = effectiveMapEngine === "globe3d" ? "globe3d" : usesGoogleMap ? "google" : "leaflet2d";
   const isGlobeActive = effectiveMapEngine === "globe3d";
+  if (isGlobeActive) globeWasActiveRef.current = true;
+  const isPreparingTwoD = mapTransitionState === "preparing-2d" || (globeWasActiveRef.current && !isGlobeActive);
   const shouldRenderGlobe = (hasMountedGlobe || isGlobeActive) && !globeFailed;
   const shouldPrepareGlobeData = hasMountedGlobe || selectedMapEngine === "globe3d";
   latestPropsRef.current = props;
@@ -187,7 +202,7 @@ export function GameMap(props: Props) {
 
   useEffect(() => {
     if (previousTwoDProviderRef.current && previousTwoDProviderRef.current !== twoDProvider) {
-      cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileRecoveryTimeoutRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileRecoveryAttemptRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef);
+      cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileReadinessCancelRef, leafletTileGenerationRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef);
     }
     previousTwoDProviderRef.current = twoDProvider;
   }, [twoDProvider]);
@@ -211,7 +226,18 @@ export function GameMap(props: Props) {
           if (cancelled || !container.isConnected || leafletMapRef.current) return;
           leafletModuleRef.current = leaflet;
           leafletMapRef.current = leaflet.map(container, LEAFLET_2D_MAP_OPTIONS);
-          ensureLeafletBaseLayer(leaflet, leafletMapRef.current, leafletBaseLayerRef, createLeafletTileDiagnostics(leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileErrorUrlsRef, () => setLeafletBaseTilesUnavailable(false)));
+          ensureLeafletBaseLayer(
+            leaflet,
+            leafletMapRef.current,
+            leafletBaseLayerRef,
+            createLeafletTileDiagnostics(
+              leafletTileErrorCountRef,
+              leafletTileLoadCountRef,
+              leafletTileErrorUrlsRef,
+              leafletTileGenerationRef,
+              () => setLeafletBaseTilesUnavailable(false)
+            )
+          );
           attachLeafletViewportListeners(
             leafletMapRef.current,
             leaflet,
@@ -236,121 +262,148 @@ export function GameMap(props: Props) {
   }, [drawLatestTwoDMap, twoDProvider]);
 
   useEffect(() => {
-    return () => cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileRecoveryTimeoutRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileRecoveryAttemptRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef);
+    return () => cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileReadinessCancelRef, leafletTileGenerationRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef);
   }, []);
 
   useEffect(() => {
-    if (effectiveMapEngine === "globe3d") return;
+    if (effectiveMapEngine === "globe3d" || isPreparingTwoD) return;
     drawLatestTwoDMap();
-  }, [drawLatestTwoDMap, effectiveMapEngine, props]);
+  }, [drawLatestTwoDMap, effectiveMapEngine, isPreparingTwoD, props]);
+
+  const restoreLeafletAfterGlobe = useCallback(
+    async (generation: number) => {
+      if (twoDProvider !== "leaflet" || generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return false;
+      await waitForAnimationFrames(2);
+      if (generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return false;
+
+      const container = mapElementRef.current;
+      const leaflet = leafletModuleRef.current;
+      const map = leafletMapRef.current as LeafletMap | null;
+      if (!container?.isConnected || !container.clientWidth || !container.clientHeight || !leaflet || !map) return false;
+
+      const isCurrentTransition = () => generation === mapSwitchGenerationRef.current && effectiveMapEngineRef.current === "2d";
+      map.stop();
+      normalizeLeafletRestoreCenter(map);
+      map.invalidateSize({ animate: false, pan: false });
+      setLeafletBaseTilesUnavailable(false);
+
+      const createDiagnostics = () =>
+        createLeafletTileDiagnostics(
+          leafletTileErrorCountRef,
+          leafletTileLoadCountRef,
+          leafletTileErrorUrlsRef,
+          leafletTileGenerationRef,
+          () => setLeafletBaseTilesUnavailable(false)
+        );
+      let diagnostics = createDiagnostics();
+      let baseLayer = replaceLeafletBaseLayer(leaflet, map, leafletBaseLayerRef, diagnostics);
+      if (leafletOverlayRedrawFrameRef.current !== null) {
+        window.cancelAnimationFrame(leafletOverlayRedrawFrameRef.current);
+        leafletOverlayRedrawFrameRef.current = null;
+      }
+      drawLeafletLayers(latestPropsRef.current, leaflet, map, leafletLayersRef);
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[Leaflet] Preparing 2D", {
+          switchGeneration: generation,
+          tileGeneration: diagnostics.tileGeneration,
+          containerSize: { width: container.clientWidth, height: container.clientHeight },
+          center: map.getCenter(),
+          zoom: map.getZoom()
+        });
+      }
+
+      let readiness = await waitForLeafletTiles(map, baseLayer, diagnostics, leafletTileReadinessCancelRef, 3400);
+      if (!isCurrentTransition()) return false;
+
+      if (!readiness.ready) {
+        diagnostics = createDiagnostics();
+        baseLayer = replaceLeafletBaseLayer(leaflet, map, leafletBaseLayerRef, diagnostics);
+        readiness = await waitForLeafletTiles(map, baseLayer, diagnostics, leafletTileReadinessCancelRef, 3000);
+        if (!isCurrentTransition()) return false;
+      }
+
+      if (!readiness.ready) {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[Leaflet] Recreating map after tile recovery failed", {
+            center,
+            zoom,
+            previousTileGenerations: leafletTileGenerationRef.current
+          });
+        }
+        recreateLeafletMap(
+          container,
+          leaflet,
+          center,
+          zoom,
+          leafletMapRef,
+          leafletLayersRef,
+          leafletBaseLayerRef,
+          leafletModuleRef,
+          latestPropsRef,
+          leafletViewportListenersCleanupRef,
+          leafletOverlayRedrawFrameRef
+        );
+        const recreatedMap = leafletMapRef.current as LeafletMap;
+        diagnostics = createDiagnostics();
+        baseLayer = replaceLeafletBaseLayer(leaflet, recreatedMap, leafletBaseLayerRef, diagnostics);
+        drawLeafletLayers(latestPropsRef.current, leaflet, recreatedMap, leafletLayersRef);
+        readiness = await waitForLeafletTiles(recreatedMap, baseLayer, diagnostics, leafletTileReadinessCancelRef, 3000);
+        if (!isCurrentTransition()) return false;
+      }
+
+      const restoredMap = leafletMapRef.current as LeafletMap | null;
+      if (!readiness.ready || !restoredMap) {
+        setLeafletBaseTilesUnavailable(true);
+        return false;
+      }
+      restoredMap.invalidateSize({ animate: false, pan: false });
+      return getVisibleLoadedLeafletTileCount(restoredMap) >= getLeafletVisibleTileThreshold(restoredMap);
+    },
+    [twoDProvider]
+  );
 
   useEffect(() => {
+    const previousEffectiveMapEngine = previousEffectiveMapEngineRef.current;
+    previousEffectiveMapEngineRef.current = effectiveMapEngine;
     const generation = ++mapSwitchGenerationRef.current;
-    if (process.env.NODE_ENV === "development") {
-      const container = mapElementRef.current;
-      console.debug("[GameMap] Map engine switch", {
-        selectedEngine: selectedMapEngine,
-        effectiveEngine: effectiveMapEngine,
-        twoDContainerConnected: Boolean(container?.isConnected),
-        twoDContainerSize: container ? { width: container.clientWidth, height: container.clientHeight } : null,
-        leafletInstanceExists: Boolean(leafletMapRef.current),
-        globeMounted: hasMountedGlobe,
-        globeActive: isGlobeActive
-      });
-    }
-    if (effectiveMapEngine !== "2d") return;
 
-    let firstFrame: number | null = null;
-    let secondFrame: number | null = null;
-    let finalSizeFrame: number | null = null;
-    firstFrame = window.requestAnimationFrame(() => {
-      firstFrame = null;
-      secondFrame = window.requestAnimationFrame(() => {
-        secondFrame = null;
-        if (generation !== mapSwitchGenerationRef.current) return;
-        const container = mapElementRef.current;
-        if (!container?.isConnected || !container.clientWidth || !container.clientHeight) return;
-        if (twoDProvider === "google" && googleMapRef.current && window.google) {
-          const center = googleMapRef.current.getCenter?.();
-          window.google.maps.event.trigger(googleMapRef.current, "resize");
-          if (center) googleMapRef.current.setCenter(center);
-        }
-        if (twoDProvider === "leaflet" && leafletMapRef.current && leafletModuleRef.current) {
-          const map = leafletMapRef.current as LeafletMap;
-          const leaflet = leafletModuleRef.current;
-          const initialSize = { width: container.clientWidth, height: container.clientHeight };
-          const tileLoadCountBeforeRestore = leafletTileLoadCountRef.current;
-          map.stop();
-          normalizeLeafletRestoreCenter(map);
-          map.invalidateSize({ animate: false, pan: false });
-          const baseLayer = ensureLeafletBaseLayer(leaflet, map, leafletBaseLayerRef, createLeafletTileDiagnostics(leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileErrorUrlsRef, () => setLeafletBaseTilesUnavailable(false)));
-          baseLayer.redraw();
-          baseLayer.bringToBack();
-          setLeafletBaseTilesUnavailable(false);
-          leafletTileRecoveryAttemptRef.current = 0;
-          if (leafletTileRecoveryTimeoutRef.current !== null) window.clearTimeout(leafletTileRecoveryTimeoutRef.current);
-          leafletTileRecoveryTimeoutRef.current = window.setTimeout(() => {
-            if (generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d" || leafletTileRecoveryAttemptRef.current >= 1) return;
-            const visibleLoadedTiles = getVisibleLoadedLeafletTileCount(map);
-            const tileLoadsSinceRestore = leafletTileLoadCountRef.current - tileLoadCountBeforeRestore;
-            if (process.env.NODE_ENV === "development") {
-              console.debug("[Leaflet] Restore diagnostics", {
-                containerSize: { width: container.clientWidth, height: container.clientHeight },
-                center: map.getCenter(),
-                zoom: map.getZoom(),
-                visibleLoadedTiles,
-                tileLoadsSinceRestore,
-                baseLayerExists: Boolean(leafletBaseLayerRef.current && map.hasLayer(leafletBaseLayerRef.current))
-              });
-            }
-            if (visibleLoadedTiles > 0) return;
-            leafletTileRecoveryAttemptRef.current += 1;
-            setLeafletBaseTilesUnavailable(true);
-            const staleLayer = leafletBaseLayerRef.current;
-            if (staleLayer && map.hasLayer(staleLayer)) map.removeLayer(staleLayer);
-            leafletBaseLayerRef.current = null;
-            const replacementLayer = ensureLeafletBaseLayer(leaflet, map, leafletBaseLayerRef, createLeafletTileDiagnostics(leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileErrorUrlsRef, () => setLeafletBaseTilesUnavailable(false)));
-            replacementLayer.redraw();
-            replacementLayer.bringToBack();
-            drawLatestTwoDMap();
-          }, 1800);
-          finalSizeFrame = window.requestAnimationFrame(() => {
-            if (generation !== mapSwitchGenerationRef.current) return;
-            if (container.clientWidth !== initialSize.width || container.clientHeight !== initialSize.height) {
-              map.invalidateSize({ animate: false, pan: false });
-            }
-          });
-        }
-        if (twoDProvider === "leaflet" && leafletOverlayRedrawFrameRef.current !== null) {
-          window.cancelAnimationFrame(leafletOverlayRedrawFrameRef.current);
-          leafletOverlayRedrawFrameRef.current = null;
-        }
-        drawLatestTwoDMap();
-        if (process.env.NODE_ENV === "development") {
-          console.debug("[GameMap] 2D map restored", {
-            width: container.clientWidth,
-            height: container.clientHeight,
-            leafletReady: Boolean(leafletMapRef.current)
-          });
-        }
+    if (effectiveMapEngine === "globe3d" || (selectedMapEngine === "globe3d" && !globeFailed)) {
+      leafletTileReadinessCancelRef.current?.();
+      setMapTransitionState("idle");
+      return;
+    }
+
+    if (previousEffectiveMapEngine !== "globe3d") return;
+    setMapTransitionState("preparing-2d");
+    let cancelled = false;
+    void restoreLeafletAfterGlobe(generation)
+      .then((ready) => {
+        if (cancelled || generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return;
+        if (!ready) return;
+        globeWasActiveRef.current = false;
+        setMapTransitionState("idle");
+      })
+      .catch((error) => {
+        if (cancelled || generation !== mapSwitchGenerationRef.current) return;
+        console.error("[Leaflet] 2D restore failed", error);
+        setLeafletBaseTilesUnavailable(true);
       });
-    });
+
     return () => {
-      if (firstFrame !== null) window.cancelAnimationFrame(firstFrame);
-      if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
-      if (finalSizeFrame !== null) window.cancelAnimationFrame(finalSizeFrame);
-      if (leafletTileRecoveryTimeoutRef.current !== null) {
-        window.clearTimeout(leafletTileRecoveryTimeoutRef.current);
-        leafletTileRecoveryTimeoutRef.current = null;
-      }
+      cancelled = true;
+      leafletTileReadinessCancelRef.current?.();
     };
-  }, [drawLatestTwoDMap, effectiveMapEngine, hasMountedGlobe, isGlobeActive, selectedMapEngine, twoDProvider]);
+  }, [effectiveMapEngine, globeFailed, restoreLeafletAfterGlobe, selectedMapEngine]);
 
   return (
     <MapView
       ref={mapElementRef}
       provider={mapProvider}
       isGlobeActive={isGlobeActive}
+      isPreparingTwoD={isPreparingTwoD}
+      preparingTwoDLabel={t("map.preparing2d")}
       engineLabel={effectiveMapEngine === "globe3d" ? t("map.engineGlobe3d") : googleKey ? "Google Maps" : t("map.engine2d")}
       isOffline={!isOnline}
       offlineMessage={t("map.offlineFallback")}
@@ -418,10 +471,10 @@ function cleanupTwoDMaps(
   leafletMapRef: MutableRefObject<any>,
   leafletLayersRef: MutableRefObject<any>,
   leafletBaseLayerRef: MutableRefObject<TileLayer | null>,
-  leafletTileRecoveryTimeoutRef: MutableRefObject<number | null>,
+  leafletTileReadinessCancelRef: MutableRefObject<(() => void) | null>,
+  leafletTileGenerationRef: MutableRefObject<number>,
   leafletTileErrorCountRef: MutableRefObject<number>,
   leafletTileLoadCountRef: MutableRefObject<number>,
-  leafletTileRecoveryAttemptRef: MutableRefObject<number>,
   leafletTileErrorUrlsRef: MutableRefObject<Set<string>>,
   leafletViewportListenersCleanupRef: MutableRefObject<(() => void) | null>,
   leafletOverlayRedrawFrameRef: MutableRefObject<number | null>
@@ -429,10 +482,9 @@ function cleanupTwoDMaps(
   googleLayersRef.current.forEach((layer) => layer.setMap?.(null));
   googleLayersRef.current = [];
   googleMapRef.current = null;
-  if (leafletTileRecoveryTimeoutRef.current !== null) {
-    window.clearTimeout(leafletTileRecoveryTimeoutRef.current);
-    leafletTileRecoveryTimeoutRef.current = null;
-  }
+  leafletTileReadinessCancelRef.current?.();
+  leafletTileReadinessCancelRef.current = null;
+  leafletTileGenerationRef.current += 1;
   leafletViewportListenersCleanupRef.current?.();
   leafletViewportListenersCleanupRef.current = null;
   if (leafletOverlayRedrawFrameRef.current !== null) {
@@ -453,7 +505,6 @@ function cleanupTwoDMaps(
   }
   leafletTileErrorCountRef.current = 0;
   leafletTileLoadCountRef.current = 0;
-  leafletTileRecoveryAttemptRef.current = 0;
   leafletTileErrorUrlsRef.current.clear();
 }
 
@@ -619,9 +670,18 @@ function createLeafletTileDiagnostics(
   errorCountRef: MutableRefObject<number>,
   loadCountRef: MutableRefObject<number>,
   errorUrlsRef: MutableRefObject<Set<string>>,
+  tileGenerationRef: MutableRefObject<number>,
   onTileLoaded: () => void
 ): LeafletTileDiagnostics {
-  return { errorCountRef, loadCountRef, errorUrlsRef, onTileLoaded };
+  const tileGeneration = ++tileGenerationRef.current;
+  return {
+    errorCountRef,
+    loadCountRef,
+    errorUrlsRef,
+    tileGeneration,
+    isCurrent: () => tileGenerationRef.current === tileGeneration,
+    onTileLoaded
+  };
 }
 
 function ensureLeafletBaseLayer(
@@ -640,18 +700,22 @@ function ensureLeafletBaseLayer(
 
   const tileLayer = L.tileLayer(LEAFLET_BASE_TILE_URL, { ...LEAFLET_2D_TILE_OPTIONS });
   tileLayer.on("loading", () => {
-    if (process.env.NODE_ENV === "development") console.debug("[Leaflet] Base tiles loading");
+    if (process.env.NODE_ENV === "development" && diagnostics.isCurrent()) {
+      console.debug("[Leaflet] Base tiles loading", { tileGeneration: diagnostics.tileGeneration });
+    }
   });
   tileLayer.on("load", () => {
-    if (process.env.NODE_ENV === "development") {
-      console.debug("[Leaflet] Base tiles loaded", { loadedTileCount: diagnostics.loadCountRef.current });
+    if (process.env.NODE_ENV === "development" && diagnostics.isCurrent()) {
+      console.debug("[Leaflet] Base tiles loaded", { tileGeneration: diagnostics.tileGeneration, loadedTileCount: diagnostics.loadCountRef.current });
     }
   });
   tileLayer.on("tileload", () => {
+    if (!diagnostics.isCurrent()) return;
     diagnostics.loadCountRef.current += 1;
     diagnostics.onTileLoaded();
   });
   tileLayer.on("tileerror", (event: any) => {
+    if (!diagnostics.isCurrent()) return;
     diagnostics.errorCountRef.current += 1;
     const url = typeof event?.tile?.src === "string" ? event.tile.src : "unknown";
     if (process.env.NODE_ENV === "development" && !diagnostics.errorUrlsRef.current.has(url)) {
@@ -663,6 +727,22 @@ function ensureLeafletBaseLayer(
   tileLayer.bringToBack();
   baseLayerRef.current = tileLayer;
   return tileLayer;
+}
+
+function replaceLeafletBaseLayer(
+  L: typeof import("leaflet"),
+  map: LeafletMap,
+  baseLayerRef: MutableRefObject<TileLayer | null>,
+  diagnostics: LeafletTileDiagnostics
+) {
+  const previousLayer = baseLayerRef.current;
+  if (previousLayer) {
+    previousLayer.off();
+    if (map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
+    else previousLayer.remove();
+  }
+  baseLayerRef.current = null;
+  return ensureLeafletBaseLayer(L, map, baseLayerRef, diagnostics);
 }
 
 const MAX_LEAFLET_WORLD_COPIES = 7;
@@ -761,6 +841,139 @@ function normalizeLeafletRestoreCenter(map: LeafletMap) {
 
   const nextCenter = centerIsFinite ? map.wrapLatLng(center) : LEAFLET_2D_MAP_OPTIONS.center;
   map.setView(nextCenter, map.getZoom(), { animate: false });
+}
+
+function getLeafletVisibleTileThreshold(map: LeafletMap) {
+  const size = map.getSize();
+  if (size.x < 280 || size.y < 280) return 1;
+  return Math.min(4, Math.max(2, Math.ceil(size.x / 512)));
+}
+
+function waitForAnimationFrames(frameCount: number) {
+  return new Promise<void>((resolve) => {
+    const nextFrame = (remaining: number) => {
+      if (remaining <= 0) {
+        resolve();
+        return;
+      }
+      window.requestAnimationFrame(() => nextFrame(remaining - 1));
+    };
+    nextFrame(frameCount);
+  });
+}
+
+function waitForLeafletTiles(
+  map: LeafletMap,
+  tileLayer: TileLayer,
+  diagnostics: LeafletTileDiagnostics,
+  cancelRef: MutableRefObject<(() => void) | null>,
+  timeoutMs: number
+) {
+  return new Promise<LeafletTileReadiness>((resolve) => {
+    const startedAt = Date.now();
+    let settled = false;
+    let tileLoadEvents = 0;
+    let tileErrorEvents = 0;
+    let frame: number | null = null;
+    let timeout: number | null = null;
+    const threshold = getLeafletVisibleTileThreshold(map);
+
+    function finish(ready: boolean) {
+      if (settled) return;
+      settled = true;
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      if (timeout !== null) window.clearTimeout(timeout);
+      tileLayer.off("tileload", handleTileLoad);
+      tileLayer.off("tileerror", handleTileError);
+      tileLayer.off("load", scheduleVisibleTileCheck);
+      if (cancelRef.current === cancel) cancelRef.current = null;
+
+      const result: LeafletTileReadiness = {
+        ready,
+        tileLoadEvents,
+        tileErrorEvents,
+        visibleLoadedTiles: getVisibleLoadedLeafletTileCount(map),
+        durationMs: Date.now() - startedAt
+      };
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[Leaflet] Tile generation result", {
+          tileGeneration: diagnostics.tileGeneration,
+          ...result
+        });
+      }
+      resolve(result);
+    }
+
+    function scheduleVisibleTileCheck() {
+      if (frame !== null || settled) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        if (!diagnostics.isCurrent()) {
+          finish(false);
+          return;
+        }
+        const visibleLoadedTiles = getVisibleLoadedLeafletTileCount(map);
+        if (tileLoadEvents > 0 && visibleLoadedTiles >= threshold) finish(true);
+      });
+    }
+
+    function handleTileLoad() {
+      if (!diagnostics.isCurrent()) return;
+      tileLoadEvents += 1;
+      scheduleVisibleTileCheck();
+    }
+    function handleTileError() {
+      if (!diagnostics.isCurrent()) return;
+      tileErrorEvents += 1;
+    }
+    function cancel() {
+      finish(false);
+    }
+
+    cancelRef.current?.();
+    cancelRef.current = cancel;
+    tileLayer.on("tileload", handleTileLoad);
+    tileLayer.on("tileerror", handleTileError);
+    tileLayer.on("load", scheduleVisibleTileCheck);
+    timeout = window.setTimeout(() => finish(false), timeoutMs);
+  });
+}
+
+function recreateLeafletMap(
+  container: HTMLDivElement,
+  L: typeof import("leaflet"),
+  center: { lat: number; lng: number },
+  zoom: number,
+  mapRef: MutableRefObject<any>,
+  layerRef: MutableRefObject<LayerGroup | null>,
+  baseLayerRef: MutableRefObject<TileLayer | null>,
+  moduleRef: MutableRefObject<typeof import("leaflet") | null>,
+  latestPropsRef: MutableRefObject<Props>,
+  viewportCleanupRef: MutableRefObject<(() => void) | null>,
+  overlayFrameRef: MutableRefObject<number | null>
+) {
+  viewportCleanupRef.current?.();
+  viewportCleanupRef.current = null;
+  if (overlayFrameRef.current !== null) {
+    window.cancelAnimationFrame(overlayFrameRef.current);
+    overlayFrameRef.current = null;
+  }
+  layerRef.current?.remove();
+  layerRef.current = null;
+  baseLayerRef.current?.off();
+  baseLayerRef.current?.remove();
+  baseLayerRef.current = null;
+  (mapRef.current as LeafletMap | null)?.remove();
+
+  const recreatedMap = L.map(container, {
+    ...LEAFLET_2D_MAP_OPTIONS,
+    center: [center.lat, center.lng] as [number, number],
+    zoom
+  });
+  mapRef.current = recreatedMap;
+  moduleRef.current = L;
+  attachLeafletViewportListeners(recreatedMap, L, mapRef, moduleRef, latestPropsRef, layerRef, viewportCleanupRef, overlayFrameRef);
+  return recreatedMap;
 }
 
 function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: LeafletMap, layerRef: MutableRefObject<LayerGroup | null>) {

@@ -290,6 +290,7 @@ export const en = {
   "map.title": "Map",
   "map.engine": "Map Engine",
   "map.engine2d": "2D Map",
+  "map.preparing2d": "Preparing 2D map...",
   "map.engineGlobe3d": "3D Globe",
   "map.globeExperimental": "MapLibre GL 3D Globe mode",
   "map.globePerformanceNote": "3D Globe may use more graphics performance. Switch to 2D Map if the game feels slow.",

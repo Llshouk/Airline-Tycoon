@@ -17,5 +17,6 @@ export const LEAFLET_2D_TILE_OPTIONS = {
   noWrap: false,
   updateWhenIdle: false,
   updateWhenZooming: false,
-  keepBuffer: 2
+  keepBuffer: 2,
+  crossOrigin: true
 };

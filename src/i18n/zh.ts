@@ -260,6 +260,7 @@ export const zh = {
   "map.title": "地图",
   "map.engine": "地图引擎",
   "map.engine2d": "2D 地图",
+  "map.preparing2d": "正在准备二维地图……",
   "map.engineGlobe3d": "3D 地球",
   "map.globeExperimental": "MapLibre GL 3D 地球模式",
   "map.globePerformanceNote": "3D 地球可能占用更多图形性能，如运行卡顿可切换回 2D 地图。",
