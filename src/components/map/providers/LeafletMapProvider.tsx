@@ -8,16 +8,13 @@ export const LEAFLET_2D_MAP_OPTIONS = {
   zoom: 2,
   minZoom: 2,
   maxZoom: 8,
-  worldCopyJump: false,
-  maxBounds: PRIMARY_WORLD_BOUNDS,
-  maxBoundsViscosity: 1
+  worldCopyJump: true
 };
 
 export const LEAFLET_2D_TILE_OPTIONS = {
   attribution: "&copy; OpenStreetMap contributors",
   maxZoom: 10,
-  noWrap: true,
-  bounds: PRIMARY_WORLD_BOUNDS,
+  noWrap: false,
   updateWhenIdle: false,
   updateWhenZooming: false,
   keepBuffer: 2
