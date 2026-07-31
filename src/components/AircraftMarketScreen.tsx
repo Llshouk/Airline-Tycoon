@@ -12,7 +12,7 @@ import { canAfford } from "@/lib/cash";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { createRegistration } from "@/lib/ids";
 import { useGameStore } from "@/store/gameStore";
-import type { AircraftModel, CabinLayout, RouteBand } from "@/types/game";
+import type { AircraftModel, CabinLayout } from "@/types/game";
 
 type SortMode = "price" | "range" | "capacity";
 type RouteFilter = "all" | "short-haul" | "medium-haul" | "long-haul";
@@ -44,6 +44,20 @@ export function AircraftMarketScreen() {
     return null;
   }, [game, registration]);
 
+  useEffect(() => {
+    if (!purchaseToast) return;
+    const timer = window.setTimeout(() => setPurchaseToast(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [purchaseToast]);
+
+  useEffect(() => {
+    if (!game) return;
+    const bases = game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId];
+    if (!selectedBaseAirportId || !bases.includes(selectedBaseAirportId)) {
+      setSelectedBaseAirportId(game.primaryBaseAirport ?? bases[0] ?? "");
+    }
+  }, [game, selectedBaseAirportId]);
+
   if (!game) return null;
   const ownedBaseIds = game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId];
   const hasOwnedBase = ownedBaseIds.length > 0;
@@ -66,20 +80,6 @@ export function AircraftMarketScreen() {
       models: filteredModels.filter((model) => model.family === family)
     }))
     .filter((group) => group.models.length > 0);
-
-  useEffect(() => {
-    if (!purchaseToast) return;
-    const timer = window.setTimeout(() => setPurchaseToast(null), 3000);
-    return () => window.clearTimeout(timer);
-  }, [purchaseToast]);
-
-  useEffect(() => {
-    if (!game) return;
-    const bases = game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId];
-    if (!selectedBaseAirportId || !bases.includes(selectedBaseAirportId)) {
-      setSelectedBaseAirportId(game.primaryBaseAirport ?? bases[0] ?? "");
-    }
-  }, [game, selectedBaseAirportId]);
 
   function selectModel(model: AircraftModel) {
     setSelectedModelId(model.id);

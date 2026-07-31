@@ -9,6 +9,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useThrottledMapTime } from "@/hooks/useThrottledMapTime";
 import { useTranslation } from "@/i18n";
 import { calculateBearing } from "@/lib/geo";
+import { hasVisibleLeafletTileCoverage, isVisibleLeafletTileRect } from "@/lib/leafletTileReadiness";
 import { buildRoutePolylinePoints, buildRoutePolylineLatLngSegments, interpolateRoutePosition, normalizeLongitude, normalizeLongitudeDelta } from "@/lib/mapRoutePath";
 import { getEffectiveGlobeQuality, getGlobeAircraftUpdateInterval, supportsWebGL } from "@/lib/mapPreferences";
 import { MapView } from "@/components/map/MapView";
@@ -381,7 +382,7 @@ export function GameMap(props: Props) {
     void restoreLeafletAfterGlobe(generation)
       .then((ready) => {
         if (cancelled || generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return;
-        if (!ready) return;
+        if (!ready) setLeafletBaseTilesUnavailable(true);
         globeWasActiveRef.current = false;
         setMapTransitionState("idle");
       })
@@ -389,6 +390,8 @@ export function GameMap(props: Props) {
         if (cancelled || generation !== mapSwitchGenerationRef.current) return;
         console.error("[Leaflet] 2D restore failed", error);
         setLeafletBaseTilesUnavailable(true);
+        globeWasActiveRef.current = false;
+        setMapTransitionState("idle");
       });
 
     return () => {
@@ -824,12 +827,7 @@ function getVisibleLoadedLeafletTileCount(map: LeafletMap) {
       if (style.visibility === "hidden" || style.display === "none" || (!Number.isNaN(opacity) && opacity <= 0)) return false;
 
       const tileRect = tile.getBoundingClientRect();
-      return (
-        tileRect.right > containerRect.left &&
-        tileRect.left < containerRect.right &&
-        tileRect.bottom > containerRect.top &&
-        tileRect.top < containerRect.bottom
-      );
+      return isVisibleLeafletTileRect(tileRect, containerRect);
     }
   ).length;
 }
@@ -913,7 +911,11 @@ function waitForLeafletTiles(
           return;
         }
         const visibleLoadedTiles = getVisibleLoadedLeafletTileCount(map);
-        if (tileLoadEvents > 0 && visibleLoadedTiles >= threshold) finish(true);
+        if (hasVisibleLeafletTileCoverage(visibleLoadedTiles, threshold)) {
+          finish(true);
+          return;
+        }
+        scheduleVisibleTileCheck();
       });
     }
 
@@ -935,7 +937,8 @@ function waitForLeafletTiles(
     tileLayer.on("tileload", handleTileLoad);
     tileLayer.on("tileerror", handleTileError);
     tileLayer.on("load", scheduleVisibleTileCheck);
-    timeout = window.setTimeout(() => finish(false), timeoutMs);
+    timeout = window.setTimeout(() => finish(hasVisibleLeafletTileCoverage(getVisibleLoadedLeafletTileCount(map), threshold)), timeoutMs);
+    scheduleVisibleTileCheck();
   });
 }
 

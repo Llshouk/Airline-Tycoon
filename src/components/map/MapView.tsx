@@ -31,10 +31,11 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
     <div className="flex h-full min-h-[520px] min-w-0 w-full flex-col overflow-hidden" data-map-provider={provider}>
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden sm:min-h-[560px]">
         <div
-          ref={ref}
           aria-hidden={isGlobeActive || isPreparingTwoD}
           className={`absolute inset-0 h-full w-full overflow-hidden ${leafletsPaneClass}`}
-        />
+        >
+          <div ref={ref} style={{ height: "100%", width: "100%" }} />
+        </div>
         <div
           aria-hidden={!isGlobeActive || isPreparingTwoD}
           className={`absolute inset-0 h-full w-full overflow-hidden ${globePaneClass}`}
@@ -46,7 +47,7 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
             {preparingTwoDLabel}
           </div>
         )}
-        <div className="absolute left-3 top-3 z-20 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft">
+        <div className={`pointer-events-none absolute top-3 z-20 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft ${isGlobeActive ? "left-3" : "right-3"}`}>
           {engineLabel}
         </div>
         {!isOffline ? null : (
