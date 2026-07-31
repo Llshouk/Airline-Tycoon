@@ -4,10 +4,11 @@
 
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
-- Current version: `1.3.8`
-- Current HEAD: `b6f750ca6bcad809ef5816738624c8a5087c6eeb`
+- Current version: `1.3.9`
+- V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
+- Current release checkpoint: the V1.3.9 release commit containing this document
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
-- Working-tree status: green V1.3.8 checkpoint pending commit
+- Working-tree status: green V1.3.9 release checkpoint
 - Audit date: 2026-07-31
 - Latest successful production build: `pnpm run build` passed on 2026-07-31 with Next.js 15.5.21
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
@@ -16,18 +17,18 @@
 ## Roadmap Position
 
 - Current major version: V1
-- Current minor version: V1.3.8
-- Current release objective: complete deterministic 2D/3D map stabilization and the V1.3.8 acceptance matrix
+- Current minor version: V1.3.9
+- Current release objective: V1.3 map stabilization complete; proceed to V1.4.0 Operating Economics
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
-- Partially implemented systems: V1.3 map acceptance coverage and automated regression infrastructure
-- Next planned release: V1.3.9 final map stability, only after every V1.3.8 release gate is verified
-- Release-gate status: P0 blank-map defect, V1.2.2 fixture, dependency audit, slow/failed OSM, optional globe failures, typed MapLibre expressions, and map lifecycle ownership pass; V1.3.8 remains active because authenticated storage round trips, real touch/pinch input, and full browser-offline mode remain unverified
+- Partially implemented systems: V1 operating economics beyond the existing basic estimates
+- Next planned release: V1.4.0 Operating Economics
+- Release-gate status: V1.3.8 stabilization accepted with no reproducible P0 or core P1 map defect; V1.3.9 final lifecycle, cleanup, automated, browser, build, and security gates pass
 
 ## Current Objective
 
-Checkpoint the stale Leaflet base-layer listener fix, then preserve V1.3.8 until live authenticated, physical-touch, and full-offline acceptance can run.
+Release V1.3.9, then audit and centralize the existing revenue, cost, frequency, and completed-flight cash paths for V1.4.0.
 
-## Confirmed Problems
+## Resolved V1.3 Problems
 
 ### Leaflet base-layer teardown retained callbacks after 3D-to-2D restore
 
@@ -83,15 +84,12 @@ Checkpoint the stale Leaflet base-layer listener fix, then preserve V1.3.8 until
 - Relevant files: `package.json`, `eslint.config.mjs`, `pnpm-lock.yaml`, `src/components/AircraftMarketScreen.tsx`
 - Evidence: `eslint .` now exits successfully with zero errors. It also found and prompted the narrow repair of conditionally called Aircraft Market effects
 
-## Current Hypotheses
+## V1.3.8 Exit Decision
 
-### Pre-V1.3 save compatibility should be unchanged by this iteration
-
-- Suspected result: existing saves continue to load because no game-state type, persistence key, migration, Supabase query, or IndexedDB schema changed
-- Supporting evidence: all source changes are map UI lifecycle, test/tooling, and hook ordering
-- Evidence against it: no sanitized pre-V1.3 fixture has yet been exercised through the current load normalizer
-- Smallest testable change: locate or construct a non-private pre-V1.3 fixture and run it through the existing compatibility helper with field-preservation assertions
-- Rollback plan: remove only the fixture/test if it cannot represent the historical schema accurately; do not alter production migration logic without a reproduced failure
+- Classification: Case B; no reproducible P0 or core P1 map defect remains
+- Evidence: the focused baseline passed frozen installation, dependency audit, 12/12 tests, typecheck, zero-warning lint, and production build before V1.3.9 changes
+- Compatibility: the existing V1.2.2 compact-save and IndexedDB adapter regressions preserve canonical cash, difficulty, bases, fleet, registrations, cabin layout, routes, schedules, flight log, and timestamps
+- Decision: V1.3.8 stabilization is accepted; unavailable optional external checks are recorded separately and do not block V1.3.9 or V1.4.0
 
 ## Completed Work
 
@@ -316,8 +314,15 @@ Checkpoint the stale Leaflet base-layer listener fix, then preserve V1.3.8 until
 - Issue: every 3D-to-2D restore replaced the base TileLayer after clearing all layer listeners, including Leaflet's own one-time removal hook
 - Root cause/design: Leaflet's removal hook is what unregisters `viewreset`, `zoomanim`, and other GridLayer callbacks from the map; all base-layer teardown paths now use one tested helper that calls `remove()` before `off()`
 - Files changed: `src/components/GameMap.tsx`, `src/lib/leafletLayerLifecycle.ts`, `tests/leafletLayerLifecycle.test.ts`, `tsconfig.tests.json`, `package.json`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - Test results: the exact fresh-page round trip plus zoom/pan no longer throws; 20 settled mobile-width cycles with zoom and keyboard pan after every return and 10 rapid reversal sequences retained one map/TileLayer/canvas, at least 20 visible tiles, and zero runtime errors
+
+### V1.3.9 map final stability release
+
+- Scope: reviewed final Leaflet and MapLibre ownership, removed metrics-only logging/counters, replaced unowned zero-delay Leaflet popup timers with one cancellable animation-frame owner, bumped the service-worker cache generation, and documented the lifecycle contract
+- Preserved behavior: continuous world wrapping, date-line geometry, canonical wrapped selections, quality settings, optional-resource degradation, and all save/accounting behavior
+- Files changed: `src/components/GameMap.tsx`, `src/components/map/providers/MapLibreGlobeProvider.tsx`, `docs/map-lifecycle.md`, version metadata, README, manifest, and service-worker cache generation
+- Test results: initial 2D and 3D pass; 10/10 settled cycles and 5/5 rapid reversal sequences retain one Leaflet map, one base TileLayer, one MapLibre canvas, and 18 visible tiles; post-return zoom/pan loads 24 tiles; wrapped overlays remain present; canvas pixel variation is nonblank; console errors and temporary debug logs are zero
 
 ## Files Modified
 
@@ -359,9 +364,15 @@ Checkpoint the stale Leaflet base-layer listener fix, then preserve V1.3.8 until
 - `src/app/map-harness/page.tsx`: production-404 guard for the real-component map fixture
 - `src/app/map-harness/MapHarnessClient.tsx`: development-only real `GameMap` routes, flights, engine and EN/ZH controls, and canonical-selection output
 - `docs/codex-progress/ACTIVE.md`: factual audit, evidence, gate status, and recovery handoff
+- `docs/map-lifecycle.md`: final Leaflet, MapLibre, engine-switch, and failure-degradation ownership contract
 
 ## Tests Completed
 
+- V1.3.9 focused baseline: `pnpm install --frozen-lockfile`, `pnpm audit --prod`, 12/12 tests, typecheck, zero-warning lint, and the production build passed at baseline HEAD `e1a2225`
+- V1.3.9 practical browser gate: initial 2D produced one Leaflet map, one base layer, 18 visible tiles, 10 route paths, 150 airport copies, and 10 aircraft copies; initial 3D produced one visible nonblank canvas
+- V1.3.9 switching gate: 10/10 settled 2D to 3D to 2D cycles and 5/5 rapid reversal sequences ended with one map, one base layer, one globe canvas, 18 visible tiles, and no stuck transition
+- V1.3.9 interaction gate: zoom and keyboard pan changed the Leaflet transform, loaded 24 tiles, retained wrapped route/airport/aircraft copies, and emitted no console error
+- V1.3.9 logging gate: no temporary map `console.debug` output remains; guarded optional-resource warnings remain available
 - `pnpm run test`: passed, 12 tests and 0 failures, including Leaflet layer cleanup ordering, pre-V1.3 IndexedDB adapter restoration, local/cloud canonical cash alias migration, and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
 - `pnpm run lint`: passed with 0 errors and 0 warnings
@@ -436,22 +447,22 @@ Checkpoint the stale Leaflet base-layer listener fix, then preserve V1.3.8 until
 | English | MapLibre airport tooltip, map labels, and Leaflet airport popup rendered correctly |
 | Chinese | MapLibre and Leaflet airport details render translated status; Schedule preview-overlap errors now have a compiler-checked Chinese mapping |
 
-## Remaining Risks
+## Deferred External Verification
 
-- V1.2.2 and every historical cash alias pass the cloud boundary, and the actual IndexedDB adapter round trip passes under a standards-compatible test implementation; `pnpm run test:cloud` is ready, but authenticated Supabase upsert/load and browser UI rehydration have not been exercised.
-- Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
-- Production app-shell origin outage and reconnection pass, but full browser-offline mode still cannot be toggled; external network isolation and authenticated/local saved-game interaction remain unverified.
-- Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with zero errors and zero warnings.
+- Authenticated live Supabase signup, upsert/load, uniqueness, deletion, and cleanup with an empty disposable project; the guarded `pnpm run test:cloud` verifier is ready
+- Physical-device touch panning, pinch zoom, and information-card scrolling
+- Complete browser-wide network isolation with authenticated/local saved-game interaction; production app-shell origin outage/reconnection and failed map-resource behavior already pass
+
+These checks remain useful external acceptance coverage. There is no current evidence that they represent a reproducible code defect, so they do not block V1.3.9 or V1.4.0.
 
 ## Next Exact Action
 
-Configure non-production Supabase environment variables for an empty disposable authenticated account, set `CLOUD_SAVE_TEST_CONFIRM_DISPOSABLE_ACCOUNT=yes`, then run `pnpm run test:cloud` and record the live result without exposing credentials.
+Audit existing revenue, operating-cost, schedule-frequency, route-evaluation, and completed-flight cash calculations before creating the centralized V1.4 economics layer.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
 2. Confirm the checkpoint is on `main` and synchronized with `origin/main`.
-3. Run `pnpm install --frozen-lockfile`, `pnpm audit --prod`, `pnpm run test`, `pnpm run typecheck`, `pnpm run lint`, and `pnpm run build` before changing persistence code.
-4. Configure a non-production Supabase project and empty disposable authenticated account, review `pnpm run test:cloud -- --help`, then run `pnpm run test:cloud` without exposing credentials.
-5. Repeat the remaining physical touch/pinch and full browser-offline checks in a capable browser, and leave version `1.3.8` until the complete acceptance matrix passes.
+3. Confirm V1.3.9 is synchronized with `origin/main`, then inspect only the existing economics, route-evaluation, scheduling, demand, and completed-flight accounting paths.
+4. Keep preview calculations pure and derived; do not alter save schema or cash until the current authoritative settlement path is understood.
+5. Treat authenticated Supabase, physical touch/pinch, and complete browser-wide isolation as deferred external verification unless a reproducible defect appears.

@@ -32,7 +32,6 @@ type AirportMarkerKind = "base" | "opened" | "unopened";
 type RouteMapStatistics = { assignedAircraftIds: Set<string>; weeklyFlightCount: number };
 type LeafletTileDiagnostics = {
   errorCountRef: MutableRefObject<number>;
-  loadCountRef: MutableRefObject<number>;
   errorUrlsRef: MutableRefObject<Set<string>>;
   tileGeneration: number;
   isCurrent: () => boolean;
@@ -125,19 +124,18 @@ export function GameMap(props: Props) {
   const leafletModuleRef = useRef<typeof import("leaflet") | null>(null);
   const leafletInitialisationRef = useRef<Promise<typeof import("leaflet")> | null>(null);
   const leafletTileErrorCountRef = useRef(0);
-  const leafletTileLoadCountRef = useRef(0);
   const leafletTileGenerationRef = useRef(0);
   const leafletTileReadinessCancelRef = useRef<(() => void) | null>(null);
   const leafletTileErrorUrlsRef = useRef(new Set<string>());
   const leafletViewportListenersCleanupRef = useRef<(() => void) | null>(null);
   const leafletOverlayRedrawFrameRef = useRef<number | null>(null);
+  const leafletPopupFrameRef = useRef<number | null>(null);
   const previousTwoDProviderRef = useRef<"google" | "leaflet" | null>(null);
   const latestPropsRef = useRef<MapRenderProps>({ ...props, airportPopupLabels });
   const effectiveMapEngineRef = useRef<MapEngine>("2d");
   const mapSwitchGenerationRef = useRef(0);
   const previousEffectiveMapEngineRef = useRef<MapEngine>("2d");
   const globeWasActiveRef = useRef(false);
-  const renderMetricsRef = useRef({ renders: 0, routeBuilds: 0, aircraftBuilds: 0, lastReportedAt: 0 });
   const [globeFailed, setGlobeFailed] = useState(false);
   const [hasMountedGlobe, setHasMountedGlobe] = useState(false);
   const [webglChecked, setWebglChecked] = useState(false);
@@ -158,7 +156,6 @@ export function GameMap(props: Props) {
   const shouldPrepareGlobeData = hasMountedGlobe || selectedMapEngine === "globe3d";
   latestPropsRef.current = { ...props, airportPopupLabels };
   effectiveMapEngineRef.current = effectiveMapEngine;
-  if (process.env.NODE_ENV === "development") renderMetricsRef.current.renders += 1;
   const weeklyScheduleSignature = useMemo(() => getWeeklyScheduleSignature(props.fleet), [props.fleet]);
   // The signature contains every field consumed by route statistics; broad fleet changes must not rebuild it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,7 +191,6 @@ export function GameMap(props: Props) {
   );
   const globeRoutes = useMemo(
     () => {
-      if (process.env.NODE_ENV === "development") renderMetricsRef.current.routeBuilds += 1;
       return shouldPrepareGlobeData
         ? buildGlobeRouteData(
             {
@@ -210,7 +206,6 @@ export function GameMap(props: Props) {
   );
   const globeAircraft = useMemo(
     () => {
-      if (process.env.NODE_ENV === "development") renderMetricsRef.current.aircraftBuilds += 1;
       return shouldPrepareGlobeData
         ? buildGlobeAircraftData(
             {
@@ -223,17 +218,6 @@ export function GameMap(props: Props) {
     },
     [props.fleet, props.displayMode, renderedGameTimeMs, shouldPrepareGlobeData]
   );
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development" || effectiveMapEngine !== "globe3d") return;
-    const now = Date.now();
-    if (now - renderMetricsRef.current.lastReportedAt < 5000) return;
-    renderMetricsRef.current.lastReportedAt = now;
-    console.debug("[GameMap] Globe render metrics", {
-      ...renderMetricsRef.current,
-      aircraftFeatures: globeAircraft.length,
-      routeFeatures: globeRoutes.length
-    });
-  }, [effectiveMapEngine, globeAircraft, globeRoutes]);
   const onMapEngineFallback = props.onMapEngineFallback;
   const handleGlobeError = useCallback(
     (reason: MapGlobeFailureReason) => {
@@ -266,7 +250,7 @@ export function GameMap(props: Props) {
       return;
     }
     if (leafletModuleRef.current && leafletMapRef.current) {
-      drawLeafletLayers(latestPropsRef.current, leafletModuleRef.current, leafletMapRef.current, leafletLayersRef);
+      drawLeafletLayers(latestPropsRef.current, leafletModuleRef.current, leafletMapRef.current, leafletLayersRef, leafletPopupFrameRef);
     }
   }, [twoDProvider]);
 
@@ -276,7 +260,7 @@ export function GameMap(props: Props) {
 
   useEffect(() => {
     if (previousTwoDProviderRef.current && previousTwoDProviderRef.current !== twoDProvider) {
-      cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileReadinessCancelRef, leafletTileGenerationRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef);
+      cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileReadinessCancelRef, leafletTileGenerationRef, leafletTileErrorCountRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef, leafletPopupFrameRef);
     }
     previousTwoDProviderRef.current = twoDProvider;
   }, [twoDProvider]);
@@ -306,7 +290,6 @@ export function GameMap(props: Props) {
             leafletBaseLayerRef,
             createLeafletTileDiagnostics(
               leafletTileErrorCountRef,
-              leafletTileLoadCountRef,
               leafletTileErrorUrlsRef,
               leafletTileGenerationRef,
               () => setLeafletBaseTilesUnavailable(false)
@@ -320,7 +303,8 @@ export function GameMap(props: Props) {
             latestPropsRef,
             leafletLayersRef,
             leafletViewportListenersCleanupRef,
-            leafletOverlayRedrawFrameRef
+            leafletOverlayRedrawFrameRef,
+            leafletPopupFrameRef
           );
         }
         if (!cancelled && effectiveMapEngineRef.current === "2d") drawLatestTwoDMap();
@@ -336,7 +320,7 @@ export function GameMap(props: Props) {
   }, [drawLatestTwoDMap, twoDProvider]);
 
   useEffect(() => {
-    return () => cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileReadinessCancelRef, leafletTileGenerationRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef);
+    return () => cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileReadinessCancelRef, leafletTileGenerationRef, leafletTileErrorCountRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef, leafletPopupFrameRef);
   }, []);
 
   useEffect(() => {
@@ -364,7 +348,6 @@ export function GameMap(props: Props) {
       const createDiagnostics = () =>
         createLeafletTileDiagnostics(
           leafletTileErrorCountRef,
-          leafletTileLoadCountRef,
           leafletTileErrorUrlsRef,
           leafletTileGenerationRef,
           () => setLeafletBaseTilesUnavailable(false)
@@ -375,16 +358,7 @@ export function GameMap(props: Props) {
         window.cancelAnimationFrame(leafletOverlayRedrawFrameRef.current);
         leafletOverlayRedrawFrameRef.current = null;
       }
-      drawLeafletLayers(latestPropsRef.current, leaflet, map, leafletLayersRef);
-      if (process.env.NODE_ENV === "development") {
-        console.debug("[Leaflet] Preparing 2D", {
-          switchGeneration: generation,
-          tileGeneration: diagnostics.tileGeneration,
-          containerSize: { width: container.clientWidth, height: container.clientHeight },
-          center: map.getCenter(),
-          zoom: map.getZoom()
-        });
-      }
+      drawLeafletLayers(latestPropsRef.current, leaflet, map, leafletLayersRef, leafletPopupFrameRef);
 
       let readiness = await waitForLeafletTiles(map, baseLayer, diagnostics, leafletTileReadinessCancelRef, 3400);
       if (!isCurrentTransition()) return false;
@@ -417,12 +391,13 @@ export function GameMap(props: Props) {
           leafletModuleRef,
           latestPropsRef,
           leafletViewportListenersCleanupRef,
-          leafletOverlayRedrawFrameRef
+          leafletOverlayRedrawFrameRef,
+          leafletPopupFrameRef
         );
         const recreatedMap = leafletMapRef.current as LeafletMap;
         diagnostics = createDiagnostics();
         baseLayer = replaceLeafletBaseLayer(leaflet, recreatedMap, leafletBaseLayerRef, diagnostics);
-        drawLeafletLayers(latestPropsRef.current, leaflet, recreatedMap, leafletLayersRef);
+        drawLeafletLayers(latestPropsRef.current, leaflet, recreatedMap, leafletLayersRef, leafletPopupFrameRef);
         readiness = await waitForLeafletTiles(recreatedMap, baseLayer, diagnostics, leafletTileReadinessCancelRef, 3000);
         if (!isCurrentTransition()) return false;
       }
@@ -550,10 +525,10 @@ function cleanupTwoDMaps(
   leafletTileReadinessCancelRef: MutableRefObject<(() => void) | null>,
   leafletTileGenerationRef: MutableRefObject<number>,
   leafletTileErrorCountRef: MutableRefObject<number>,
-  leafletTileLoadCountRef: MutableRefObject<number>,
   leafletTileErrorUrlsRef: MutableRefObject<Set<string>>,
   leafletViewportListenersCleanupRef: MutableRefObject<(() => void) | null>,
-  leafletOverlayRedrawFrameRef: MutableRefObject<number | null>
+  leafletOverlayRedrawFrameRef: MutableRefObject<number | null>,
+  leafletPopupFrameRef: MutableRefObject<number | null>
 ) {
   googleLayersRef.current.forEach((layer) => layer.setMap?.(null));
   googleLayersRef.current = [];
@@ -567,6 +542,7 @@ function cleanupTwoDMaps(
     window.cancelAnimationFrame(leafletOverlayRedrawFrameRef.current);
     leafletOverlayRedrawFrameRef.current = null;
   }
+  cancelLeafletPopupFrame(leafletPopupFrameRef);
   if (leafletLayersRef.current) {
     leafletLayersRef.current.remove();
     leafletLayersRef.current = null;
@@ -580,7 +556,6 @@ function cleanupTwoDMaps(
     leafletMapRef.current = null;
   }
   leafletTileErrorCountRef.current = 0;
-  leafletTileLoadCountRef.current = 0;
   leafletTileErrorUrlsRef.current.clear();
 }
 
@@ -749,7 +724,6 @@ function normalizeHeading(value: number) {
 
 function createLeafletTileDiagnostics(
   errorCountRef: MutableRefObject<number>,
-  loadCountRef: MutableRefObject<number>,
   errorUrlsRef: MutableRefObject<Set<string>>,
   tileGenerationRef: MutableRefObject<number>,
   onTileLoaded: () => void
@@ -757,7 +731,6 @@ function createLeafletTileDiagnostics(
   const tileGeneration = ++tileGenerationRef.current;
   return {
     errorCountRef,
-    loadCountRef,
     errorUrlsRef,
     tileGeneration,
     isCurrent: () => tileGenerationRef.current === tileGeneration,
@@ -780,19 +753,8 @@ function ensureLeafletBaseLayer(
   }
 
   const tileLayer = L.tileLayer(LEAFLET_BASE_TILE_URL, { ...LEAFLET_2D_TILE_OPTIONS });
-  tileLayer.on("loading", () => {
-    if (process.env.NODE_ENV === "development" && diagnostics.isCurrent()) {
-      console.debug("[Leaflet] Base tiles loading", { tileGeneration: diagnostics.tileGeneration });
-    }
-  });
-  tileLayer.on("load", () => {
-    if (process.env.NODE_ENV === "development" && diagnostics.isCurrent()) {
-      console.debug("[Leaflet] Base tiles loaded", { tileGeneration: diagnostics.tileGeneration, loadedTileCount: diagnostics.loadCountRef.current });
-    }
-  });
   tileLayer.on("tileload", () => {
     if (!diagnostics.isCurrent()) return;
-    diagnostics.loadCountRef.current += 1;
     diagnostics.onTileLoaded();
   });
   tileLayer.on("tileerror", (event: any) => {
@@ -834,7 +796,8 @@ function attachLeafletViewportListeners(
   latestPropsRef: MutableRefObject<MapRenderProps>,
   layerRef: MutableRefObject<LayerGroup | null>,
   cleanupRef: MutableRefObject<(() => void) | null>,
-  overlayFrameRef: MutableRefObject<number | null>
+  overlayFrameRef: MutableRefObject<number | null>,
+  popupFrameRef: MutableRefObject<number | null>
 ) {
   if (cleanupRef.current) return;
 
@@ -843,7 +806,7 @@ function attachLeafletViewportListeners(
     overlayFrameRef.current = window.requestAnimationFrame(() => {
       overlayFrameRef.current = null;
       if (mapRef.current !== map || moduleRef.current !== L) return;
-      drawLeafletLayers(latestPropsRef.current, L, map, layerRef);
+      drawLeafletLayers(latestPropsRef.current, L, map, layerRef, popupFrameRef);
     });
   };
 
@@ -969,12 +932,6 @@ function waitForLeafletTiles(
         visibleLoadedTiles: getVisibleLoadedLeafletTileCount(map),
         durationMs: Date.now() - startedAt
       };
-      if (process.env.NODE_ENV === "development") {
-        console.debug("[Leaflet] Tile generation result", {
-          tileGeneration: diagnostics.tileGeneration,
-          ...result
-        });
-      }
       resolve(result);
     }
 
@@ -1029,7 +986,8 @@ function recreateLeafletMap(
   moduleRef: MutableRefObject<typeof import("leaflet") | null>,
   latestPropsRef: MutableRefObject<MapRenderProps>,
   viewportCleanupRef: MutableRefObject<(() => void) | null>,
-  overlayFrameRef: MutableRefObject<number | null>
+  overlayFrameRef: MutableRefObject<number | null>,
+  popupFrameRef: MutableRefObject<number | null>
 ) {
   viewportCleanupRef.current?.();
   viewportCleanupRef.current = null;
@@ -1037,6 +995,7 @@ function recreateLeafletMap(
     window.cancelAnimationFrame(overlayFrameRef.current);
     overlayFrameRef.current = null;
   }
+  cancelLeafletPopupFrame(popupFrameRef);
   layerRef.current?.remove();
   layerRef.current = null;
   detachLeafletLayer(baseLayerRef.current);
@@ -1050,11 +1009,17 @@ function recreateLeafletMap(
   });
   mapRef.current = recreatedMap;
   moduleRef.current = L;
-  attachLeafletViewportListeners(recreatedMap, L, mapRef, moduleRef, latestPropsRef, layerRef, viewportCleanupRef, overlayFrameRef);
+  attachLeafletViewportListeners(recreatedMap, L, mapRef, moduleRef, latestPropsRef, layerRef, viewportCleanupRef, overlayFrameRef, popupFrameRef);
   return recreatedMap;
 }
 
-function drawLeafletLayers(props: MapRenderProps, L: typeof import("leaflet"), map: LeafletMap, layerRef: MutableRefObject<LayerGroup | null>) {
+function drawLeafletLayers(
+  props: MapRenderProps,
+  L: typeof import("leaflet"),
+  map: LeafletMap,
+  layerRef: MutableRefObject<LayerGroup | null>,
+  popupFrameRef: MutableRefObject<number | null>
+) {
   if (!map) return;
   if (layerRef.current) {
     layerRef.current.remove();
@@ -1062,9 +1027,6 @@ function drawLeafletLayers(props: MapRenderProps, L: typeof import("leaflet"), m
   const layer = L.layerGroup().addTo(map);
   layerRef.current = layer;
   const worldOffsets = getVisibleLeafletWorldOffsets(map);
-  let routeCopies = 0;
-  let airportCopies = 0;
-  let aircraftCopies = 0;
 
   if (shouldShowRoutes(props.displayMode)) {
     props.routes.forEach((route) => {
@@ -1080,7 +1042,6 @@ function drawLeafletLayers(props: MapRenderProps, L: typeof import("leaflet"), m
         })
           .on("click", () => props.onSelectRoute(route.id))
           .addTo(layer);
-        routeCopies += 1;
       });
     });
   }
@@ -1111,15 +1072,15 @@ function drawLeafletLayers(props: MapRenderProps, L: typeof import("leaflet"), m
                 })
                   .on("click", () => {
                     props.onSelectFlight(item.id);
-                    window.setTimeout(() => {
+                    scheduleLeafletPopupFrame(popupFrameRef, () => {
+                      if (!map.getContainer().isConnected) return;
                       L.popup({ offset: [0, -10] })
                         .setLatLng([position.lat, copyLng])
                         .setContent(aircraftDetailsHtml(aircraft, model, item, props.currentGameTimeMs))
                         .openOn(map);
-                    }, 0);
+                    });
                   })
                   .addTo(layer);
-                aircraftCopies += 1;
               });
         });
     });
@@ -1152,22 +1113,33 @@ function drawLeafletLayers(props: MapRenderProps, L: typeof import("leaflet"), m
         });
         marker.on("click", () => {
           props.onSelectAirport(airport.id);
-          window.setTimeout(() => {
+          scheduleLeafletPopupFrame(popupFrameRef, () => {
+            if (!map.getContainer().isConnected) return;
             L.popup({ offset: [0, -26] })
               .setLatLng([airport.lat, copyLng])
               .setContent(airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded, props.airportPopupLabels))
               .openOn(map);
-          }, 0);
+          });
         });
         marker.addTo(layer);
-        airportCopies += 1;
       });
     });
   }
 
-  if (process.env.NODE_ENV === "development") {
-    console.debug("[Leaflet] Overlay redraw", { worldOffsets, routeCopies, airportCopies, aircraftCopies });
-  }
+}
+
+function scheduleLeafletPopupFrame(frameRef: MutableRefObject<number | null>, callback: () => void) {
+  cancelLeafletPopupFrame(frameRef);
+  frameRef.current = window.requestAnimationFrame(() => {
+    frameRef.current = null;
+    callback();
+  });
+}
+
+function cancelLeafletPopupFrame(frameRef: MutableRefObject<number | null>) {
+  if (frameRef.current === null) return;
+  window.cancelAnimationFrame(frameRef.current);
+  frameRef.current = null;
 }
 
 async function initGoogleMap(element: HTMLDivElement, mapRef: MutableRefObject<any>) {

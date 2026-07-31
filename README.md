@@ -1,8 +1,8 @@
-# Airline Tycoon V1.3.8
+# Airline Tycoon V1.3.9
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.3.8 - Globe Performance and Mobile Optimization
+Release: V1.3.9 - Map Final Stability Release
 
 ## Features
 
@@ -62,7 +62,7 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.3.8 keeps the stable Leaflet 2D map and the resilient optional MapLibre GL JS globe. The globe now throttles visual aircraft updates, pauses refresh work while hidden or offscreen, improves large-network route statistics, offers Auto, High, and Reduced rendering quality, and keeps mobile controls and information cards within the viewport.
+Airline Tycoon V1.3.9 finalizes the V1.3 map lifecycle. Leaflet and MapLibre resources have explicit owners and cleanup paths, 2D restoration is generation guarded, wrapped routes and aircraft remain visible across the date line, and failed optional map resources degrade without stopping the simulation.
 
 ## Map Configuration
 

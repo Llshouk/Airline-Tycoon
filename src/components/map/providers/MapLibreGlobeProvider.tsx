@@ -129,7 +129,6 @@ export function MapLibreGlobeProvider({
   const onSelectAircraftRef = useRef(onSelectAircraft);
   const languageRef = useRef(language);
   const interactionLabelsRef = useRef(labels.interaction);
-  const mapInstanceCountRef = useRef(0);
   const isActiveRef = useRef(isActive);
   const [isReady, setIsReady] = useState(false);
   const [isPageVisible, setIsPageVisible] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
@@ -143,7 +142,6 @@ export function MapLibreGlobeProvider({
   const latestAirportGeoJsonRef = useRef<FeatureCollection<Point>>(airportGeoJson);
   const latestRouteGeoJsonRef = useRef<FeatureCollection<LineString>>(routeGeoJson);
   const latestAircraftGeoJsonRef = useRef<FeatureCollection<Point>>(aircraftGeoJson);
-  const sourceMetricsRef = useRef({ airportUpdates: 0, routeUpdates: 0, aircraftUpdates: 0, lastReportedAt: 0 });
   const airportByMapId = useMemo(() => new Map(airports.map((item) => [item.id, item])), [airports]);
   const routeByMapId = useMemo(() => new Map(routes.map((item) => [item.id, item])), [routes]);
   const aircraftByMapId = useMemo(() => new Map(aircraft.map((item) => [item.id, item])), [aircraft]);
@@ -184,10 +182,6 @@ export function MapLibreGlobeProvider({
     }
 
     try {
-      mapInstanceCountRef.current += 1;
-      if (process.env.NODE_ENV === "development") {
-        console.debug("[MapLibre Globe] Creating map instance", { count: mapInstanceCountRef.current });
-      }
       const map = new maplibregl.Map({
         container,
         style: getGlobeSatelliteStyle(),
@@ -394,24 +388,17 @@ export function MapLibreGlobeProvider({
   useEffect(() => {
     if (!isActive || !isPageVisible || !isContainerVisible || !isReady || !mapRef.current) return;
     setGeoJsonSourceData(mapRef.current, AIRPORT_SOURCE_ID, airportGeoJson);
-    recordSourceUpdate(sourceMetricsRef, "airport", airportGeoJson.features.length);
   }, [airportGeoJson, isActive, isContainerVisible, isPageVisible, isReady]);
 
   useEffect(() => {
     if (!isActive || !isPageVisible || !isContainerVisible || !isReady || !mapRef.current) return;
     setGeoJsonSourceData(mapRef.current, ROUTE_SOURCE_ID, routeGeoJson);
-    recordSourceUpdate(sourceMetricsRef, "route", routeGeoJson.features.length);
   }, [isActive, isContainerVisible, isPageVisible, isReady, routeGeoJson]);
 
   useEffect(() => {
     if (!isActive || !isReady || !isPageVisible || !isContainerVisible || !mapRef.current) return;
     const latestAircraftGeoJson = latestAircraftGeoJsonRef.current;
     setGeoJsonSourceData(mapRef.current, AIRCRAFT_SOURCE_ID, latestAircraftGeoJson);
-    recordSourceUpdate(sourceMetricsRef, "aircraft", latestAircraftGeoJson.features.length, {
-      imageLoaded: mapRef.current.hasImage(AIRCRAFT_IMAGE_ID),
-      normalLayerExists: Boolean(mapRef.current.getLayer("aircraft-layer")),
-      selectedLayerExists: Boolean(mapRef.current.getLayer("aircraft-selected-layer"))
-    });
   }, [aircraftGeoJson, isActive, isContainerVisible, isPageVisible, isReady]);
 
   useEffect(() => {
@@ -870,28 +857,6 @@ async function addAircraftImage(map: maplibregl.Map) {
 function setGeoJsonSourceData(map: maplibregl.Map, sourceId: string, data: FeatureCollection) {
   const source = map.getSource(sourceId) as maplibregl.GeoJSONSource | undefined;
   source?.setData(data);
-}
-
-function recordSourceUpdate(
-  metricsRef: { current: { airportUpdates: number; routeUpdates: number; aircraftUpdates: number; lastReportedAt: number } },
-  source: "airport" | "route" | "aircraft",
-  featureCount: number,
-  aircraftDiagnostics?: Record<string, boolean>
-) {
-  if (source === "airport") metricsRef.current.airportUpdates += 1;
-  if (source === "route") metricsRef.current.routeUpdates += 1;
-  if (source === "aircraft") metricsRef.current.aircraftUpdates += 1;
-  if (process.env.NODE_ENV !== "development") return;
-
-  const now = Date.now();
-  if (now - metricsRef.current.lastReportedAt < 5000) return;
-  metricsRef.current.lastReportedAt = now;
-  console.debug("[MapLibre Globe] Render metrics", {
-    ...metricsRef.current,
-    latestSource: source,
-    featureCount,
-    ...aircraftDiagnostics
-  });
 }
 
 function applyGlobeQuality(map: maplibregl.Map, quality: EffectiveGlobeQuality) {
