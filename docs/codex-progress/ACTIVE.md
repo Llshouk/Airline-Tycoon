@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `1192082002b542b26d4b02bf2a1177c42b78d998`
+- Current HEAD: `ceb4c95557890f9bcf0d2ceccf8f3e1972e63b49`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,9 +25,18 @@
 
 ## Current Objective
 
-Checkpoint legacy cash preservation at the cloud restore boundary, then preserve V1.3.8 until live authenticated acceptance can run.
+Checkpoint the real IndexedDB adapter's pre-V1.3 restore contract, then resolve the newly confirmed production dependency advisories before external acceptance resumes.
 
 ## Confirmed Problems
+
+### Production dependency audit reports patched security advisories
+
+- Severity: P1 security maintenance
+- Reproduction: run `pnpm audit --prod` against the resolved V1.3.8 dependency tree
+- Observed behavior: the audit reports six high and six moderate advisories across `next@15.5.19` and its resolved `sharp@0.34.5` and PostCSS dependencies
+- Expected behavior: update within the compatible Next.js 15 release line and resolve transitive packages to verified patched versions without changing gameplay
+- Relevant files: `package.json`, `pnpm-lock.yaml`
+- Evidence: the registry audit identifies `next@15.5.21` as the patched Next.js release, `sharp@0.35.0` as the patched image dependency, and PostCSS versions through `8.5.17` as affected by at least one reported advisory
 
 ### React removed Leaflet's imperative container classes during engine switches
 
@@ -266,8 +275,16 @@ Checkpoint legacy cash preservation at the cloud restore boundary, then preserve
 - Issue: a cloud payload that predated canonical `money` could contain `cash`, `capital`, `playerMoney`, or nested airline cash, but cloud normalization replaced every variant with zero before store migration could inspect it
 - Root cause/design: cloud normalization read only `raw.money`; it now calls the same `getCurrentCash` helper used by the store, and that helper explicitly accepts partial legacy payloads
 - Files changed: `src/lib/cash.ts`, `src/lib/cloudSave.ts`, `tests/saveCompatibility.test.ts`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `ceb4c95557890f9bcf0d2ceccf8f3e1972e63b49`
 - Test results: the regression first failed with `0 !== 123456789`; all five aliases now restore to their exact canonical value, duplicate fields remain absent, and 10/10 tests pass
+
+### Pre-V1.3 IndexedDB adapter restoration
+
+- Issue: save compatibility had been proved only against the shared normalization functions, not against the asynchronous IndexedDB adapter used by Zustand in the browser
+- Root cause/design: no production defect was found; a development-only standards-compatible IndexedDB test now writes a sanitized V1.2 persistence envelope through `gameSaveStorage`, reads back the exact value without local-save fallback, and runs it through the production restore path
+- Files changed: `package.json`, `pnpm-lock.yaml`, `tsconfig.tests.json`, `tests/gameSaveStorage.test.ts`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: the real adapter preserved cash, bases, registration, cabin layout, weekly schedule, route, and difficulty; 11/11 tests pass
 
 ## Files Modified
 
@@ -288,6 +305,9 @@ Checkpoint legacy cash preservation at the cloud restore boundary, then preserve
 - `src/lib/cash.ts`: defines the canonical reader for both current game state and partial historical payloads
 - `src/lib/cloudSave.ts`: preserves historical cash aliases before producing a canonical cloud-restored game
 - `tests/saveCompatibility.test.ts`: sanitized V1.2.2 restore plus local and cloud-boundary canonical cash migration assertions
+- `package.json` and `pnpm-lock.yaml`: include the development-only `fake-indexeddb` test dependency and execute the storage regression
+- `tsconfig.tests.json`: compiles the storage integration test with the existing Node test suite
+- `tests/gameSaveStorage.test.ts`: exercises the actual async IndexedDB adapter with a sanitized pre-V1.3 persistence envelope
 - `tests/registerTestAliases.cjs`: resolves compiled `@/` imports for Node's built-in test runner
 - `src/lib/mapLibreErrorPolicy.ts`: pure fatal/optional/recoverable MapLibre error classification
 - `tests/mapLibreErrorPolicy.test.ts`: optional glyph/vector/label, recoverable satellite, and fatal core-WebGL assertions
@@ -305,10 +325,11 @@ Checkpoint legacy cash preservation at the cloud restore boundary, then preserve
 
 ## Tests Completed
 
-- `pnpm run test`: passed, 10 tests and 0 failures, including V1.2.2 restoration, local/cloud canonical cash alias migration, and MapLibre error policy
+- `pnpm run test`: passed, 11 tests and 0 failures, including pre-V1.3 IndexedDB adapter restoration, local/cloud canonical cash alias migration, and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
 - `pnpm run lint`: passed with 0 errors and 0 warnings
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
+- `pnpm audit --prod`: reports 12 pre-existing production dependency advisories (6 high, 6 moderate); remediation is the next isolated V1.3.8 iteration
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
 - Initial desktop 3D: passed with satellite globe, route/airport/aircraft layers, one MapLibre canvas, and non-fatal optional resource errors
@@ -336,6 +357,7 @@ Checkpoint legacy cash preservation at the cloud restore boundary, then preserve
 - Schedule time ownership: weekly wrapping, flight duration, turnaround blocks, and overlap detection retain their existing minute-based inputs after dead import removal
 - Registration ownership: the Aircraft Market generates proposed registrations and the store continues to validate uniqueness while preserving one record per aircraft
 - Canonical cash migration: legacy aliases remain readable through both store and cloud restoration, exact value is written to `money`, and duplicate top-level/nested aliases are removed
+- IndexedDB restore contract: the actual asynchronous adapter round-trips a V1.2 persistence envelope without invoking the legacy local-save fallback, then restores every acceptance-critical fixture field
 - Weekly route statistics: the memo signature directly tracks every consumed schedule field and ignores unrelated fleet updates; both map engines remain healthy
 - Aircraft images: A220 market and side-view assets render with preserved aspect ratio; a missing optimized source transitions to the existing fallback without a broken-image remnant
 - Resource ownership: all map effects have a single acquisition/cleanup owner; settled switching retains one instance per engine and route unmount leaves no map root or canvas
@@ -343,16 +365,16 @@ Checkpoint legacy cash preservation at the cloud restore boundary, then preserve
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
-- `git diff --check`: passed for the legacy cloud-cash compatibility checkpoint
+- `git diff --check`: passed for the IndexedDB compatibility checkpoint
 
 ## Cross-Version Regression Status
 
 | Area | Status |
 | --- | --- |
-| Saves | V1.2.2 compact restore passed; all five historical cash aliases survive local and cloud normalization into canonical `money` |
+| Saves | V1.2.2 compact restore and actual IndexedDB-adapter round trip passed; all five historical cash aliases normalize into canonical `money` |
 | Authentication | Deployed V1.3.8 and local configuration gates render; authenticated flow and airline switching not exercised |
 | Cloud save | Shared V1.2.2 payload and legacy-cash restore passed; authenticated Supabase upsert/load not reverified |
-| Local save | V1.2.2 state restore/normalize passed; actual IndexedDB rehydration not reverified |
+| Local save | Sanitized V1.2 persistence envelope passed through the actual async IndexedDB adapter and production restore path; browser UI rehydration remains unverified |
 | Fleet | Harness renders owned aircraft data; optimized aircraft images and missing-file fallback passed; gameplay workflow unchanged |
 | Schedules | In-flight fixture renders; default numbering now follows weekly-service mutations; authenticated create/delete UI pass pending |
 | Routes | Wrapped and date-line route rendering/clicks passed |
@@ -373,20 +395,22 @@ Checkpoint legacy cash preservation at the cloud restore boundary, then preserve
 
 ## Remaining Risks
 
-- V1.2.2 and every historical cash alias pass the cloud restore boundary, but authenticated Supabase upsert/load and actual IndexedDB browser rehydration have not been exercised in this session.
+- V1.2.2 and every historical cash alias pass the cloud boundary, and the actual IndexedDB adapter round trip passes under a standards-compatible test implementation; authenticated Supabase upsert/load and browser UI rehydration have not been exercised.
 - Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
 - Production app-shell origin outage and reconnection pass, but full browser-offline mode still cannot be toggled; external network isolation and authenticated/local saved-game interaction remain unverified.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
+- The resolved production dependency tree has 12 audit advisories; no advisory originates from the development-only IndexedDB test package, and remediation is queued before further feature work.
 - Lint succeeds with zero errors and zero warnings.
 
 ## Next Exact Action
 
-Configure non-production Supabase environment variables and provide or authorize a disposable authenticated test account, then run the pre-V1.3 cloud upsert/load and duplicate-row acceptance check.
+Upgrade Next.js within the 15.5 patch line and resolve the audited `sharp` and PostCSS transitive versions, then rerun the complete build, test, image, and production audit checks.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
 2. Confirm the checkpoint is on `main` and synchronized with `origin/main`.
 3. Run `pnpm run test`, `pnpm run typecheck`, `pnpm run lint`, and `pnpm run build` before changing persistence code.
-4. Configure a non-production Supabase project and disposable authenticated account, then verify old-save cloud upsert/load and one-row uniqueness without exposing credentials.
-5. Repeat the remaining physical touch/pinch and full browser-offline checks in a capable browser, and leave version `1.3.8` until the complete acceptance matrix passes.
+4. Resolve the production dependency audit without a major framework upgrade and rerun all automated and aircraft-image checks.
+5. Configure a non-production Supabase project and disposable authenticated account, then verify old-save cloud upsert/load and one-row uniqueness without exposing credentials.
+6. Repeat the remaining physical touch/pinch and full browser-offline checks in a capable browser, and leave version `1.3.8` until the complete acceptance matrix passes.

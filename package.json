@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "tsc -p tsconfig.tests.json && node --require ./tests/registerTestAliases.cjs --test .test-build/tests/leafletTileReadiness.test.js .test-build/tests/mapLibreErrorPolicy.test.js .test-build/tests/saveCompatibility.test.js",
+    "test": "tsc -p tsconfig.tests.json && node --require ./tests/registerTestAliases.cjs --test .test-build/tests/gameSaveStorage.test.js .test-build/tests/leafletTileReadiness.test.js .test-build/tests/mapLibreErrorPolicy.test.js .test-build/tests/saveCompatibility.test.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -30,6 +30,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.0.0",
+    "fake-indexeddb": "6.2.5",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.0"
