@@ -978,7 +978,7 @@ function getLatestSchedulePosition(aircraft: AircraftInstance, routes: Route[]) 
   };
 }
 
-function normalizeGame(game: GameState | null | undefined): GameState | null {
+export function normalizeGame(game: GameState | null | undefined): GameState | null {
   if (!game) return null;
   const rawGame = game as GameState & {
     cash?: unknown;

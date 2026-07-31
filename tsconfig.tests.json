@@ -5,9 +5,17 @@
     "moduleResolution": "Node",
     "outDir": ".test-build",
     "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["src/lib/leafletTileReadiness.ts", "tests/leafletTileReadiness.test.ts"]
+  "include": [
+    "src/lib/leafletTileReadiness.ts",
+    "tests/leafletTileReadiness.test.ts",
+    "tests/saveCompatibility.test.ts"
+  ]
 }

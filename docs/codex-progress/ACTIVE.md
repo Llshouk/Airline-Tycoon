@@ -5,6 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
+- Current HEAD: `3c7735dcd35696459afb332bffbefac87f90eb05`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -20,11 +21,11 @@
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Partially implemented systems: V1.3 map acceptance coverage and automated regression infrastructure
 - Next planned release: V1.3.9 final map stability, only after every V1.3.8 release gate is verified
-- Release-gate status: P0 blank-map defect fixed locally; V1.3.8 remains active because save compatibility, real touch/pinch input, and several optional-resource failure cases remain unverified
+- Release-gate status: P0 blank-map defect fixed and a V1.2.2 save fixture passes; V1.3.8 remains active because authenticated cloud/local storage round trips, real touch/pinch input, and several optional-resource failure cases remain unverified
 
 ## Current Objective
 
-Checkpoint the deterministic Leaflet restore repair, then verify a sanitized pre-V1.3 save through the current compatibility/load path without changing the save schema.
+Checkpoint the V1.2.2 save compatibility proof, then isolate optional MapLibre satellite/style/glyph/label failures and verify they remain non-fatal.
 
 ## Confirmed Problems
 
@@ -81,7 +82,7 @@ Checkpoint the deterministic Leaflet restore repair, then verify a sanitized pre
 - Issue: repeated 3D-to-2D switches could expose a blank map or permanent globe cover
 - Root cause: shared React/Leaflet DOM ownership removed imperative classes; readiness missed cached events and fade completion; terminal failure did not reveal the fallback map
 - Files changed: `src/components/GameMap.tsx`, `src/components/map/MapView.tsx`, `src/lib/leafletTileReadiness.ts`, focused tests and development-only map harness
-- Commit SHA: this green checkpoint; inspect the current repository HEAD after commit
+- Commit SHA: `3c7735dcd35696459afb332bffbefac87f90eb05`
 - Test results: 20/20 normal desktop cycles, 20/20 rapid sequences, east/west wrapping, date-line geometry, canonical object selection, network-failure fallback, desktop and mobile viewport checks passed
 
 ### Automation-safe validation
@@ -89,8 +90,16 @@ Checkpoint the deterministic Leaflet restore repair, then verify a sanitized pre
 - Issue: lint could not run in automation and no test script existed
 - Root cause/design: Next 15's deprecated interactive lint command had no config; tile readiness had no pure regression seam
 - Files changed: `package.json`, `pnpm-lock.yaml`, `eslint.config.mjs`, `tsconfig.tests.json`, `tests/leafletTileReadiness.test.ts`, `.gitignore`, `src/components/AircraftMarketScreen.tsx`
-- Commit SHA: this green checkpoint; inspect the current repository HEAD after commit
+- Commit SHA: `3c7735dcd35696459afb332bffbefac87f90eb05`
 - Test results: 4/4 focused tests pass; typecheck, lint, and production build pass
+
+### V1.2.2 save compatibility proof
+
+- Issue: the V1.3.8 release gate required evidence that a pre-V1.3 save preserves authoritative game data
+- Root cause/design: V1.2.2 and current persistence files are byte-for-byte unchanged, but no executable fixture proved the current local/cloud restore and game normalization sequence
+- Files changed: `src/store/gameStore.ts`, `tests/saveCompatibility.test.ts`, `tests/registerTestAliases.cjs`, `tsconfig.tests.json`, `package.json`, `eslint.config.mjs`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: the sanitized V1.2.2 compact fixture preserves airline, realistic difficulty, exact cash, multiple bases, fleet registration, cabin layout, route pricing, operational and weekly schedules, flight log, and timestamps
 
 ## Files Modified
 
@@ -103,14 +112,17 @@ Checkpoint the deterministic Leaflet restore repair, then verify a sanitized pre
 - `src/components/map/MapView.tsx`: separates React pane ownership from Leaflet container ownership and moves the noninteractive 2D badge away from zoom controls
 - `src/lib/leafletTileReadiness.ts`: pure rendered-tile visibility and coverage helpers
 - `tests/leafletTileReadiness.test.ts`: regression tests for collapsed, offscreen, visible, and cached coverage
-- `tsconfig.tests.json`: small CommonJS compile target for Node's built-in test runner
+- `src/store/gameStore.ts`: exports the existing pure load normalizer as a test seam without changing behavior
+- `tests/saveCompatibility.test.ts`: sanitized V1.2.2 compact-save restore and field-preservation assertions
+- `tests/registerTestAliases.cjs`: resolves compiled `@/` imports for Node's built-in test runner
+- `tsconfig.tests.json`: small CommonJS compile target for focused Node tests
 - `src/app/map-harness/page.tsx`: production-404 guard for the real-component map fixture
 - `src/app/map-harness/MapHarnessClient.tsx`: development-only real `GameMap` routes, flights, engine controls, and canonical-selection output
 - `docs/codex-progress/ACTIVE.md`: factual audit, evidence, gate status, and recovery handoff
 
 ## Tests Completed
 
-- `pnpm run test`: passed, 4 tests and 0 failures
+- `pnpm run test`: passed, 5 tests and 0 failures, including V1.2.2 save restoration
 - `pnpm run typecheck`: passed, `tsc --noEmit`
 - `pnpm run lint`: passed with 0 errors and 21 pre-existing warnings
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
@@ -132,10 +144,10 @@ Checkpoint the deterministic Leaflet restore repair, then verify a sanitized pre
 
 | Area | Status |
 | --- | --- |
-| Saves | Pending sanitized pre-V1.3 fixture test; no schema or persistence code changed |
+| Saves | V1.2.2 compact save restore/normalize passed with all release-gate fields preserved |
 | Authentication | Deployed V1.3.8 login gate renders; authenticated flow not exercised |
-| Cloud save | Not reverified; Supabase code unchanged |
-| Local save | Not reverified; local/IndexedDB code unchanged |
+| Cloud save | Shared V1.2.2 payload restore passed; authenticated Supabase upsert/load not reverified |
+| Local save | V1.2.2 state restore/normalize passed; actual IndexedDB rehydration not reverified |
 | Fleet | Harness renders owned aircraft data; gameplay workflow unchanged |
 | Schedules | In-flight fixture renders; scheduling workflow unchanged |
 | Routes | Wrapped and date-line route rendering/clicks passed |
@@ -156,7 +168,7 @@ Checkpoint the deterministic Leaflet restore repair, then verify a sanitized pre
 
 ## Remaining Risks
 
-- A pre-V1.3 save has not yet been exercised through local, IndexedDB, or cloud compatibility paths.
+- The V1.2.2 payload passes the shared restore/normalize path, but authenticated cloud upsert/load and actual IndexedDB browser rehydration have not been exercised in this session.
 - Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
 - Slow network, failed satellite/OpenFreeMap/glyph/country-label requests, and full temporary-offline behavior have not each been isolated, although observed optional MapLibre resource errors remained non-fatal.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
@@ -164,12 +176,12 @@ Checkpoint the deterministic Leaflet restore repair, then verify a sanitized pre
 
 ## Next Exact Action
 
-Locate the historical save compatibility/defaulting helper and add a sanitized pre-V1.3 fixture test that verifies cash, bases, fleet registrations, cabin layouts, routes, schedules, and difficulty survive normalization.
+Temporarily fault one optional MapLibre resource at a time in the development harness, verify the globe remains open with core routes/airports/aircraft, and restore every canonical URL before committing.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
 2. Confirm the checkpoint is on `main` and synchronized with `origin/main`.
 3. Run `pnpm run test`, `pnpm run typecheck`, `pnpm run lint`, and `pnpm run build` before changing persistence code.
-4. Inspect save/defaulting code in `src/store`, IndexedDB helpers, and Supabase save/load modules; do not inspect browser storage or use private account data.
-5. Build a sanitized historical fixture from repository schema/history, assert compatibility through existing helpers, and leave version `1.3.8` until the complete acceptance matrix passes.
+4. Use the development-only map harness to fault optional MapLibre resources without changing browser storage or authentication state.
+5. Record globe/core-layer behavior for each failure, restore all canonical URLs, and leave version `1.3.8` until the complete acceptance matrix passes.
