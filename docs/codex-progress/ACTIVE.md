@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `fee702a674da9ac21e3ee1b280643a95c039dd75`
+- Current HEAD: `75a8fb6a39cb0101e3d36ec58bc171472ef8d3b9`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint the Schedule preview memo's exact dependencies, then continue stabilization without speculative runtime changes.
+Checkpoint the bilingual Schedule conflict-preview error, then continue stabilization without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -192,8 +192,16 @@ Checkpoint the Schedule preview memo's exact dependencies, then continue stabili
 - Issue: changing UI language rebuilt schedule blocks, conflict geometry, and demand validation even though the preview memo produces only canonical validation data
 - Root cause/design: localization occurs when `showScheduleFailure` passes canonical errors through `localizeScheduleError`; the preview itself never reads `t`, so the unnecessary dependency is removed
 - Files changed: `src/components/ScheduleScreen.tsx`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `75a8fb6a39cb0101e3d36ec58bc171472ef8d3b9`
 - Test results: lint falls from 12 to 11 warnings; typecheck, focused tests, and production build pass with no validation behavior change
+
+### Bilingual Schedule conflict-preview error
+
+- Issue: the canonical overlap message reached `localizeScheduleError` without a matching branch, so Chinese users received the raw English fallback on save
+- Root cause/design: the existing canonical-error localization boundary now maps that exact message to compiler-checked English and Chinese dictionary entries
+- Files changed: `src/components/ScheduleScreen.tsx`, `src/i18n/en.ts`, `src/i18n/zh.ts`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: dictionary parity typechecks and all focused tests, lint, and production build pass; triggering the conflict through the authenticated Schedule UI remains credential-gated
 
 ## Files Modified
 
@@ -203,7 +211,7 @@ Checkpoint the Schedule preview memo's exact dependencies, then continue stabili
 - `eslint.config.mjs`: adds Next core-web-vitals/TypeScript flat-compatible lint configuration and ignores generated artifacts
 - `src/components/AircraftMarketScreen.tsx`: moves effects above the nullable-game early return to preserve hook ordering; removes one unused type import
 - `src/components/AuthGate.tsx`: keeps save-before-switch, cloud-slot refresh, and the context switch action synchronized with current auth, network, and translation state
-- `src/components/ScheduleScreen.tsx`: advances default outbound/return flight numbers when the total weekly-service count changes
+- `src/components/ScheduleScreen.tsx`: advances default outbound/return flight numbers when the total weekly-service count changes and localizes canonical overlap errors
 - `src/components/GameMap.tsx`: accepts existing visible tile coverage, polls through fade completion, validates positive tile rectangles, clears terminal transition states, supplies current translations to 2D airport popups, declares exact globe-builder inputs, and cancels async recovery through the owning effect
 - `src/components/map/MapView.tsx`: separates React pane ownership from Leaflet container ownership and moves the noninteractive 2D badge away from zoom controls
 - `src/lib/leafletTileReadiness.ts`: pure rendered-tile visibility and coverage helpers
@@ -216,8 +224,8 @@ Checkpoint the Schedule preview memo's exact dependencies, then continue stabili
 - `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy, uses declared MapLibre style types, reads current language labels from stable listener refs, and no longer carries the superseded V1.3.0 airport-popup helper
 - `src/components/map/maplibreGlobeSatelliteStyle.ts`: declares country filters and label text as valid MapLibre expressions
 - `src/components/map/maplibreGlobeStyle.ts`: restricts shared style mutations to scalar or valid MapLibre expression values
-- `src/i18n/en.ts`: English 2D airport popup labels and airport-size tiers
-- `src/i18n/zh.ts`: Chinese 2D airport popup labels and airport-size tiers
+- `src/i18n/en.ts`: English 2D airport popup labels, airport-size tiers, and Schedule overlap error
+- `src/i18n/zh.ts`: Chinese 2D airport popup labels, airport-size tiers, and Schedule overlap error
 - `tsconfig.tests.json`: small CommonJS compile target for focused Node tests
 - `src/app/map-harness/page.tsx`: production-404 guard for the real-component map fixture
 - `src/app/map-harness/MapHarnessClient.tsx`: development-only real `GameMap` routes, flights, engine and EN/ZH controls, and canonical-selection output
@@ -251,6 +259,7 @@ Checkpoint the Schedule preview memo's exact dependencies, then continue stabili
 - Auth gate callback ownership: unauthenticated local gate and configuration messaging render without runtime errors; authenticated save-before-switch remains an explicit credential-gated check
 - Schedule defaults: immutable create/delete paths change total weekly-service count, which now recomputes the next outbound/return pair even when selected aircraft and airline are unchanged
 - Schedule preview ownership: canonical conflict calculations no longer rebuild on language-only changes; submission remains the sole localization boundary
+- Schedule conflict localization: the canonical preview-overlap sentence now resolves through matching English and Chinese dictionary keys
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -280,7 +289,7 @@ Checkpoint the Schedule preview memo's exact dependencies, then continue stabili
 | Mobile | Portrait/landscape layout and repeated switching passed; real touch/pinch pending |
 | Offline/PWA | OSM failure path passed; full temporary-offline app-shell/save check pending |
 | English | MapLibre airport tooltip, map labels, and Leaflet airport popup rendered correctly |
-| Chinese | MapLibre airport tooltip updated without rebuilding the globe; Leaflet airport popup rendered translated size, role, and network status |
+| Chinese | MapLibre and Leaflet airport details render translated status; Schedule preview-overlap errors now have a compiler-checked Chinese mapping |
 
 ## Remaining Risks
 
@@ -293,7 +302,7 @@ Checkpoint the Schedule preview memo's exact dependencies, then continue stabili
 
 ## Next Exact Action
 
-Add the missing bilingual mapping for the canonical Schedule conflict-preview error so Chinese users do not receive the English fallback on save.
+Confirm the unused `AircraftInstance` import in `routeEvaluation` has no type-level consumer, then remove only that dead import.
 
 ## Recovery Instructions
 

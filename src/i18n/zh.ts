@@ -216,6 +216,7 @@ export const zh = {
   "schedule.flightNumberDuplicate": "航班号已存在。",
   "schedule.flightNumberUnique": "请使用唯一的航班号。",
   "schedule.flightNumberDuplicateFull": "保存失败：航班号已存在。\n请使用唯一的航班号。",
+  "schedule.conflictPreview": "排班冲突：预览航班与现有飞机时刻表重叠。",
   "finance.title": "财务",
   "finance.revenue": "收入",
   "finance.cost": "运营成本",

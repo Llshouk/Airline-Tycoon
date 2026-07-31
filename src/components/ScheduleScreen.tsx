@@ -889,6 +889,9 @@ function localizeScheduleError(message: string, t: ReturnType<typeof useTranslat
   if (message === "Flight number already exists. Please use a unique flight number.") {
     return t("schedule.flightNumberDuplicateFull");
   }
+  if (message === "Schedule conflict: preview overlaps existing aircraft timetable.") {
+    return t("schedule.conflictPreview");
+  }
   if (
     message === "Departure minutes must be in 5-minute intervals." ||
     message === "Departure minutes must be 00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, or 55."

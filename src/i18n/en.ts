@@ -262,6 +262,7 @@ export const en = {
   "schedule.flightNumberDuplicate": "Flight number already exists.",
   "schedule.flightNumberUnique": "Please use a unique flight number.",
   "schedule.flightNumberDuplicateFull": "Schedule save failed: flight number already exists.\nPlease use a unique flight number.",
+  "schedule.conflictPreview": "Schedule conflict: preview overlaps the existing aircraft timetable.",
   "schedule.departureMinuteInterval": "Departure minutes must be 00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, or 55.",
   "schedule.selectOperatingDay": "Please select at least one operating day.",
   "schedule.saveSuccess": "Weekly schedule saved successfully.",
