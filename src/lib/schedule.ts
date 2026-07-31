@@ -1,6 +1,6 @@
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
-import { dayOfWeekForGameTime, DAY_MS, flightWaitMs, timeOfDayMs, turnaroundWaitMs } from "@/lib/time";
+import { dayOfWeekForGameTime, flightWaitMs, timeOfDayMs } from "@/lib/time";
 import type { AircraftInstance, DayOfWeek, Route, ScheduleItem, WeeklySchedule } from "@/types/game";
 
 export const DAY_MINUTES = 24 * 60;

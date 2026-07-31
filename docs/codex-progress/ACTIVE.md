@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `5a81aebd0d5fabdcd22f81a9e9197a7c93440903`
+- Current HEAD: `972e159a1d60a7febba143e282a94f610c934933`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint the dead route-evaluation aircraft type import, then continue stabilization without speculative runtime changes.
+Checkpoint the dead schedule time imports, then continue stabilization without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -208,8 +208,16 @@ Checkpoint the dead route-evaluation aircraft type import, then continue stabili
 - Issue: `routeEvaluation` imported `AircraftInstance` without any value- or type-level consumer
 - Root cause/design: the evaluation system infers aircraft instances from game-state collections; repository history confirms the import has been unused since that system landed
 - Files changed: `src/lib/routeEvaluation.ts`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `972e159a1d60a7febba143e282a94f610c934933`
 - Test results: lint falls from 11 to 10 warnings; route evaluation typechecks and all focused tests and production build pass without scoring changes
+
+### Dead schedule time imports
+
+- Issue: `schedule.ts` imported `DAY_MS` and `turnaroundWaitMs` without any consumer
+- Root cause/design: weekly wrapping uses minute-based `DAY_MINUTES`, while current block timing reads `model.turnaroundMinutes` directly; source history confirms neither import was ever used
+- Files changed: `src/lib/schedule.ts`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: lint falls from 10 to 8 warnings; schedule logic typechecks and all focused tests and production build pass without timing or conflict changes
 
 ## Files Modified
 
@@ -235,6 +243,7 @@ Checkpoint the dead route-evaluation aircraft type import, then continue stabili
 - `src/i18n/en.ts`: English 2D airport popup labels, airport-size tiers, and Schedule overlap error
 - `src/i18n/zh.ts`: Chinese 2D airport popup labels, airport-size tiers, and Schedule overlap error
 - `src/lib/routeEvaluation.ts`: removes an unused aircraft-instance type import without changing evaluation logic
+- `src/lib/schedule.ts`: removes two never-used time imports while preserving minute-based timetable calculations
 - `tsconfig.tests.json`: small CommonJS compile target for focused Node tests
 - `src/app/map-harness/page.tsx`: production-404 guard for the real-component map fixture
 - `src/app/map-harness/MapHarnessClient.tsx`: development-only real `GameMap` routes, flights, engine and EN/ZH controls, and canonical-selection output
@@ -244,7 +253,7 @@ Checkpoint the dead route-evaluation aircraft type import, then continue stabili
 
 - `pnpm run test`: passed, 8 tests and 0 failures, including V1.2.2 save restoration and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 10 pre-existing warnings; the unused route-evaluation type warning is resolved
+- `pnpm run lint`: passed with 0 errors and 8 pre-existing warnings; two unused schedule time imports are resolved
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -270,6 +279,7 @@ Checkpoint the dead route-evaluation aircraft type import, then continue stabili
 - Schedule preview ownership: canonical conflict calculations no longer rebuild on language-only changes; submission remains the sole localization boundary
 - Schedule conflict localization: the canonical preview-overlap sentence now resolves through matching English and Chinese dictionary keys
 - Route evaluation type ownership: no evaluation score, recommendation, demand, or finance input changed; only an unreachable type import was removed
+- Schedule time ownership: weekly wrapping, flight duration, turnaround blocks, and overlap detection retain their existing minute-based inputs after dead import removal
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -308,11 +318,11 @@ Checkpoint the dead route-evaluation aircraft type import, then continue stabili
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
 - A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with 10 existing warnings, primarily the intentional GameMap signature, migration cleanup variables, two schedule imports, and aircraft `<img>` fallback behavior; no new lint errors remain.
+- Lint succeeds with 8 existing warnings: the intentional GameMap signature, one game-store helper, four migration cleanup variables, and two aircraft `<img>` fallback warnings; no new lint errors remain.
 
 ## Next Exact Action
 
-Trace the unused `DAY_MS` and `turnaroundWaitMs` schedule imports through source history, then remove them only if current timetable validation has superseded both paths.
+Trace the unused `createRegistration` import in `gameStore` through every aircraft purchase and starter-fleet path before removing it.
 
 ## Recovery Instructions
 
