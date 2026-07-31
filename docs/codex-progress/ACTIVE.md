@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `4dd8ef69bee82446a097c49fcc9acc60a05a5abd`
+- Current HEAD: `ca5e6338c44638584367545c6dc4ec4d19bd3eed`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint the bilingual Leaflet/Google airport-popup repair, then continue the map effect and resource ownership audit without speculative runtime changes.
+Checkpoint the explicit globe memo dependency contracts, then continue the map effect and resource ownership audit without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -130,7 +130,7 @@ Checkpoint the bilingual Leaflet/Google airport-popup repair, then continue the 
 - Issue: Leaflet and Google airport popup HTML embedded English size, base-role, and network-status labels even when the active game language was Chinese
 - Root cause/design: both providers shared a hard-coded popup builder that sat outside React's translation context; current translated labels now travel through the existing latest-render ref used by persistent map listeners
 - Files changed: `src/components/GameMap.tsx`, `src/i18n/en.ts`, `src/i18n/zh.ts`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `ca5e6338c44638584367545c6dc4ec4d19bd3eed`
 - Test results: the same LGW marker rendered `Airport size: Large`, `Not base airport`, and `Not connected yet` in English, then `机场规模: 大型`, `非基地机场`, and `尚未接入航线网络` in Chinese; provider remained `leaflet2d` with one map and 18 visible tiles
 
 ### Weekly route-statistics dependency audit
@@ -139,6 +139,14 @@ Checkpoint the bilingual Leaflet/Google airport-popup repair, then continue the 
 - Evidence: supported schedule add/edit paths create or replace `updatedAt`, deletion changes the schedule-ID set, and save normalization supplies a fallback timestamp
 - Result: no missed supported update was reproduced, so the warning remains documented and production behavior was not changed merely to silence lint
 
+### Explicit globe memo dependency contracts
+
+- Issue: airport, route, and aircraft memos passed the complete component props object into narrow data builders, so lint could not prove that their dependency lists covered every input
+- Root cause/design: each builder now accepts a typed `Pick` containing only the fields it reads, and each memo constructs that input from the exact values in its dependency list
+- Files changed: `src/components/GameMap.tsx`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: all three broad-props memo warnings are removed; lint falls from 20 to 17 warnings, the populated globe renders with one canvas and no runtime errors, and a 3D to 2D to 3D cycle restores 18 tiles in 13ms
+
 ## Files Modified
 
 - `.gitignore`: excludes generated `.test-build/` output
@@ -146,7 +154,7 @@ Checkpoint the bilingual Leaflet/Google airport-popup repair, then continue the 
 - `pnpm-lock.yaml`: records direct `@eslint/eslintrc` development dependency
 - `eslint.config.mjs`: adds Next core-web-vitals/TypeScript flat-compatible lint configuration and ignores generated artifacts
 - `src/components/AircraftMarketScreen.tsx`: moves effects above the nullable-game early return to preserve hook ordering; removes one unused type import
-- `src/components/GameMap.tsx`: accepts existing visible tile coverage, polls through fade completion, validates positive tile rectangles, clears terminal transition states, and supplies current translations to 2D airport popups
+- `src/components/GameMap.tsx`: accepts existing visible tile coverage, polls through fade completion, validates positive tile rectangles, clears terminal transition states, supplies current translations to 2D airport popups, and declares exact globe-builder inputs
 - `src/components/map/MapView.tsx`: separates React pane ownership from Leaflet container ownership and moves the noninteractive 2D badge away from zoom controls
 - `src/lib/leafletTileReadiness.ts`: pure rendered-tile visibility and coverage helpers
 - `tests/leafletTileReadiness.test.ts`: regression tests for collapsed, offscreen, visible, and cached coverage
@@ -169,7 +177,7 @@ Checkpoint the bilingual Leaflet/Google airport-popup repair, then continue the 
 
 - `pnpm run test`: passed, 8 tests and 0 failures, including V1.2.2 save restoration and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 20 pre-existing warnings; no new warning was introduced
+- `pnpm run lint`: passed with 0 errors and 17 pre-existing warnings; three broad-props globe memo warnings are resolved
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -186,6 +194,7 @@ Checkpoint the bilingual Leaflet/Google airport-popup repair, then continue the 
 - Typed style initialization: no unsafe `as never` remains under `src`; the real development harness rendered a complete globe after hot reload, and a 3D to 2D to 3D round trip retained one active canvas and restored 18 visible raster tiles in 12ms
 - Bilingual listener lifecycle: reproduced `language=zh` with an English AMS hover tooltip, then verified English and Chinese status text on one persistent MapLibre instance with no additional map creation
 - Bilingual 2D popup lifecycle: reproduced a Chinese game with English-only LGW details, then verified complete English and Chinese popup labels after language changes while retaining one Leaflet map and 18 visible tiles
+- Globe memo contracts: typed airport, route, and aircraft inputs rendered a populated globe with one canvas and no runtime errors; a 3D to 2D to 3D cycle retained one map and one TileLayer and restored 18 tiles in 13ms
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -224,11 +233,11 @@ Checkpoint the bilingual Leaflet/Google airport-popup repair, then continue the 
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
 - A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with 20 existing warnings, primarily remaining hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
+- Lint succeeds with 17 existing warnings, primarily remaining hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
 
 ## Next Exact Action
 
-Audit the remaining `GameMap` globe-data memo dependencies, beginning with `buildGlobeAirportData`, and prove whether any real prop update can be missed before changing it.
+Audit the Leaflet tile-readiness cancellation cleanup warning in `GameMap` and prove whether a stale ref can cancel the wrong transition before changing it.
 
 ## Recovery Instructions
 

@@ -81,6 +81,14 @@ type MapRenderProps = Props & {
   airportPopupLabels: AirportPopupLabels;
 };
 
+type GlobeAirportDataInput = Pick<
+  Props,
+  "baseAirportId" | "baseAirportIds" | "primaryBaseAirportId" | "expandedAirportIds" | "routes" | "displayMode"
+>;
+type GlobeRouteDataInput = Pick<Props, "routes" | "selectedRouteId" | "displayMode">;
+type GlobeAircraftDataInput = Pick<Props, "fleet" | "displayMode">;
+type NetworkAirportInput = Pick<Props, "baseAirportId" | "baseAirportIds" | "routes">;
+
 declare global {
   interface Window {
     google?: any;
@@ -160,7 +168,17 @@ export function GameMap(props: Props) {
     aircraftStructuralKey
   );
   const globeAirports = useMemo(
-    () => (shouldPrepareGlobeData ? buildGlobeAirportData(props) : []),
+    () =>
+      shouldPrepareGlobeData
+        ? buildGlobeAirportData({
+            baseAirportId: props.baseAirportId,
+            baseAirportIds: props.baseAirportIds,
+            primaryBaseAirportId: props.primaryBaseAirportId,
+            expandedAirportIds: props.expandedAirportIds,
+            routes: props.routes,
+            displayMode: props.displayMode
+          })
+        : [],
     [
       props.baseAirportId,
       props.baseAirportIds,
@@ -174,14 +192,31 @@ export function GameMap(props: Props) {
   const globeRoutes = useMemo(
     () => {
       if (process.env.NODE_ENV === "development") renderMetricsRef.current.routeBuilds += 1;
-      return shouldPrepareGlobeData ? buildGlobeRouteData(props, routeStatistics) : [];
+      return shouldPrepareGlobeData
+        ? buildGlobeRouteData(
+            {
+              routes: props.routes,
+              selectedRouteId: props.selectedRouteId,
+              displayMode: props.displayMode
+            },
+            routeStatistics
+          )
+        : [];
     },
     [props.routes, props.selectedRouteId, props.displayMode, routeStatistics, shouldPrepareGlobeData]
   );
   const globeAircraft = useMemo(
     () => {
       if (process.env.NODE_ENV === "development") renderMetricsRef.current.aircraftBuilds += 1;
-      return shouldPrepareGlobeData ? buildGlobeAircraftData(props, renderedGameTimeMs) : [];
+      return shouldPrepareGlobeData
+        ? buildGlobeAircraftData(
+            {
+              fleet: props.fleet,
+              displayMode: props.displayMode
+            },
+            renderedGameTimeMs
+          )
+        : [];
     },
     [props.fleet, props.displayMode, renderedGameTimeMs, shouldPrepareGlobeData]
   );
@@ -541,7 +576,7 @@ function cleanupTwoDMaps(
   leafletTileErrorUrlsRef.current.clear();
 }
 
-function buildGlobeAirportData(props: Props): MapAirportMarker[] {
+function buildGlobeAirportData(props: GlobeAirportDataInput): MapAirportMarker[] {
   const networkAirportIds = getNetworkAirportIds(props);
   const baseAirportIds = props.baseAirportIds ?? [props.baseAirportId];
   const primaryBaseAirportId = props.primaryBaseAirportId ?? props.baseAirportId;
@@ -601,7 +636,7 @@ function getGlobeAircraftStructuralKey(fleet: AircraftInstance[], displayMode: M
   return `${displayMode}|${fleet.flatMap((aircraft) => aircraft.schedule.filter((item) => item.status === "in-flight").map((item) => item.id)).join(",")}`;
 }
 
-function buildGlobeRouteData(props: Props, routeStatistics: Map<string, RouteMapStatistics>): MapRouteLine[] {
+function buildGlobeRouteData(props: GlobeRouteDataInput, routeStatistics: Map<string, RouteMapStatistics>): MapRouteLine[] {
   return shouldShowRoutes(props.displayMode)
     ? props.routes
         .map((route): MapRouteLine | null => {
@@ -628,7 +663,7 @@ function buildGlobeRouteData(props: Props, routeStatistics: Map<string, RouteMap
     : [];
 }
 
-function buildGlobeAircraftData(props: Props, currentGameTimeMs: number): MapAircraftMarker[] {
+function buildGlobeAircraftData(props: GlobeAircraftDataInput, currentGameTimeMs: number): MapAircraftMarker[] {
   return shouldShowAircraft(props.displayMode)
     ? props.fleet.flatMap((aircraft) => {
         const model = aircraftById[aircraft.modelId];
@@ -1264,7 +1299,7 @@ function shouldShowAircraft(mode: MapDisplayMode) {
   return mode === "all" || mode === "aircraft" || mode === "network";
 }
 
-function getNetworkAirportIds(props: Props) {
+function getNetworkAirportIds(props: NetworkAirportInput) {
   const ids = new Set<string>(props.baseAirportIds ?? [props.baseAirportId]);
   props.routes.forEach((route) => {
     ids.add(route.originAirportId);
