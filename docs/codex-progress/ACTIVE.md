@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `c0fdb870d27ce97931b3a78917d56a86cb3a1d95`
+- Current HEAD: `5cd17f5e056970984bc4c18e317a54cd681b9d16`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint typed MapLibre expressions, then audit map effect and resource ownership without changing working runtime behavior speculatively.
+Checkpoint the live MapLibre tooltip-language repair, then continue the map effect and resource ownership audit without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -114,8 +114,16 @@ Checkpoint typed MapLibre expressions, then audit map effect and resource owners
 - Issue: map style construction used `as never` to bypass MapLibre's generated style types, preventing compile-time detection of malformed expressions
 - Root cause/design: expression arrays widened to generic arrays and shared symbol layout objects were inferred as readonly values instead of their declared MapLibre property types
 - Files changed: `src/components/map/providers/MapLibreGlobeProvider.tsx`, `src/components/map/maplibreGlobeSatelliteStyle.ts`, `src/components/map/maplibreGlobeStyle.ts`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `5cd17f5e056970984bc4c18e317a54cd681b9d16`
 - Test results: no `as never` remains under `src`; typecheck accepts all expressions; the real harness rendered satellite Earth, labels, routes, airports, and aircraft; a 3D to 2D to 3D round trip restored 18 tiles in 12ms and retained one globe canvas
+
+### Live bilingual MapLibre tooltips
+
+- Issue: changing the app language updated country labels but long-lived airport, route, and aircraft hover listeners kept the interaction labels captured during first map creation
+- Root cause/design: the single-owner MapLibre mount effect intentionally has no language dependency, but its listener closures read `language` and `labels.interaction` directly instead of current-value refs
+- Files changed: `src/components/map/providers/MapLibreGlobeProvider.tsx`, `src/app/map-harness/MapHarnessClient.tsx`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: the same AMS tooltip changed from `Unopened Airport` to `未开通机场` while provider, canvas count, and MapLibre creation count remained unchanged; a subsequent 3D to 2D to 3D round trip restored 18 tiles in 14ms
 
 ## Files Modified
 
@@ -133,19 +141,19 @@ Checkpoint typed MapLibre expressions, then audit map effect and resource owners
 - `tests/registerTestAliases.cjs`: resolves compiled `@/` imports for Node's built-in test runner
 - `src/lib/mapLibreErrorPolicy.ts`: pure fatal/optional/recoverable MapLibre error classification
 - `tests/mapLibreErrorPolicy.test.ts`: optional glyph/vector/label, recoverable satellite, and fatal core-WebGL assertions
-- `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy and declares radius, icon-size, symbol layout, and symbol paint values with MapLibre types
+- `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy, uses declared MapLibre style types, and reads current language labels from stable listener refs
 - `src/components/map/maplibreGlobeSatelliteStyle.ts`: declares country filters and label text as valid MapLibre expressions
 - `src/components/map/maplibreGlobeStyle.ts`: restricts shared style mutations to scalar or valid MapLibre expression values
 - `tsconfig.tests.json`: small CommonJS compile target for focused Node tests
 - `src/app/map-harness/page.tsx`: production-404 guard for the real-component map fixture
-- `src/app/map-harness/MapHarnessClient.tsx`: development-only real `GameMap` routes, flights, engine controls, and canonical-selection output
+- `src/app/map-harness/MapHarnessClient.tsx`: development-only real `GameMap` routes, flights, engine and EN/ZH controls, and canonical-selection output
 - `docs/codex-progress/ACTIVE.md`: factual audit, evidence, gate status, and recovery handoff
 
 ## Tests Completed
 
 - `pnpm run test`: passed, 8 tests and 0 failures, including V1.2.2 save restoration and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 21 pre-existing warnings
+- `pnpm run lint`: passed with 0 errors and 20 pre-existing warnings; the stale MapLibre language dependency warning is resolved
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -160,6 +168,7 @@ Checkpoint typed MapLibre expressions, then audit map effect and resource owners
 - Optional MapLibre failures: failed NASA imagery, OpenFreeMap TileJSON, and uncached glyph URLs each retained one globe canvas and all eight core gameplay layers with 30 airport, three route-segment, and two aircraft features; canonical URLs were restored
 - Error policy: OpenFreeMap/glyph/country-label failures classify optional, NASA/post-core failures recoverable, and pre-core WebGL context failure fatal
 - Typed style initialization: no unsafe `as never` remains under `src`; the real development harness rendered a complete globe after hot reload, and a 3D to 2D to 3D round trip retained one active canvas and restored 18 visible raster tiles in 12ms
+- Bilingual listener lifecycle: reproduced `language=zh` with an English AMS hover tooltip, then verified English and Chinese status text on one persistent MapLibre instance with no additional map creation
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -188,8 +197,8 @@ Checkpoint typed MapLibre expressions, then audit map effect and resource owners
 | Maps | P0 fix plus switching, wrapping, geometry, interactions, slow/failed OSM, satellite, vector, glyph, and label policy checks passed |
 | Mobile | Portrait/landscape layout and repeated switching passed; real touch/pinch pending |
 | Offline/PWA | OSM failure path passed; full temporary-offline app-shell/save check pending |
-| English | Existing map strings rendered correctly; no new production strings added |
-| Chinese | Translation files unchanged; Chinese map workflow not manually reverified |
+| English | Same-instance MapLibre airport tooltip and map labels rendered correctly |
+| Chinese | Same-instance MapLibre airport tooltip updated immediately without rebuilding the globe |
 
 ## Remaining Risks
 
@@ -198,11 +207,11 @@ Checkpoint typed MapLibre expressions, then audit map effect and resource owners
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
 - A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with 21 existing warnings, primarily hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
+- Lint succeeds with 20 existing warnings, primarily remaining hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
 
 ## Next Exact Action
 
-Audit every map-related `useEffect`, timer, listener, observer, and resource owner; document ownership and change code only for a reproduced lifecycle or stale-closure defect.
+Audit the remaining `GameMap` memo/effect dependency warnings, beginning with the weekly-schedule route-statistics signature, and prove whether any real update can be missed before changing it.
 
 ## Recovery Instructions
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { GameMap } from "@/components/GameMap";
 import type { MapEngine } from "@/components/map/mapTypes";
-import { I18nProvider } from "@/i18n";
+import { I18nProvider, useTranslation } from "@/i18n";
 import type { AircraftInstance, Route } from "@/types/game";
 
 const HARNESS_TIME = Date.UTC(2026, 6, 31, 12);
@@ -25,6 +25,7 @@ export function MapHarnessClient() {
 }
 
 function MapHarness() {
+  const { language, setLanguage } = useTranslation();
   const [mapEngine, setMapEngine] = useState<MapEngine>("2d");
   const [lastSelection, setLastSelection] = useState("none");
 
@@ -38,7 +39,14 @@ function MapHarness() {
           <button data-testid="engine-3d" type="button" onClick={() => setMapEngine("globe3d")} className="rounded bg-ink px-3 py-2 font-bold text-white">
             3D
           </button>
+          <button data-testid="language-en" type="button" onClick={() => setLanguage("en")} className="rounded bg-white px-3 py-2 font-bold text-ink">
+            EN
+          </button>
+          <button data-testid="language-zh" type="button" onClick={() => setLanguage("zh")} className="rounded bg-white px-3 py-2 font-bold text-ink">
+            ZH
+          </button>
           <output data-testid="selected-engine">{mapEngine}</output>
+          <output data-testid="selected-language">{language}</output>
           <output data-testid="last-selection">{lastSelection}</output>
         </div>
         <div className="h-[720px] overflow-hidden rounded-lg border border-slate-200 bg-white">

@@ -127,6 +127,8 @@ export function MapLibreGlobeProvider({
   const onSelectAirportRef = useRef(onSelectAirport);
   const onSelectRouteRef = useRef(onSelectRoute);
   const onSelectAircraftRef = useRef(onSelectAircraft);
+  const languageRef = useRef(language);
+  const interactionLabelsRef = useRef(labels.interaction);
   const mapInstanceCountRef = useRef(0);
   const isActiveRef = useRef(isActive);
   const [isReady, setIsReady] = useState(false);
@@ -146,6 +148,8 @@ export function MapLibreGlobeProvider({
   const routeByMapId = useMemo(() => new Map(routes.map((item) => [item.id, item])), [routes]);
   const aircraftByMapId = useMemo(() => new Map(aircraft.map((item) => [item.id, item])), [aircraft]);
   isActiveRef.current = isActive;
+  languageRef.current = language;
+  interactionLabelsRef.current = labels.interaction;
   latestAirportGeoJsonRef.current = airportGeoJson;
   latestRouteGeoJsonRef.current = routeGeoJson;
   latestAircraftGeoJsonRef.current = aircraftGeoJson;
@@ -206,7 +210,7 @@ export function MapLibreGlobeProvider({
           console.warn("[MapLibre Globe] Ocean tint unavailable; using satellite imagery only", error);
         }
         try {
-          applyCountryLabels(map, language);
+          applyCountryLabels(map, languageRef.current);
           optionalLabelsReadyRef.current = true;
         } catch (error) {
           optionalLabelsReadyRef.current = false;
@@ -303,19 +307,19 @@ export function MapLibreGlobeProvider({
         const feature = event.features?.[0];
         if (!feature || !canUseHoverTooltip()) return;
         map.getCanvas().style.cursor = "pointer";
-        showHoverTooltip(popupRef, map, event.lngLat, createAirportTooltip(feature.properties ?? {}, labels.interaction));
+        showHoverTooltip(popupRef, map, event.lngLat, createAirportTooltip(feature.properties ?? {}, interactionLabelsRef.current));
       };
       const handleRouteEnter = (event: maplibregl.MapLayerMouseEvent) => {
         const feature = event.features?.[0];
         if (!feature || !canUseHoverTooltip()) return;
         map.getCanvas().style.cursor = "pointer";
-        showHoverTooltip(popupRef, map, event.lngLat, createRouteTooltip(feature.properties ?? {}, labels.interaction));
+        showHoverTooltip(popupRef, map, event.lngLat, createRouteTooltip(feature.properties ?? {}, interactionLabelsRef.current));
       };
       const handleAircraftEnter = (event: maplibregl.MapLayerMouseEvent) => {
         const feature = event.features?.[0];
         if (!feature || !canUseHoverTooltip()) return;
         map.getCanvas().style.cursor = "pointer";
-        showHoverTooltip(popupRef, map, event.lngLat, createAircraftTooltip(feature.properties ?? {}, labels.interaction));
+        showHoverTooltip(popupRef, map, event.lngLat, createAircraftTooltip(feature.properties ?? {}, interactionLabelsRef.current));
       };
       const handlePointerLeave = () => {
         map.getCanvas().style.cursor = "";
