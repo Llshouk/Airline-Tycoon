@@ -10,9 +10,10 @@ type LegacyCashFields = {
   };
 };
 
+export type CashReadableState = Partial<Pick<GameState, "money">> & LegacyCashFields;
 export type CashState = Pick<GameState, "money"> & LegacyCashFields;
 
-export function getCurrentCash(game: CashState) {
+export function getCurrentCash(game: CashReadableState) {
   return firstValidCashValue(game.money, game.cash, game.capital, game.playerMoney, game.airline?.cash, game.airline?.money);
 }
 

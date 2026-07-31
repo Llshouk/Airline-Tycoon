@@ -154,3 +154,25 @@ test("migrates legacy cash aliases into canonical money without retaining duplic
   assert.equal("playerMoney" in normalizedRecord, false);
   assert.equal("airline" in normalizedRecord, false);
 });
+
+test("preserves every legacy cash alias through cloud save restoration", () => {
+  const legacyCashCases: Array<{ fields: Record<string, unknown>; expected: number }> = [
+    { fields: { cash: "123456789" }, expected: 123_456_789 },
+    { fields: { capital: 223_456_789 }, expected: 223_456_789 },
+    { fields: { playerMoney: 323_456_789 }, expected: 323_456_789 },
+    { fields: { airline: { cash: 423_456_789 } }, expected: 423_456_789 },
+    { fields: { airline: { money: 523_456_789 } }, expected: 523_456_789 }
+  ];
+
+  legacyCashCases.forEach(({ fields, expected }) => {
+    const legacyPayload: Record<string, unknown> = { ...v122CompactSave, ...fields };
+    delete legacyPayload.money;
+
+    const restored = restoreGameStateFromCloudSave(legacyPayload);
+    assert.equal(restored.money, expected);
+    assert.equal("cash" in restored, false);
+    assert.equal("capital" in restored, false);
+    assert.equal("playerMoney" in restored, false);
+    assert.equal("airline" in restored, false);
+  });
+});

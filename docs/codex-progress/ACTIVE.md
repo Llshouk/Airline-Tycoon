@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `f6429833a3fd960a1c703244740f5d8cb1b12e38`
+- Current HEAD: `1192082002b542b26d4b02bf2a1177c42b78d998`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint production app-shell outage recovery and preserve V1.3.8 until the remaining external acceptance checks can run.
+Checkpoint legacy cash preservation at the cloud restore boundary, then preserve V1.3.8 until live authenticated acceptance can run.
 
 ## Confirmed Problems
 
@@ -258,8 +258,16 @@ Checkpoint production app-shell outage recovery and preserve V1.3.8 until the re
 - Finding: the production service worker serves a complete hydrated app shell after the same-origin Next server becomes unavailable, then returns cleanly to the network response after reconnection
 - Evidence/design: V1.3.8 was loaded once from `next start`, the listening process was stopped, `/` reloaded with the complete auth UI and no console error, and a second reload after server restart remained healthy
 - Files changed: `docs/codex-progress/ACTIVE.md`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `1192082002b542b26d4b02bf2a1177c42b78d998`
 - Test results: production build output on port 3100 survived a real origin outage and reconnection; no service-worker runtime change was made because the tested shell already passed
+
+### Legacy cash preservation through cloud restoration
+
+- Issue: a cloud payload that predated canonical `money` could contain `cash`, `capital`, `playerMoney`, or nested airline cash, but cloud normalization replaced every variant with zero before store migration could inspect it
+- Root cause/design: cloud normalization read only `raw.money`; it now calls the same `getCurrentCash` helper used by the store, and that helper explicitly accepts partial legacy payloads
+- Files changed: `src/lib/cash.ts`, `src/lib/cloudSave.ts`, `tests/saveCompatibility.test.ts`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: the regression first failed with `0 !== 123456789`; all five aliases now restore to their exact canonical value, duplicate fields remain absent, and 10/10 tests pass
 
 ## Files Modified
 
@@ -277,7 +285,9 @@ Checkpoint production app-shell outage recovery and preserve V1.3.8 until the re
 - `src/lib/leafletTileReadiness.ts`: pure rendered-tile visibility and coverage helpers
 - `tests/leafletTileReadiness.test.ts`: regression tests for collapsed, offscreen, visible, and cached coverage
 - `src/store/gameStore.ts`: exports the pure load normalizer, leaves registration generation with the market, and explicitly strips legacy cash aliases after migration
-- `tests/saveCompatibility.test.ts`: sanitized V1.2.2 restore, field preservation, and canonical cash-alias migration assertions
+- `src/lib/cash.ts`: defines the canonical reader for both current game state and partial historical payloads
+- `src/lib/cloudSave.ts`: preserves historical cash aliases before producing a canonical cloud-restored game
+- `tests/saveCompatibility.test.ts`: sanitized V1.2.2 restore plus local and cloud-boundary canonical cash migration assertions
 - `tests/registerTestAliases.cjs`: resolves compiled `@/` imports for Node's built-in test runner
 - `src/lib/mapLibreErrorPolicy.ts`: pure fatal/optional/recoverable MapLibre error classification
 - `tests/mapLibreErrorPolicy.test.ts`: optional glyph/vector/label, recoverable satellite, and fatal core-WebGL assertions
@@ -295,7 +305,7 @@ Checkpoint production app-shell outage recovery and preserve V1.3.8 until the re
 
 ## Tests Completed
 
-- `pnpm run test`: passed, 9 tests and 0 failures, including V1.2.2 save restoration, canonical cash alias migration, and MapLibre error policy
+- `pnpm run test`: passed, 10 tests and 0 failures, including V1.2.2 restoration, local/cloud canonical cash alias migration, and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
 - `pnpm run lint`: passed with 0 errors and 0 warnings
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
@@ -325,7 +335,7 @@ Checkpoint production app-shell outage recovery and preserve V1.3.8 until the re
 - Route evaluation type ownership: no evaluation score, recommendation, demand, or finance input changed; only an unreachable type import was removed
 - Schedule time ownership: weekly wrapping, flight duration, turnaround blocks, and overlap detection retain their existing minute-based inputs after dead import removal
 - Registration ownership: the Aircraft Market generates proposed registrations and the store continues to validate uniqueness while preserving one record per aircraft
-- Canonical cash migration: legacy aliases remain readable on load, exact value is written to `money`, and duplicate top-level/nested aliases are removed before persistence
+- Canonical cash migration: legacy aliases remain readable through both store and cloud restoration, exact value is written to `money`, and duplicate top-level/nested aliases are removed
 - Weekly route statistics: the memo signature directly tracks every consumed schedule field and ignores unrelated fleet updates; both map engines remain healthy
 - Aircraft images: A220 market and side-view assets render with preserved aspect ratio; a missing optimized source transitions to the existing fallback without a broken-image remnant
 - Resource ownership: all map effects have a single acquisition/cleanup owner; settled switching retains one instance per engine and route unmount leaves no map root or canvas
@@ -333,15 +343,15 @@ Checkpoint production app-shell outage recovery and preserve V1.3.8 until the re
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
-- `git diff --check`: passed for the documentation-only production outage checkpoint
+- `git diff --check`: passed for the legacy cloud-cash compatibility checkpoint
 
 ## Cross-Version Regression Status
 
 | Area | Status |
 | --- | --- |
-| Saves | V1.2.2 compact save restore/normalize passed; canonical cash alias migration and duplicate-field stripping are regression-tested |
+| Saves | V1.2.2 compact restore passed; all five historical cash aliases survive local and cloud normalization into canonical `money` |
 | Authentication | Deployed V1.3.8 and local configuration gates render; authenticated flow and airline switching not exercised |
-| Cloud save | Shared V1.2.2 payload restore passed; authenticated Supabase upsert/load not reverified |
+| Cloud save | Shared V1.2.2 payload and legacy-cash restore passed; authenticated Supabase upsert/load not reverified |
 | Local save | V1.2.2 state restore/normalize passed; actual IndexedDB rehydration not reverified |
 | Fleet | Harness renders owned aircraft data; optimized aircraft images and missing-file fallback passed; gameplay workflow unchanged |
 | Schedules | In-flight fixture renders; default numbering now follows weekly-service mutations; authenticated create/delete UI pass pending |
@@ -363,7 +373,7 @@ Checkpoint production app-shell outage recovery and preserve V1.3.8 until the re
 
 ## Remaining Risks
 
-- The V1.2.2 payload passes the shared restore/normalize path, but authenticated cloud upsert/load and actual IndexedDB browser rehydration have not been exercised in this session.
+- V1.2.2 and every historical cash alias pass the cloud restore boundary, but authenticated Supabase upsert/load and actual IndexedDB browser rehydration have not been exercised in this session.
 - Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
 - Production app-shell origin outage and reconnection pass, but full browser-offline mode still cannot be toggled; external network isolation and authenticated/local saved-game interaction remain unverified.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.

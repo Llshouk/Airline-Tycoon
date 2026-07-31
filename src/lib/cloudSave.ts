@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { DIFFICULTY_ORDER, getDifficultyConfig, type GameDifficulty } from "@/config/difficulty";
 import { airportsById } from "@/data/airports";
+import { getCurrentCash, type CashReadableState } from "@/lib/cash";
 import { estimateDemand } from "@/lib/demand";
 import { estimateCargoRatePerTon, estimateTicketPrices, routePricingFromDefaults } from "@/lib/economy";
 import { distanceKm } from "@/lib/geo";
@@ -482,7 +483,7 @@ function safeUserContext(user: User) {
 }
 
 function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): CompactGameSave {
-  const raw = saveState as Partial<CompactGameSave> & Partial<GameState> & { baseAirport?: unknown; flightLog?: GameState["flightLog"] };
+  const raw = saveState as Partial<CompactGameSave> & Partial<GameState> & CashReadableState & { baseAirport?: unknown; flightLog?: GameState["flightLog"] };
   const now = new Date().toISOString();
   const difficultyConfig = getDifficultyConfig(raw.difficulty ?? rowDifficulty);
   const timeMultiplier = GAME_SPEED_OPTIONS.includes(raw.timeMultiplier as TimeMultiplier)
@@ -510,7 +511,7 @@ function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): Comp
     baseAirports,
     primaryBaseAirport,
     expandedAirportIds: Array.from(new Set([...(raw.expandedAirportIds ?? []), ...baseAirports])),
-    money: raw.money ?? 0,
+    money: getCurrentCash(raw),
     startedAtRealMs: raw.startedAtRealMs ?? Date.now(),
     baseGameTimeMs: raw.baseGameTimeMs ?? Date.UTC(2026, 0, 1, 6, 0, 0),
     currentGameTimeMs: raw.currentGameTimeMs ?? Date.UTC(2026, 0, 1, 6, 0, 0),
