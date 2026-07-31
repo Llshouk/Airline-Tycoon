@@ -231,12 +231,13 @@ export function GameMap(props: Props) {
       routeFeatures: globeRoutes.length
     });
   }, [effectiveMapEngine, globeAircraft, globeRoutes]);
+  const onMapEngineFallback = props.onMapEngineFallback;
   const handleGlobeError = useCallback(
     (reason: MapGlobeFailureReason) => {
       setGlobeFailed(true);
-      props.onMapEngineFallback?.(reason);
+      onMapEngineFallback?.(reason);
     },
-    [props.onMapEngineFallback]
+    [onMapEngineFallback]
   );
 
   useEffect(() => {
