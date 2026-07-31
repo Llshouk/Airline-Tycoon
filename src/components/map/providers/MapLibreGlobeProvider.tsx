@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point, Position } from "geojson";
 import { applyDarkGlobeBackdrop, applyGlobeVisualStyle, DARK_GLOBE_BACKDROP, DEFAULT_GLOBE_VISUAL_STYLE } from "@/components/map/maplibreGlobeStyle";
 import { applyBrightSatelliteEarth, applyCountryLabels, applyLightOceanTint, getGlobeSatelliteStyle, updateCountryLabelLanguage } from "@/components/map/maplibreGlobeSatelliteStyle";
+import { classifyMapLibreError, type GlobeMapErrorDiagnostics } from "@/lib/mapLibreErrorPolicy";
 import { normalizeLongitude, splitPolylineAtAntimeridian } from "@/lib/mapRoutePath";
 import type { EffectiveGlobeQuality, MapAircraftMarker, MapAirportMarker, MapGlobeFailureReason, MapRouteLine } from "@/components/map/mapTypes";
 
@@ -23,8 +24,6 @@ const AIRPORT_LAYERS = [
   "airport-selected-opened-layer",
   "airport-selected-unopened-layer"
 ] as const;
-const OPTIONAL_SOURCE_IDS = new Set(["openfreemap-vector"]);
-const OPTIONAL_LAYER_PREFIXES = ["country-label-", "airline-globe-ocean-tint"];
 const CORE_INITIALISATION_TIMEOUT_MS = 12000;
 const BASE_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 8.5, 2, 10, 4, 11.5, 7, 14];
 const OPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 6.8, 2, 8, 4, 9.5, 7, 11.5];
@@ -908,15 +907,6 @@ function addLayerIfMissing(map: maplibregl.Map, layer: Parameters<maplibregl.Map
   if (!map.getLayer(layer.id)) map.addLayer(layer);
 }
 
-type GlobeMapErrorSeverity = "fatal" | "optional" | "recoverable";
-type GlobeMapErrorDiagnostics = {
-  message?: string;
-  sourceId?: string;
-  tile?: string;
-  styleLoaded: boolean;
-  coreReady: boolean;
-};
-
 function getMapErrorDiagnostics(event: maplibregl.ErrorEvent, map: maplibregl.Map, coreReady: boolean): GlobeMapErrorDiagnostics {
   const details = event as maplibregl.ErrorEvent & {
     sourceId?: unknown;
@@ -932,17 +922,6 @@ function getMapErrorDiagnostics(event: maplibregl.ErrorEvent, map: maplibregl.Ma
     styleLoaded: Boolean(map.isStyleLoaded()),
     coreReady
   };
-}
-
-function classifyMapLibreError({ message = "", sourceId, tile, coreReady }: GlobeMapErrorDiagnostics): GlobeMapErrorSeverity {
-  const normalizedMessage = message.toLowerCase();
-  const isOptionalLayerError = OPTIONAL_LAYER_PREFIXES.some((prefix) => normalizedMessage.includes(prefix));
-  const isOptionalMessage = ["openfreemap", "glyph", "fontstack", "source-layer place", "source-layer water", "country-label"].some((value) => normalizedMessage.includes(value));
-  if (sourceId && OPTIONAL_SOURCE_IDS.has(sourceId)) return "optional";
-  if (isOptionalLayerError || isOptionalMessage) return "optional";
-  if (coreReady || tile || sourceId === "nasa-blue-marble") return "recoverable";
-  if (["webgl", "context", "style", "projection", "parse"].some((value) => normalizedMessage.includes(value))) return "fatal";
-  return "recoverable";
 }
 
 function describeMapTile(tile: unknown) {

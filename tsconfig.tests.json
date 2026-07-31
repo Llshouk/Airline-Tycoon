@@ -16,6 +16,7 @@
   "include": [
     "src/lib/leafletTileReadiness.ts",
     "tests/leafletTileReadiness.test.ts",
+    "tests/mapLibreErrorPolicy.test.ts",
     "tests/saveCompatibility.test.ts"
   ]
 }

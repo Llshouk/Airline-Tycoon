@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "tsc -p tsconfig.tests.json && node --require ./tests/registerTestAliases.cjs --test .test-build/tests/leafletTileReadiness.test.js .test-build/tests/saveCompatibility.test.js",
+    "test": "tsc -p tsconfig.tests.json && node --require ./tests/registerTestAliases.cjs --test .test-build/tests/leafletTileReadiness.test.js .test-build/tests/mapLibreErrorPolicy.test.js .test-build/tests/saveCompatibility.test.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `3c7735dcd35696459afb332bffbefac87f90eb05`
+- Current HEAD: `ea3aaebfda3e3304d589afd2557a8ac76cc5fbab`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -21,11 +21,11 @@
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Partially implemented systems: V1.3 map acceptance coverage and automated regression infrastructure
 - Next planned release: V1.3.9 final map stability, only after every V1.3.8 release gate is verified
-- Release-gate status: P0 blank-map defect fixed and a V1.2.2 save fixture passes; V1.3.8 remains active because authenticated cloud/local storage round trips, real touch/pinch input, and several optional-resource failure cases remain unverified
+- Release-gate status: P0 blank-map defect, V1.2.2 fixture, slow/failed OSM, failed satellite, and failed optional vector/glyph policies pass; V1.3.8 remains active because authenticated storage round trips, real touch/pinch input, full browser-offline mode, and MapLibre expression/lifecycle debt remain unverified
 
 ## Current Objective
 
-Checkpoint the V1.2.2 save compatibility proof, then isolate optional MapLibre satellite/style/glyph/label failures and verify they remain non-fatal.
+Checkpoint optional MapLibre failure policy and slow-network evidence, then replace unsafe MapLibre expression casts without changing runtime style definitions.
 
 ## Confirmed Problems
 
@@ -98,8 +98,16 @@ Checkpoint the V1.2.2 save compatibility proof, then isolate optional MapLibre s
 - Issue: the V1.3.8 release gate required evidence that a pre-V1.3 save preserves authoritative game data
 - Root cause/design: V1.2.2 and current persistence files are byte-for-byte unchanged, but no executable fixture proved the current local/cloud restore and game normalization sequence
 - Files changed: `src/store/gameStore.ts`, `tests/saveCompatibility.test.ts`, `tests/registerTestAliases.cjs`, `tsconfig.tests.json`, `package.json`, `eslint.config.mjs`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `ea3aaebfda3e3304d589afd2557a8ac76cc5fbab`
 - Test results: the sanitized V1.2.2 compact fixture preserves airline, realistic difficulty, exact cash, multiple bases, fleet registration, cabin layout, route pricing, operational and weekly schedules, flight log, and timestamps
+
+### Optional map-resource and slow-network hardening
+
+- Issue: V1.3.8 required evidence that optional MapLibre resources cannot close the globe and that slow raster tiles do not reveal an unpainted 2D pane
+- Root cause/design: error severity lived inside the provider and had no pure test seam; browser glyph caches made visual-only testing ambiguous
+- Files changed: `src/lib/mapLibreErrorPolicy.ts`, `src/components/map/providers/MapLibreGlobeProvider.tsx`, `tests/mapLibreErrorPolicy.test.ts`, `package.json`, `tsconfig.tests.json`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: failed NASA imagery retained vector Earth and all gameplay overlays; failed OpenFreeMap retained satellite Earth and all gameplay overlays; glyph/country errors classify optional; delayed OSM tiles kept the globe cover until real tiles arrived after 1.697s
 
 ## Files Modified
 
@@ -115,6 +123,9 @@ Checkpoint the V1.2.2 save compatibility proof, then isolate optional MapLibre s
 - `src/store/gameStore.ts`: exports the existing pure load normalizer as a test seam without changing behavior
 - `tests/saveCompatibility.test.ts`: sanitized V1.2.2 compact-save restore and field-preservation assertions
 - `tests/registerTestAliases.cjs`: resolves compiled `@/` imports for Node's built-in test runner
+- `src/lib/mapLibreErrorPolicy.ts`: pure fatal/optional/recoverable MapLibre error classification
+- `tests/mapLibreErrorPolicy.test.ts`: optional glyph/vector/label, recoverable satellite, and fatal core-WebGL assertions
+- `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy without changing map behavior
 - `tsconfig.tests.json`: small CommonJS compile target for focused Node tests
 - `src/app/map-harness/page.tsx`: production-404 guard for the real-component map fixture
 - `src/app/map-harness/MapHarnessClient.tsx`: development-only real `GameMap` routes, flights, engine controls, and canonical-selection output
@@ -122,7 +133,7 @@ Checkpoint the V1.2.2 save compatibility proof, then isolate optional MapLibre s
 
 ## Tests Completed
 
-- `pnpm run test`: passed, 5 tests and 0 failures, including V1.2.2 save restoration
+- `pnpm run test`: passed, 8 tests and 0 failures, including V1.2.2 save restoration and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
 - `pnpm run lint`: passed with 0 errors and 21 pre-existing warnings
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
@@ -135,6 +146,9 @@ Checkpoint the V1.2.2 save compatibility proof, then isolate optional MapLibre s
 - Canonical selection: wrapped LAX airport, LHR-HKG route, LAX-HND date-line route, and N-HARN aircraft returned canonical fixture IDs
 - Date line: LAX-HND rendered as edge-split shortest segments with visible aircraft copies and destination-facing heading
 - Network failure: unreachable OSM endpoint produced bounded recovery, understandable warning, and a revealed 2D pane without infinite loading; the canonical URL was restored before build
+- Slow network: a local no-cache proxy delayed every OSM tile by 1.5s; at 500ms the globe cover remained over zero tiles, then 2D revealed six visible tiles after 1.697s without warning
+- Optional MapLibre failures: failed NASA imagery, OpenFreeMap TileJSON, and uncached glyph URLs each retained one globe canvas and all eight core gameplay layers with 30 airport, three route-segment, and two aircraft features; canonical URLs were restored
+- Error policy: OpenFreeMap/glyph/country-label failures classify optional, NASA/post-core failures recoverable, and pre-core WebGL context failure fatal
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -160,7 +174,7 @@ Checkpoint the V1.2.2 save compatibility proof, then isolate optional MapLibre s
 | Reputation | Not implemented; V1.6 roadmap |
 | Competition | Not implemented; V2 roadmap |
 | Events | Not implemented; V3 roadmap |
-| Maps | P0 fix and desktop/mobile switch, wrap, geometry, interaction, and OSM failure checks passed |
+| Maps | P0 fix plus switching, wrapping, geometry, interactions, slow/failed OSM, satellite, vector, glyph, and label policy checks passed |
 | Mobile | Portrait/landscape layout and repeated switching passed; real touch/pinch pending |
 | Offline/PWA | OSM failure path passed; full temporary-offline app-shell/save check pending |
 | English | Existing map strings rendered correctly; no new production strings added |
@@ -170,18 +184,19 @@ Checkpoint the V1.2.2 save compatibility proof, then isolate optional MapLibre s
 
 - The V1.2.2 payload passes the shared restore/normalize path, but authenticated cloud upsert/load and actual IndexedDB browser rehydration have not been exercised in this session.
 - Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
-- Slow network, failed satellite/OpenFreeMap/glyph/country-label requests, and full temporary-offline behavior have not each been isolated, although observed optional MapLibre resource errors remained non-fatal.
+- Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
+- Existing MapLibre style expressions still use `as never` casts in several layers; the V1.3 safety rules require replacing those casts with valid explicit expression types.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
 - Lint succeeds with 21 existing warnings, primarily hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
 
 ## Next Exact Action
 
-Temporarily fault one optional MapLibre resource at a time in the development harness, verify the globe remains open with core routes/airports/aircraft, and restore every canonical URL before committing.
+Audit every `as never` in MapLibre style construction, replace it with valid MapLibre expression/filter types, then run typecheck, style initialization, and 2D/3D browser regressions.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
 2. Confirm the checkpoint is on `main` and synchronized with `origin/main`.
 3. Run `pnpm run test`, `pnpm run typecheck`, `pnpm run lint`, and `pnpm run build` before changing persistence code.
-4. Use the development-only map harness to fault optional MapLibre resources without changing browser storage or authentication state.
-5. Record globe/core-layer behavior for each failure, restore all canonical URLs, and leave version `1.3.8` until the complete acceptance matrix passes.
+4. Inspect `src/components/map/maplibreGlobeSatelliteStyle.ts` and `src/components/map/providers/MapLibreGlobeProvider.tsx` for `as never` expression casts.
+5. Replace only type-hiding casts, keep expression arrays runtime-identical, and leave version `1.3.8` until the complete acceptance matrix passes.
