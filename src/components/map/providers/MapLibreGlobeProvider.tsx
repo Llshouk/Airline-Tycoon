@@ -1,6 +1,6 @@
 "use client";
 
-import maplibregl from "maplibre-gl";
+import maplibregl, { type ExpressionSpecification, type SymbolLayerSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point, Position } from "geojson";
@@ -25,13 +25,13 @@ const AIRPORT_LAYERS = [
   "airport-selected-unopened-layer"
 ] as const;
 const CORE_INITIALISATION_TIMEOUT_MS = 12000;
-const BASE_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 8.5, 2, 10, 4, 11.5, 7, 14];
-const OPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 6.8, 2, 8, 4, 9.5, 7, 11.5];
-const UNOPENED_AIRPORT_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 4.2, 2, 5, 4, 6.2, 7, 8];
-const BASE_AIRPORT_HALO_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 12.5, 2, 14.5, 4, 16.5, 7, 19];
-const OPENED_AIRPORT_HALO_RADIUS = ["interpolate", ["linear"], ["zoom"], 0, 10, 2, 11.5, 4, 13.5, 7, 16];
+const BASE_AIRPORT_RADIUS: ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 0, 8.5, 2, 10, 4, 11.5, 7, 14];
+const OPENED_AIRPORT_RADIUS: ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 0, 6.8, 2, 8, 4, 9.5, 7, 11.5];
+const UNOPENED_AIRPORT_RADIUS: ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 0, 4.2, 2, 5, 4, 6.2, 7, 8];
+const BASE_AIRPORT_HALO_RADIUS: ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 0, 12.5, 2, 14.5, 4, 16.5, 7, 19];
+const OPENED_AIRPORT_HALO_RADIUS: ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 0, 10, 2, 11.5, 4, 13.5, 7, 16];
 const SELECTED_AIRPORT_SIZE_BONUS = 4;
-const AIRCRAFT_ICON_SIZE = [
+const AIRCRAFT_ICON_SIZE: ExpressionSpecification = [
   "interpolate", ["linear"], ["zoom"],
   0, ["interpolate", ["linear"], ["get", "size"], 36, 0.6, 58, 0.8],
   1.5, ["interpolate", ["linear"], ["get", "size"], 36, 0.72, 58, 0.94],
@@ -39,7 +39,7 @@ const AIRCRAFT_ICON_SIZE = [
   5, ["interpolate", ["linear"], ["get", "size"], 36, 1.08, 58, 1.4],
   7, ["interpolate", ["linear"], ["get", "size"], 36, 1.28, 58, 1.68]
 ];
-const SELECTED_AIRCRAFT_ICON_SIZE = [
+const SELECTED_AIRCRAFT_ICON_SIZE: ExpressionSpecification = [
   "interpolate", ["linear"], ["zoom"],
   0, ["interpolate", ["linear"], ["get", "size"], 36, 0.71, 58, 0.94],
   1.5, ["interpolate", ["linear"], ["get", "size"], 36, 0.85, 58, 1.11],
@@ -694,7 +694,7 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
 }
 
 function addAirportIataLabels(map: maplibregl.Map) {
-  const baseLayout = {
+  const baseLayout: NonNullable<SymbolLayerSpecification["layout"]> = {
     "text-field": ["get", "iata"],
     "text-font": ["Noto Sans Bold"],
     "text-size": ["interpolate", ["linear"], ["zoom"], 2, 10, 5, 12],
@@ -702,11 +702,15 @@ function addAirportIataLabels(map: maplibregl.Map) {
     "text-anchor": "top",
     "text-allow-overlap": false,
     "text-ignore-placement": false
-  } as const;
-  const paint = { "text-color": "#f8fafc", "text-halo-color": "rgba(15, 23, 42, 0.9)", "text-halo-width": 1.25 } as const;
-  addLayerIfMissing(map, { id: "airport-iata-base-layer", type: "symbol", source: AIRPORT_SOURCE_ID, minzoom: 2, filter: ["all", ["==", ["get", "markerType"], "base"], ["!=", ["get", "selected"], true]], layout: baseLayout as never, paint: paint as never });
-  addLayerIfMissing(map, { id: "airport-iata-opened-layer", type: "symbol", source: AIRPORT_SOURCE_ID, minzoom: 3.5, filter: ["all", ["==", ["get", "markerType"], "opened"], ["!=", ["get", "selected"], true]], layout: baseLayout as never, paint: paint as never });
-  addLayerIfMissing(map, { id: "airport-iata-selected-layer", type: "symbol", source: AIRPORT_SOURCE_ID, filter: ["==", ["get", "selected"], true], layout: { ...baseLayout, "text-allow-overlap": true } as never, paint: { ...paint, "text-color": "#fef3c7" } as never });
+  };
+  const paint: NonNullable<SymbolLayerSpecification["paint"]> = {
+    "text-color": "#f8fafc",
+    "text-halo-color": "rgba(15, 23, 42, 0.9)",
+    "text-halo-width": 1.25
+  };
+  addLayerIfMissing(map, { id: "airport-iata-base-layer", type: "symbol", source: AIRPORT_SOURCE_ID, minzoom: 2, filter: ["all", ["==", ["get", "markerType"], "base"], ["!=", ["get", "selected"], true]], layout: baseLayout, paint });
+  addLayerIfMissing(map, { id: "airport-iata-opened-layer", type: "symbol", source: AIRPORT_SOURCE_ID, minzoom: 3.5, filter: ["all", ["==", ["get", "markerType"], "opened"], ["!=", ["get", "selected"], true]], layout: baseLayout, paint });
+  addLayerIfMissing(map, { id: "airport-iata-selected-layer", type: "symbol", source: AIRPORT_SOURCE_ID, filter: ["==", ["get", "selected"], true], layout: { ...baseLayout, "text-allow-overlap": true }, paint: { ...paint, "text-color": "#fef3c7" } });
 }
 
 function addAirportLayer(
@@ -716,7 +720,7 @@ function addAirportLayer(
   color: string,
   strokeColor: string,
   strokeWidth: number,
-  radius: unknown[],
+  radius: ExpressionSpecification,
   selected: boolean
 ) {
   addLayerIfMissing(map, {
@@ -727,7 +731,7 @@ function addAirportLayer(
     paint: {
       ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
       "circle-color": color,
-      "circle-radius": (selected ? ["+", radius, SELECTED_AIRPORT_SIZE_BONUS] : radius) as never,
+      "circle-radius": selected ? ["+", radius, SELECTED_AIRPORT_SIZE_BONUS] : radius,
       "circle-stroke-color": selected ? "#f4b942" : strokeColor,
       "circle-stroke-width": selected ? 4 : strokeWidth
     }
@@ -739,7 +743,7 @@ function addAirportHaloLayer(
   id: string,
   markerType: MapAirportMarker["markerType"],
   color: string,
-  radius: unknown[],
+  radius: ExpressionSpecification,
   opacity: number
 ) {
   addLayerIfMissing(map, {
@@ -750,7 +754,7 @@ function addAirportHaloLayer(
     paint: {
       ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
       "circle-color": color,
-      "circle-radius": radius as never,
+      "circle-radius": radius,
       "circle-opacity": opacity,
       "circle-blur": 0.65
     }
@@ -758,7 +762,7 @@ function addAirportHaloLayer(
 }
 
 function addSelectedAirportHaloLayer(map: maplibregl.Map) {
-  const selectedRadius = [
+  const selectedRadius: ExpressionSpecification = [
     "case",
     ["==", ["get", "markerType"], "base"], ["+", BASE_AIRPORT_RADIUS, 8],
     ["==", ["get", "markerType"], "opened"], ["+", OPENED_AIRPORT_RADIUS, 8],
@@ -773,7 +777,7 @@ function addSelectedAirportHaloLayer(map: maplibregl.Map) {
     paint: {
       ...AIRPORT_CIRCLE_VIEWPORT_PAINT,
       "circle-color": "#f4b942",
-      "circle-radius": selectedRadius as never,
+      "circle-radius": selectedRadius,
       "circle-opacity": 0.25,
       "circle-blur": 0.55
     }
@@ -832,7 +836,7 @@ async function addAircraftImage(map: maplibregl.Map) {
     filter: ["!=", ["get", "selected"], true],
     layout: {
       "icon-image": AIRCRAFT_IMAGE_ID,
-      "icon-size": AIRCRAFT_ICON_SIZE as never,
+      "icon-size": AIRCRAFT_ICON_SIZE,
       "icon-rotate": ["get", "heading"],
       "icon-rotation-alignment": "map",
       "icon-allow-overlap": true,
@@ -847,7 +851,7 @@ async function addAircraftImage(map: maplibregl.Map) {
       filter: ["==", ["get", "selected"], true],
       layout: {
         "icon-image": AIRCRAFT_IMAGE_ID,
-        "icon-size": SELECTED_AIRCRAFT_ICON_SIZE as never,
+        "icon-size": SELECTED_AIRCRAFT_ICON_SIZE,
         "icon-rotate": ["get", "heading"],
         "icon-rotation-alignment": "map",
         "icon-allow-overlap": true,

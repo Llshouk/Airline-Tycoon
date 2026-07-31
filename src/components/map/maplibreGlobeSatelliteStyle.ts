@@ -1,4 +1,4 @@
-import type { StyleSpecification } from "maplibre-gl";
+import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
 
 const NASA_BLUE_MARBLE_TILE_URL =
   "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/2013-12-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg";
@@ -92,11 +92,11 @@ export function applyLightOceanTint(map: maplibregl.Map) {
   );
 }
 
-const COUNTRY_LABEL_LAYERS = [
+const COUNTRY_LABEL_LAYERS: Array<{ id: string; rankFilter: ExpressionSpecification; minzoom: number }> = [
   { id: "country-label-primary-layer", rankFilter: ["==", ["get", "rank"], 1], minzoom: 0 },
   { id: "country-label-secondary-layer", rankFilter: ["==", ["get", "rank"], 2], minzoom: 1.5 },
   { id: "country-label-detail-layer", rankFilter: [">=", ["get", "rank"], 3], minzoom: 3 }
-] as const;
+];
 
 export function applyCountryLabels(map: maplibregl.Map, language: GlobeLabelLanguage) {
   ensureOpenFreeMapSource(map);
@@ -104,7 +104,7 @@ export function applyCountryLabels(map: maplibregl.Map, language: GlobeLabelLang
 
   COUNTRY_LABEL_LAYERS.forEach(({ id, rankFilter, minzoom }) => {
     if (map.getLayer(id)) {
-      map.setLayoutProperty(id, "text-field", textField as never);
+      map.setLayoutProperty(id, "text-field", textField);
       return;
     }
 
@@ -115,9 +115,9 @@ export function applyCountryLabels(map: maplibregl.Map, language: GlobeLabelLang
         source: OPENFREEMAP_SOURCE_ID,
         "source-layer": OPENFREEMAP_PLACE_SOURCE_LAYER,
         minzoom,
-        filter: ["all", ["==", ["get", "class"], "country"], rankFilter] as never,
+        filter: ["all", ["==", ["get", "class"], "country"], rankFilter],
         layout: {
-          "text-field": textField as never,
+          "text-field": textField,
           "text-font": ["Noto Sans Bold"],
           "text-size": ["interpolate", ["linear"], ["zoom"], 0, 9, 2, 11, 4, 13, 7, 15],
           "text-allow-overlap": false,
@@ -141,7 +141,7 @@ export function applyCountryLabels(map: maplibregl.Map, language: GlobeLabelLang
 export function updateCountryLabelLanguage(map: maplibregl.Map, language: GlobeLabelLanguage) {
   const textField = countryLabelTextField(language);
   COUNTRY_LABEL_LAYERS.forEach(({ id }) => {
-    if (map.getLayer(id)) map.setLayoutProperty(id, "text-field", textField as never);
+    if (map.getLayer(id)) map.setLayoutProperty(id, "text-field", textField);
   });
 }
 
@@ -161,7 +161,7 @@ function getAirlineOverlayInsertBeforeId(map: maplibregl.Map) {
   return map.getLayer(AIRLINE_OVERLAY_FIRST_LAYER_ID) ? AIRLINE_OVERLAY_FIRST_LAYER_ID : undefined;
 }
 
-function countryLabelTextField(language: GlobeLabelLanguage) {
+function countryLabelTextField(language: GlobeLabelLanguage): ExpressionSpecification {
   return language === "zh"
     ? ["coalesce", ["get", "name:zh-Hans"], ["get", "name:zh"], ["get", "name:en"], ["get", "name_en"], ["get", "name"]]
     : ["coalesce", ["get", "name:en"], ["get", "name_en"], ["get", "name"]];

@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `ea3aaebfda3e3304d589afd2557a8ac76cc5fbab`
+- Current HEAD: `c0fdb870d27ce97931b3a78917d56a86cb3a1d95`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -21,11 +21,11 @@
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Partially implemented systems: V1.3 map acceptance coverage and automated regression infrastructure
 - Next planned release: V1.3.9 final map stability, only after every V1.3.8 release gate is verified
-- Release-gate status: P0 blank-map defect, V1.2.2 fixture, slow/failed OSM, failed satellite, and failed optional vector/glyph policies pass; V1.3.8 remains active because authenticated storage round trips, real touch/pinch input, full browser-offline mode, and MapLibre expression/lifecycle debt remain unverified
+- Release-gate status: P0 blank-map defect, V1.2.2 fixture, slow/failed OSM, optional globe failures, and typed MapLibre expressions pass; V1.3.8 remains active because authenticated storage round trips, real touch/pinch input, full browser-offline mode, and the map lifecycle ownership audit remain unverified
 
 ## Current Objective
 
-Checkpoint optional MapLibre failure policy and slow-network evidence, then replace unsafe MapLibre expression casts without changing runtime style definitions.
+Checkpoint typed MapLibre expressions, then audit map effect and resource ownership without changing working runtime behavior speculatively.
 
 ## Confirmed Problems
 
@@ -106,8 +106,16 @@ Checkpoint optional MapLibre failure policy and slow-network evidence, then repl
 - Issue: V1.3.8 required evidence that optional MapLibre resources cannot close the globe and that slow raster tiles do not reveal an unpainted 2D pane
 - Root cause/design: error severity lived inside the provider and had no pure test seam; browser glyph caches made visual-only testing ambiguous
 - Files changed: `src/lib/mapLibreErrorPolicy.ts`, `src/components/map/providers/MapLibreGlobeProvider.tsx`, `tests/mapLibreErrorPolicy.test.ts`, `package.json`, `tsconfig.tests.json`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `c0fdb870d27ce97931b3a78917d56a86cb3a1d95`
 - Test results: failed NASA imagery retained vector Earth and all gameplay overlays; failed OpenFreeMap retained satellite Earth and all gameplay overlays; glyph/country errors classify optional; delayed OSM tiles kept the globe cover until real tiles arrived after 1.697s
+
+### MapLibre expression type safety
+
+- Issue: map style construction used `as never` to bypass MapLibre's generated style types, preventing compile-time detection of malformed expressions
+- Root cause/design: expression arrays widened to generic arrays and shared symbol layout objects were inferred as readonly values instead of their declared MapLibre property types
+- Files changed: `src/components/map/providers/MapLibreGlobeProvider.tsx`, `src/components/map/maplibreGlobeSatelliteStyle.ts`, `src/components/map/maplibreGlobeStyle.ts`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: no `as never` remains under `src`; typecheck accepts all expressions; the real harness rendered satellite Earth, labels, routes, airports, and aircraft; a 3D to 2D to 3D round trip restored 18 tiles in 12ms and retained one globe canvas
 
 ## Files Modified
 
@@ -125,7 +133,9 @@ Checkpoint optional MapLibre failure policy and slow-network evidence, then repl
 - `tests/registerTestAliases.cjs`: resolves compiled `@/` imports for Node's built-in test runner
 - `src/lib/mapLibreErrorPolicy.ts`: pure fatal/optional/recoverable MapLibre error classification
 - `tests/mapLibreErrorPolicy.test.ts`: optional glyph/vector/label, recoverable satellite, and fatal core-WebGL assertions
-- `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy without changing map behavior
+- `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy and declares radius, icon-size, symbol layout, and symbol paint values with MapLibre types
+- `src/components/map/maplibreGlobeSatelliteStyle.ts`: declares country filters and label text as valid MapLibre expressions
+- `src/components/map/maplibreGlobeStyle.ts`: restricts shared style mutations to scalar or valid MapLibre expression values
 - `tsconfig.tests.json`: small CommonJS compile target for focused Node tests
 - `src/app/map-harness/page.tsx`: production-404 guard for the real-component map fixture
 - `src/app/map-harness/MapHarnessClient.tsx`: development-only real `GameMap` routes, flights, engine controls, and canonical-selection output
@@ -149,6 +159,7 @@ Checkpoint optional MapLibre failure policy and slow-network evidence, then repl
 - Slow network: a local no-cache proxy delayed every OSM tile by 1.5s; at 500ms the globe cover remained over zero tiles, then 2D revealed six visible tiles after 1.697s without warning
 - Optional MapLibre failures: failed NASA imagery, OpenFreeMap TileJSON, and uncached glyph URLs each retained one globe canvas and all eight core gameplay layers with 30 airport, three route-segment, and two aircraft features; canonical URLs were restored
 - Error policy: OpenFreeMap/glyph/country-label failures classify optional, NASA/post-core failures recoverable, and pre-core WebGL context failure fatal
+- Typed style initialization: no unsafe `as never` remains under `src`; the real development harness rendered a complete globe after hot reload, and a 3D to 2D to 3D round trip retained one active canvas and restored 18 visible raster tiles in 12ms
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -185,18 +196,18 @@ Checkpoint optional MapLibre failure policy and slow-network evidence, then repl
 - The V1.2.2 payload passes the shared restore/normalize path, but authenticated cloud upsert/load and actual IndexedDB browser rehydration have not been exercised in this session.
 - Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
-- Existing MapLibre style expressions still use `as never` casts in several layers; the V1.3 safety rules require replacing those casts with valid explicit expression types.
+- A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
 - Lint succeeds with 21 existing warnings, primarily hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
 
 ## Next Exact Action
 
-Audit every `as never` in MapLibre style construction, replace it with valid MapLibre expression/filter types, then run typecheck, style initialization, and 2D/3D browser regressions.
+Audit every map-related `useEffect`, timer, listener, observer, and resource owner; document ownership and change code only for a reproduced lifecycle or stale-closure defect.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
 2. Confirm the checkpoint is on `main` and synchronized with `origin/main`.
 3. Run `pnpm run test`, `pnpm run typecheck`, `pnpm run lint`, and `pnpm run build` before changing persistence code.
-4. Inspect `src/components/map/maplibreGlobeSatelliteStyle.ts` and `src/components/map/providers/MapLibreGlobeProvider.tsx` for `as never` expression casts.
-5. Replace only type-hiding casts, keep expression arrays runtime-identical, and leave version `1.3.8` until the complete acceptance matrix passes.
+4. Inspect map effects and resource refs in `src/components/GameMap.tsx`, `src/components/map/MapView.tsx`, and `src/components/map/providers/MapLibreGlobeProvider.tsx`.
+5. Verify Strict Mode ownership, cleanup, generations, timers, listeners, and observers, and leave version `1.3.8` until the complete acceptance matrix passes.
