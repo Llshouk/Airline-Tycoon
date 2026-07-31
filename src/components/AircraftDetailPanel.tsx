@@ -4,9 +4,11 @@ import { Pencil, X } from "lucide-react";
 import { useState } from "react";
 import { AircraftWeeklyTimetableGrid } from "@/components/AircraftWeeklyTimetableGrid";
 import { AircraftSideImage } from "@/components/AircraftSideImage";
+import { OperatingEconomicsPanel } from "@/components/OperatingEconomicsPanel";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
+import { estimateExpectedFlightProfit, estimateWeeklyScheduleFinancials } from "@/lib/economy";
 import { formatGBP } from "@/lib/format";
 import { useGameStore } from "@/store/gameStore";
 import type { AircraftInstance, FlightStatus, GameState } from "@/types/game";
@@ -31,6 +33,7 @@ export function AircraftDetailPanel({
   const totalProfit = game.flightLog
     .filter((entry) => entry.aircraftId === aircraft.id)
     .reduce((sum, entry) => sum + entry.profit, 0);
+  const operatingPreview = getAircraftOperatingPreview(aircraft, game);
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/35 p-4">
@@ -139,7 +142,18 @@ export function AircraftDetailPanel({
             </div>
           </aside>
 
-          <div>
+          <div className="min-w-0">
+            {operatingPreview ? (
+              <OperatingEconomicsPanel
+                economics={operatingPreview.economics}
+                contextLabel={operatingPreview.routeLabel}
+                weekly={operatingPreview.weekly}
+              />
+            ) : (
+              <p className="mb-4 border-y border-slate-200 bg-runway px-3 py-4 text-sm font-semibold text-slate-500">
+                {t("economics.noRouteAssigned")}
+              </p>
+            )}
             <h4 className="mb-3 font-black text-ink">{t("detail.weeklyTimetable")}</h4>
             {aircraft.schedule.length > 0 ? (
               <AircraftWeeklyTimetableGrid aircraft={aircraft} routes={game.routes} compact />
@@ -153,6 +167,37 @@ export function AircraftDetailPanel({
       </section>
     </div>
   );
+}
+
+function getAircraftOperatingPreview(aircraft: AircraftInstance, game: GameState) {
+  const model = aircraftById[aircraft.modelId];
+  if (!model) return null;
+  const weeklySchedule = aircraft.weeklySchedules.find((schedule) => game.routes.some((route) => route.id === schedule.routeId));
+  if (weeklySchedule) {
+    const route = game.routes.find((item) => item.id === weeklySchedule.routeId);
+    if (!route) return null;
+    const estimate = estimateWeeklyScheduleFinancials(weeklySchedule, route, model, aircraft, game.difficultyConfig);
+    return {
+      routeLabel: `${airportsById[route.originAirportId]?.iata ?? route.originAirportId} - ${airportsById[route.destinationAirportId]?.iata ?? route.destinationAirportId}`,
+      economics: estimate.perFlight.economics,
+      weekly: {
+        flights: estimate.weeklyFlights,
+        revenue: estimate.weeklyRevenue,
+        cost: estimate.weeklyCost,
+        profit: estimate.weeklyProfit
+      }
+    };
+  }
+
+  const scheduledFlight = aircraft.schedule.find((item) => game.routes.some((route) => route.id === item.routeId));
+  const route = scheduledFlight ? game.routes.find((item) => item.id === scheduledFlight.routeId) : null;
+  if (!route) return null;
+  const estimate = estimateExpectedFlightProfit(route, model, aircraft.cabinLayout, game.difficultyConfig);
+  return {
+    routeLabel: `${airportsById[route.originAirportId]?.iata ?? route.originAirportId} - ${airportsById[route.destinationAirportId]?.iata ?? route.destinationAirportId}`,
+    economics: estimate.economics,
+    weekly: undefined
+  };
 }
 
 function aircraftCurrentLocationLabel(aircraft: AircraftInstance) {

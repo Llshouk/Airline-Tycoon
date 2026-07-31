@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AircraftDetailPanel } from "@/components/AircraftDetailPanel";
 import { AircraftImage } from "@/components/AircraftImage";
 import { AircraftWeeklyTimetableGrid } from "@/components/AircraftWeeklyTimetableGrid";
+import { OperatingEconomicsPanel } from "@/components/OperatingEconomicsPanel";
 import { RouteEvaluationCard } from "@/components/RouteEvaluationCard";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
@@ -810,16 +811,19 @@ function ScheduleFinancialSummary({
         <Info label="Pattern" value={tripType} />
         <Info label="Distance" value={distance} />
         <Info label="Block time" value={blockTime} />
-        <Info label="Weekly flights" value={String(estimate.weeklyFlights)} />
         <Info label="Passengers/flight" value={String(estimate.perFlight.passengerCount)} />
         <Info label="Cargo/flight" value={`${estimate.perFlight.cargoTons.toFixed(1)} t`} />
-        <Info label="Revenue/flight" value={formatGBP.format(estimate.perFlight.revenue)} />
-        <Info label="Cost/flight" value={formatGBP.format(estimate.perFlight.cost)} />
-        <Info label="Profit/flight" value={formatGBP.format(estimate.perFlight.profit)} />
-        <Info label="Weekly revenue" value={formatGBP.format(estimate.weeklyRevenue)} />
-        <Info label="Weekly cost" value={formatGBP.format(estimate.weeklyCost)} />
-        <Info label="Weekly profit" value={formatGBP.format(estimate.weeklyProfit)} />
       </div>
+      <OperatingEconomicsPanel
+        economics={estimate.perFlight.economics}
+        compact
+        weekly={{
+          flights: estimate.weeklyFlights,
+          revenue: estimate.weeklyRevenue,
+          cost: estimate.weeklyCost,
+          profit: estimate.weeklyProfit
+        }}
+      />
     </div>
   );
 }

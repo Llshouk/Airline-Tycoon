@@ -17,17 +17,21 @@ export function calculateRouteEconomics(input: RouteEconomicsInput): RouteEconom
   const cabinLayout = normalizeCabinLayout(input.cabinLayout);
   const demand = normalizeDemand(input.demand);
   const pricing = normalizePricing(input.pricing);
-  const revenueMultiplier = finiteNonNegative(input.revenueMultiplier);
+  const revenueMultiplier = validInput ? finiteNonNegative(input.revenueMultiplier) : 0;
   const soldSeats = calculateSoldSeats(demand, cabinLayout, loadFactor);
   const passengerCapacity = passengerSeats(cabinLayout);
   const passengerCount = passengerSeats(soldSeats);
   const rawCargoTons = Math.min(cabinLayout.cargoTons, demand.cargoTons * cargoLoadFactor);
-  const costs = calculateOperatingCosts({
-    distanceKm,
-    cruiseSpeedKmh: input.cruiseSpeedKmh,
-    fuelCostPerKm: input.fuelCostPerKm,
-    cargoTons: rawCargoTons
-  });
+  const costs = calculateOperatingCosts(
+    validInput
+      ? {
+          distanceKm,
+          cruiseSpeedKmh: input.cruiseSpeedKmh,
+          fuelCostPerKm: input.fuelCostPerKm,
+          cargoTons: rawCargoTons
+        }
+      : { distanceKm: 0, cruiseSpeedKmh: 0, fuelCostPerKm: 0, cargoTons: 0 }
+  );
   const first = soldSeats.first * pricing.first * revenueMultiplier;
   const business = soldSeats.business * pricing.business * revenueMultiplier;
   const premiumEconomy = soldSeats.premiumEconomy * pricing.premiumEconomy * revenueMultiplier;

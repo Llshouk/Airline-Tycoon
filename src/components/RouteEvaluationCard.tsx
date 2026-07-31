@@ -1,10 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { OperatingEconomicsPanel } from "@/components/OperatingEconomicsPanel";
 import { aircraftById } from "@/data/aircraft";
 import { useTranslation } from "@/i18n";
-import { formatGBP, formatNumber } from "@/lib/format";
-import type { RouteEvaluation, RouteGrade, RouteRiskLevel, RouteStrategicValue } from "@/lib/routeEvaluation";
+import { formatGBP, formatNumber, percent } from "@/lib/format";
+import type { RouteAircraftEconomicsComparison, RouteEvaluation, RouteGrade, RouteRiskLevel, RouteStrategicValue } from "@/lib/routeEvaluation";
 import type { GameState } from "@/types/game";
 
 type Props = {
@@ -22,9 +23,12 @@ export function RouteEvaluationCard({ evaluation, game, compact = false }: Props
       return aircraft && model ? `${aircraft.registration} ${model.model}` : null;
     })
     .filter((item): item is string => Boolean(item));
+  const bestAircraft = evaluation.bestAircraftId ? game.fleet.find((item) => item.id === evaluation.bestAircraftId) : null;
+  const bestModel = bestAircraft ? aircraftById[bestAircraft.modelId] : null;
+  const bestAircraftLabel = bestAircraft && bestModel ? `${bestAircraft.registration} ${bestModel.model}` : undefined;
 
   return (
-    <section className="mt-4 rounded-md border border-slate-200 p-3">
+    <section className="mt-4 min-w-0 overflow-hidden rounded-md border border-slate-200 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-xs font-black uppercase tracking-normal text-coral">{t("routeEvaluation.title")}</p>
@@ -44,10 +48,28 @@ export function RouteEvaluationCard({ evaluation, game, compact = false }: Props
         <Score label={t("routeEvaluation.strategicValue")} value={<ValueWithScore value={strategicLabel(evaluation.strategicValue, t)} score={evaluation.strategicScore} />} />
       </div>
 
-      <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
-        <Info label={t("routeEvaluation.estimatedWeeklyRevenue")} value={formatGBP.format(evaluation.estimatedWeeklyRevenue)} />
-        <Info label={t("routeEvaluation.estimatedWeeklyProfit")} value={evaluation.estimatedWeeklyProfit === undefined ? "-" : formatGBP.format(evaluation.estimatedWeeklyProfit)} />
-      </div>
+      {evaluation.operatingEconomics && evaluation.estimatedWeeklyCost !== undefined && evaluation.estimatedWeeklyProfit !== undefined ? (
+        <OperatingEconomicsPanel
+          economics={evaluation.operatingEconomics}
+          contextLabel={bestAircraftLabel}
+          compact={compact}
+          weekly={{
+            flights: evaluation.estimatedWeeklyFlights,
+            revenue: evaluation.estimatedWeeklyRevenue,
+            cost: evaluation.estimatedWeeklyCost,
+            profit: evaluation.estimatedWeeklyProfit
+          }}
+        />
+      ) : (
+        <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+          <Info label={t("routeEvaluation.estimatedWeeklyRevenue")} value={formatGBP.format(evaluation.estimatedWeeklyRevenue)} />
+          <Info label={t("routeEvaluation.estimatedWeeklyProfit")} value="-" />
+        </div>
+      )}
+
+      {!compact && evaluation.aircraftComparisons.length > 1 ? (
+        <AircraftEconomicsComparison comparisons={evaluation.aircraftComparisons} />
+      ) : null}
 
       {compact ? null : <CabinDemandPanel evaluation={evaluation} />}
 
@@ -78,6 +100,40 @@ export function RouteEvaluationCard({ evaluation, game, compact = false }: Props
         <NoticeList title={t("routeEvaluation.suggestions")} items={evaluation.suggestions.map((suggestion) => translatedNotice(suggestion, t))} tone="success" />
       ) : null}
     </section>
+  );
+}
+
+function AircraftEconomicsComparison({ comparisons }: { comparisons: RouteAircraftEconomicsComparison[] }) {
+  const { t } = useTranslation();
+  return (
+    <div className="mt-3 overflow-hidden border-y border-slate-200">
+      <p className="bg-white px-3 py-2 text-xs font-black uppercase tracking-normal text-slate-500">{t("economics.aircraftComparison")}</p>
+      <div className="overflow-x-auto">
+        <div className="min-w-[620px]">
+          {comparisons.map((comparison) => (
+            <div key={comparison.aircraftId} className="grid grid-cols-[1.4fr_repeat(4,1fr)] items-center gap-3 border-t border-slate-100 px-3 py-2 text-xs first:border-t-0">
+              <div className="min-w-0">
+                <p className="truncate font-black text-ink">{comparison.registration} {comparison.modelName}</p>
+                <p className="font-semibold text-slate-500">{t("economics.fitScore")}: {comparison.fitScore}/100</p>
+              </div>
+              <ComparisonValue label={t("economics.estimatedRevenue")} value={formatGBP.format(comparison.economics.estimatedRevenuePerFlight)} />
+              <ComparisonValue label={t("economics.totalOperatingCost")} value={formatGBP.format(comparison.economics.estimatedTotalCostPerFlight)} />
+              <ComparisonValue label={t("economics.operatingProfit")} value={formatGBP.format(comparison.economics.estimatedOperatingProfitPerFlight)} />
+              <ComparisonValue label={t("economics.operatingMargin")} value={percent(comparison.economics.estimatedOperatingMargin)} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComparisonValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="truncate font-semibold text-slate-500">{label}</p>
+      <p className="truncate font-black tabular-nums text-ink">{value}</p>
+    </div>
   );
 }
 

@@ -3,12 +3,14 @@
 import { CheckCircle2, RotateCcw, ShoppingCart, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AircraftSideImage } from "@/components/AircraftSideImage";
+import { OperatingEconomicsPanel } from "@/components/OperatingEconomicsPanel";
 import { SeatConfigurationModal } from "@/components/SeatConfigurationModal";
 import { aircraftById, aircraftModels } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
 import { getDefaultCabinConfig, routeSuitabilityHints, validateCabinLayout } from "@/lib/cabin";
 import { canAfford } from "@/lib/cash";
+import { estimateExpectedFlightProfit } from "@/lib/economy";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { createRegistration } from "@/lib/ids";
 import { useGameStore } from "@/store/gameStore";
@@ -30,10 +32,18 @@ export function AircraftMarketScreen() {
   const [layout, setLayout] = useState<CabinLayout>(() => getDefaultCabinConfig(selectedModel));
   const [registration, setRegistration] = useState(createRegistration(game?.fleet.length ?? 0));
   const [selectedBaseAirportId, setSelectedBaseAirportId] = useState(game?.primaryBaseAirport ?? game?.baseAirportId ?? "");
+  const [economicsRouteId, setEconomicsRouteId] = useState("");
   const [isSeatConfigOpen, setIsSeatConfigOpen] = useState(false);
   const [purchaseToast, setPurchaseToast] = useState<{ modelLabel: string; registration: string; baseIata: string } | null>(null);
   const validation = useMemo(() => validateCabinLayout(selectedModel, layout), [layout, selectedModel]);
   const affordable = game ? canAfford(game, validation.purchasePriceGBP) : false;
+  const economicsRoute = game?.routes.find((route) => route.id === economicsRouteId) ?? null;
+  const marketEconomics = useMemo(
+    () => game && economicsRoute
+      ? estimateExpectedFlightProfit(economicsRoute, selectedModel, layout, game.difficultyConfig).economics
+      : null,
+    [economicsRoute, game, layout, selectedModel]
+  );
   const registrationError = useMemo(() => {
     if (!game) return null;
     const value = registration.trim().toUpperCase();
@@ -57,6 +67,13 @@ export function AircraftMarketScreen() {
       setSelectedBaseAirportId(game.primaryBaseAirport ?? bases[0] ?? "");
     }
   }, [game, selectedBaseAirportId]);
+
+  useEffect(() => {
+    if (!game) return;
+    if (!game.routes.some((route) => route.id === economicsRouteId)) {
+      setEconomicsRouteId(game.routes[0]?.id ?? "");
+    }
+  }, [economicsRouteId, game]);
 
   if (!game) return null;
   const ownedBaseIds = game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId];
@@ -206,6 +223,32 @@ export function AircraftMarketScreen() {
             <Spec label={t("market.aircraftFamily")} value={selectedModel.familyDisplayName} />
             <Spec label="Fuel/km" value={formatGBP.format(selectedModel.fuelCostPerKm)} />
           </div>
+          <label className="mt-4 block text-sm font-bold text-slate-600">
+            {t("economics.comparisonRoute")}
+            <select
+              value={economicsRouteId}
+              onChange={(event) => setEconomicsRouteId(event.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet"
+            >
+              {game.routes.length === 0 ? <option value="">{t("economics.noRoutesForComparison")}</option> : null}
+              {game.routes.map((route) => {
+                const origin = airportsById[route.originAirportId];
+                const destination = airportsById[route.destinationAirportId];
+                return (
+                  <option key={route.id} value={route.id}>
+                    {origin?.iata ?? route.originAirportId} - {destination?.iata ?? route.destinationAirportId}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+          {marketEconomics && economicsRoute ? (
+            <OperatingEconomicsPanel
+              economics={marketEconomics}
+              compact
+              contextLabel={`${airportsById[economicsRoute.originAirportId]?.iata ?? economicsRoute.originAirportId} - ${airportsById[economicsRoute.destinationAirportId]?.iata ?? economicsRoute.destinationAirportId}`}
+            />
+          ) : null}
           {validation.errors.length > 0 ? (
             <div className="mt-3 space-y-2">
               {validation.errors.map((error) => (

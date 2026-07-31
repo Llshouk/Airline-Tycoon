@@ -2,12 +2,22 @@ import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
 import { calculateCabinDemandByDistance, estimateDemand } from "@/lib/demand";
 import { estimateCargoRatePerTon, estimateExpectedFlightProfit, estimateTicketPrices } from "@/lib/economy";
+import type { RouteEconomicsResult } from "@/lib/economics/economicsTypes";
 import { distanceKm } from "@/lib/geo";
 import type { Airport, CabinDemand, CabinLayout, GameState, Route } from "@/types/game";
 
 export type RouteGrade = "A+" | "A" | "B" | "C" | "D";
 export type RouteRiskLevel = "low" | "medium" | "high";
 export type RouteStrategicValue = "low" | "medium" | "high";
+
+export type RouteAircraftEconomicsComparison = {
+  aircraftId: string;
+  modelId: string;
+  registration: string;
+  modelName: string;
+  fitScore: number;
+  economics: RouteEconomicsResult;
+};
 
 export type RouteEvaluation = {
   overallScore: number;
@@ -30,8 +40,13 @@ export type RouteEvaluation = {
     cargo: number;
   };
   scoreReasons: string[];
+  estimatedWeeklyFlights: number;
   estimatedWeeklyRevenue: number;
+  estimatedWeeklyCost?: number;
   estimatedWeeklyProfit?: number;
+  operatingEconomics?: RouteEconomicsResult;
+  bestAircraftId?: string;
+  aircraftComparisons: RouteAircraftEconomicsComparison[];
   recommendedAircraftIds: string[];
   warnings: string[];
   suggestions: string[];
@@ -54,16 +69,30 @@ export function evaluateRoute({ route, gameState }: { route: Route; gameState: G
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
     .map((item) => item.aircraft.id);
-  const bestAircraftScore = aircraftScores.find((item) => item.canOperate);
-  const bestFinancials = bestAircraftScore
-    ? estimateExpectedFlightProfit(evaluationRoute, bestAircraftScore.model, bestAircraftScore.aircraft.cabinLayout, gameState.difficultyConfig)
-    : null;
+  const financialComparisons = aircraftScores
+    .filter((item) => item.canOperate)
+    .map((item) => ({
+      aircraftScore: item,
+      financials: estimateExpectedFlightProfit(evaluationRoute, item.model, item.aircraft.cabinLayout, gameState.difficultyConfig)
+    }))
+    .sort((a, b) => b.financials.profit - a.financials.profit || b.aircraftScore.score - a.aircraftScore.score);
+  const bestComparison = financialComparisons[0];
+  const bestAircraftScore = bestComparison?.aircraftScore;
+  const bestFinancials = bestComparison?.financials ?? null;
   const weeklyFlights = route.distanceKm >= 5500 ? 7 : 14;
   const estimatedWeeklyRevenue = bestFinancials
     ? Math.round(bestFinancials.revenue * weeklyFlights)
     : estimateRevenueFromDemand(evaluationRoute);
-  // TODO V1.2: replace this per-flight proxy with a fuller operating-cost and utilization model.
+  const estimatedWeeklyCost = bestFinancials ? Math.round(bestFinancials.cost * weeklyFlights) : undefined;
   const estimatedWeeklyProfit = bestFinancials ? Math.round(bestFinancials.profit * weeklyFlights) : undefined;
+  const aircraftComparisons: RouteAircraftEconomicsComparison[] = financialComparisons.slice(0, 3).map(({ aircraftScore, financials }) => ({
+    aircraftId: aircraftScore.aircraft.id,
+    modelId: aircraftScore.model.id,
+    registration: aircraftScore.aircraft.registration,
+    modelName: aircraftScore.model.model,
+    fitScore: aircraftScore.score,
+    economics: financials.economics
+  }));
   const demandScore = clampScore(demandStrength(adjustedDemand, origin, destination, route.distanceKm));
   const profitScore = clampScore(profitStrength(estimatedWeeklyRevenue, estimatedWeeklyProfit));
   const aircraftFitScore = clampScore(bestAircraftScore?.score ?? 0);
@@ -114,8 +143,13 @@ export function evaluateRoute({ route, gameState }: { route: Route; gameState: G
       cargo: adjustedDemand.cargoTons
     },
     scoreReasons,
+    estimatedWeeklyFlights: weeklyFlights,
     estimatedWeeklyRevenue,
+    estimatedWeeklyCost,
     estimatedWeeklyProfit,
+    operatingEconomics: bestFinancials?.economics,
+    bestAircraftId: bestAircraftScore?.aircraft.id,
+    aircraftComparisons,
     recommendedAircraftIds,
     warnings,
     suggestions,

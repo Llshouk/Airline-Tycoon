@@ -23,7 +23,7 @@ export function AircraftWeeklyTimetableGrid({
   const columns = compact ? "58px repeat(7, minmax(96px, 1fr))" : "58px repeat(7, minmax(110px, 1fr))";
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white shadow-soft">
+    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-soft">
       <div className={`grid border-b border-slate-200 bg-runway text-xs font-black text-ink ${compact ? "min-w-[760px]" : ""}`} style={{ gridTemplateColumns: columns }}>
         <div className={compact ? "px-2 py-2" : "px-2 py-3"}>Time</div>
         {weekDays.map((day) => (

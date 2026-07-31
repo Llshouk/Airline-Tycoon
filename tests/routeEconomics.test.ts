@@ -67,6 +67,16 @@ test("marks an otherwise valid aircraft outside route range as ineligible", () =
   assert.equal(result.routeSuitability, "ineligible");
 });
 
+test("returns zero financials for a zero-distance route", () => {
+  const result = calculateRouteEconomics({ ...baseInput, distanceKm: 0 });
+
+  assert.equal(result.validInput, false);
+  assert.equal(result.estimatedRevenuePerFlight, 0);
+  assert.equal(result.estimatedTotalCostPerFlight, 0);
+  assert.equal(result.estimatedOperatingProfitPerFlight, 0);
+  assert.equal(result.estimatedOperatingMargin, 0);
+});
+
 test("handles zero seats without NaN cost-per-seat or break-even values", () => {
   const result = calculateRouteEconomics({
     ...baseInput,

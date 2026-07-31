@@ -1,6 +1,6 @@
 {
   "name": "airline-tycoon-v1",
-  "version": "1.3.9",
+  "version": "1.4.0",
   "private": true,
   "engines": {
     "node": ">=20.9.0"

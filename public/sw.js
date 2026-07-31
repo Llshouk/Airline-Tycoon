@@ -1,4 +1,4 @@
-const CACHE_VERSION = "airline-tycoon-v1.3.9";
+const CACHE_VERSION = "airline-tycoon-v1.4.0";
 const PRECACHE_URLS = [
   "/",
   "/offline.html",

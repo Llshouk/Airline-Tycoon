@@ -4,11 +4,13 @@
 
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
-- Current version: `1.3.9`
+- Current version: `1.4.0`
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
-- Current release checkpoint: the V1.3.9 release commit containing this document
+- V1.3.9 release HEAD: `e629563`
+- V1.4.0 calculation checkpoint: `eb1a0e6`
+- Current release checkpoint: the V1.4.0 release commit containing this document
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
-- Working-tree status: green V1.3.9 release checkpoint
+- Working-tree status: green V1.4.0 release checkpoint
 - Audit date: 2026-07-31
 - Latest successful production build: `pnpm run build` passed on 2026-07-31 with Next.js 15.5.21
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
@@ -17,16 +19,16 @@
 ## Roadmap Position
 
 - Current major version: V1
-- Current minor version: V1.3.9
-- Current release objective: V1.3 map stabilization complete; proceed to V1.4.0 Operating Economics
-- Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
-- Partially implemented systems: V1 operating economics beyond the existing basic estimates
-- Next planned release: V1.4.0 Operating Economics
-- Release-gate status: V1.3.8 stabilization accepted with no reproducible P0 or core P1 map defect; V1.3.9 final lifecycle, cleanup, automated, browser, build, and security gates pass
+- Current minor version: V1.4.0
+- Current release objective: V1.4.0 Operating Economics complete; stop before V1.5 work
+- Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
+- Partially implemented systems: none in the V1.4 release scope
+- Next planned release: V1.5.0 Aircraft Maintenance and Reliability
+- Release-gate status: V1.3.9 map stabilization and V1.4.0 operating economics pass automated, browser, build, responsive-layout, compatibility, and security gates
 
 ## Current Objective
 
-Release V1.3.9, then audit and centralize the existing revenue, cost, frequency, and completed-flight cash paths for V1.4.0.
+Release V1.4.0 with centralized operating economics, preserve authoritative cash/save behavior, and stop before V1.5.0.
 
 ## Resolved V1.3 Problems
 
@@ -324,7 +326,33 @@ Release V1.3.9, then audit and centralize the existing revenue, cost, frequency,
 - Files changed: `src/components/GameMap.tsx`, `src/components/map/providers/MapLibreGlobeProvider.tsx`, `docs/map-lifecycle.md`, version metadata, README, manifest, and service-worker cache generation
 - Test results: initial 2D and 3D pass; 10/10 settled cycles and 5/5 rapid reversal sequences retain one Leaflet map, one base TileLayer, one MapLibre canvas, and 18 visible tiles; post-return zoom/pan loads 24 tiles; wrapped overlays remain present; canvas pixel variation is nonblank; console errors and temporary debug logs are zero
 
+### V1.4.0 centralized operating economics
+
+- Scope: introduced one typed economics calculation path for revenue, fuel, crew, airport and handling, maintenance reserve, total cost, profit, margin, break-even load factor, utilization, cost per kilometre, and cost per seat-kilometre
+- Units and assumptions: values are per operated leg unless explicitly labelled weekly; fuel uses aircraft gameplay cost per kilometre, crew uses block hours, airport and handling includes a distance and cargo component, maintenance is a per-kilometre reserve, and weekly values multiply the per-flight result by normalized operating frequency exactly once
+- Compatibility: `src/lib/economy.ts` remains the compatibility facade and completed-flight settlement still applies the shared rounded `profit` to canonical `money` exactly once; no save-schema field was added or renamed
+- Eligibility: invalid core inputs return finite zero financials, load factors are bounded, and out-of-range aircraft retain a readable estimate while being marked ineligible
+- Route evaluation: eligible owned aircraft are compared by per-flight profit with weekly revenue, cost, profit, frequency, recommendation, range compatibility, and suitability exposed through one result
+- User interface: the same breakdown is shared by Route Evaluation, Route Details, Aircraft Market, Schedule preview, and owned-aircraft details; previews remain read-only and do not mutate cash, fleet, routes, schedules, or saves
+- Localization and layout: all new economics labels and states have compiler-checked English and Chinese strings; desktop and 390px mobile layouts contain wide comparison and timetable content within their own scroll regions
+- Files changed: `src/lib/economics/*`, `src/lib/economy.ts`, `src/lib/routeEvaluation.ts`, `src/components/OperatingEconomicsPanel.tsx`, route/market/schedule/fleet surfaces, translations, focused tests, and release metadata
+- Calculation checkpoint: `eb1a0e6` (`Add centralized operating economics`)
+- Test results: 22/22 automated tests, typecheck, zero-error lint, production build, practical browser acceptance, bilingual rendering, mobile overflow checks, map smoke, preview-purity proof, and exact single-settlement cash proof pass
+
 ## Files Modified
+
+- `src/lib/economics/economicsTypes.ts`: typed per-flight and weekly economics contracts, category totals, compatibility, and suitability fields
+- `src/lib/economics/operatingCosts.ts`: sanitized fuel, crew, airport/handling, and maintenance-reserve calculations
+- `src/lib/economics/routeEconomics.ts`: centralized route result, bounded inputs, eligibility, margin, break-even, utilization, cost metrics, and normalized weekly scaling
+- `src/lib/economy.ts`: compatibility facade and authoritative completed-flight settlement consumer for the shared economics result
+- `src/lib/routeEvaluation.ts`: eligible-aircraft comparison and weekly route projections without preview mutation
+- `src/components/OperatingEconomicsPanel.tsx`: shared responsive economics presentation used across gameplay surfaces
+- `src/components/RouteEvaluationCard.tsx`, `src/components/RoutesScreen.tsx`, `src/components/ScheduleScreen.tsx`: route and schedule economics with actual schedule frequency where available
+- `src/components/AircraftMarketScreen.tsx`, `src/components/AircraftDetailPanel.tsx`: read-only market comparison and route-specific owned-aircraft estimates
+- `src/components/AircraftWeeklyTimetableGrid.tsx`: contained mobile horizontal scrolling for fixed-format timetable data
+- `src/i18n/en.ts`, `src/i18n/zh.ts`: complete V1.4 operating-economics labels and release metadata
+- `tests/routeEconomics.test.ts`: deterministic short/long-haul, range, zero/invalid input, load factor, frequency, scaling, and category-sum regressions
+- `README.md`, `package.json`, `public/manifest.json`, `public/sw.js`, and app metadata: V1.4.0 release identity and feature status
 
 - `.gitignore`: excludes generated `.test-build/` output
 - `package.json`: adds focused map lifecycle and save tests plus the guarded live cloud acceptance command, keeps deterministic lint, pins patched Next/PostCSS/Sharp versions, and declares the compatible Node runtime floor
@@ -368,6 +396,15 @@ Release V1.3.9, then audit and centralize the existing revenue, cost, frequency,
 
 ## Tests Completed
 
+- V1.4.0 release gate: `pnpm install --frozen-lockfile`, `pnpm audit --prod`, 22/22 tests, typecheck, zero-error lint, production build, and `git diff --check` passed on 2026-07-31
+- V1.4.0 calculation coverage: deterministic short- and long-haul economics, range ineligibility, zero seats/distance, NaN/Infinity/negative sanitization, bounded load factors, cost-category sums, and one-way/round-trip weekly scaling all pass
+- Preview purity: changing route, aircraft, and cabin comparison inputs left visible canonical cash at `381852000` and fleet size at three
+- Frequency proof: zero selected days produced zero weekly flights; one round-trip day produced two; two round-trip days produced four; two one-way days produced two, with per-flight values unchanged and weekly totals scaled once
+- Authoritative settlement proof: advancing one scheduled flight changed cash from `381852000` to `381896325`; the exact `44325` delta matched shared economics profit and the completed-flight count increased once
+- Shared UI acceptance: Route Evaluation, Route Details, Aircraft Market, Schedule preview, and owned-aircraft detail rendered the centralized categories and weekly projections; an A320 on LHR-HKG was ineligible while an A350 was eligible and profitable
+- Bilingual acceptance: all new V1.4 English and Chinese economics labels rendered on production components without fallback keys
+- Responsive acceptance: route and market pages fit a 390x844 viewport at 375/375 document width; comparison and timetable tables scroll only inside their intended containers
+- Map regression smoke: populated 2D, nonblank 3D with gameplay overlays, and return to populated 2D passed with no runtime console error
 - V1.3.9 focused baseline: `pnpm install --frozen-lockfile`, `pnpm audit --prod`, 12/12 tests, typecheck, zero-warning lint, and the production build passed at baseline HEAD `e1a2225`
 - V1.3.9 practical browser gate: initial 2D produced one Leaflet map, one base layer, 18 visible tiles, 10 route paths, 150 airport copies, and 10 aircraft copies; initial 3D produced one visible nonblank canvas
 - V1.3.9 switching gate: 10/10 settled 2D to 3D to 2D cycles and 5/5 rapid reversal sequences ended with one map, one base layer, one globe canvas, 18 visible tiles, and no stuck transition
@@ -429,23 +466,23 @@ Release V1.3.9, then audit and centralize the existing revenue, cost, frequency,
 | Authentication | Deployed V1.3.8 and local configuration gates render; authenticated flow and airline switching not exercised |
 | Cloud save | Shared V1.2.2 payload and legacy-cash restore passed; a guarded disposable-account acceptance command now covers auth, upsert, uniqueness, canonical cash, and cleanup, but it has not yet run against Supabase |
 | Local save | Sanitized V1.2 persistence envelope passed through the actual async IndexedDB adapter and production restore path; browser UI rehydration remains unverified |
-| Fleet | Harness renders owned aircraft data; optimized aircraft images, native Sharp 0.35.3 production response, and missing-file fallback passed; gameplay workflow unchanged |
-| Schedules | In-flight fixture renders; default numbering now follows weekly-service mutations; authenticated create/delete UI pass pending |
-| Routes | Wrapped and date-line route rendering/clicks passed |
+| Fleet | Owned-aircraft details render route-specific per-flight and weekly economics while every aircraft record remains independent; image and fallback checks continue to pass |
+| Schedules | Shared economics preview and normalized one-way/round-trip weekly frequency passed; authoritative completion applies shared profit exactly once |
+| Routes | Route evaluation/details use the centralized calculation path; actual schedules drive weekly projections where available; wrapped and date-line map routes still pass |
 | Cabin configuration | Not reverified; no related code changed |
 | Airport board | Not reverified; no related code changed |
 | Delay system | Not reverified; no related code changed |
-| Route evaluation | Not reverified; no related code changed |
-| Operating economics | Existing V1 basics only; V1.4 not started |
+| Route evaluation | Eligible owned aircraft compare by per-flight profit with range, suitability, weekly totals, score, grade, risk, reasons, and suggestions preserved |
+| Operating economics | V1.4.0 complete: centralized categories, profit metrics, frequency scaling, shared previews, and authoritative settlement verified |
 | Maintenance | Not implemented; V1.5 roadmap |
 | Reputation | Not implemented; V1.6 roadmap |
 | Competition | Not implemented; V2 roadmap |
 | Events | Not implemented; V3 roadmap |
 | Maps | P0 restore fix plus switching, wrapping, geometry, interactions, degradation policy, resource ownership, and removed-GridLayer listener regression checks passed |
-| Mobile | Portrait/landscape layout and repeated switching passed; real touch/pinch pending |
+| Mobile | Portrait/landscape map switching and 390px economics layouts passed without document overflow; real touch/pinch pending |
 | Offline/PWA | OSM failure and production app-shell origin-outage/reconnection passed; all-network offline and saved-game interaction remain pending |
-| English | MapLibre airport tooltip, map labels, and Leaflet airport popup rendered correctly |
-| Chinese | MapLibre and Leaflet airport details render translated status; Schedule preview-overlap errors now have a compiler-checked Chinese mapping |
+| English | Map interactions and all new V1.4 economics labels rendered correctly |
+| Chinese | Map interactions, Schedule overlap errors, and all new V1.4 economics labels rendered correctly |
 
 ## Deferred External Verification
 
@@ -453,16 +490,16 @@ Release V1.3.9, then audit and centralize the existing revenue, cost, frequency,
 - Physical-device touch panning, pinch zoom, and information-card scrolling
 - Complete browser-wide network isolation with authenticated/local saved-game interaction; production app-shell origin outage/reconnection and failed map-resource behavior already pass
 
-These checks remain useful external acceptance coverage. There is no current evidence that they represent a reproducible code defect, so they do not block V1.3.9 or V1.4.0.
+These checks remain useful external acceptance coverage. There is no current evidence that they represent a reproducible code defect, so they do not block the completed V1.4.0 release.
 
 ## Next Exact Action
 
-Audit existing revenue, operating-cost, schedule-frequency, route-evaluation, and completed-flight cash calculations before creating the centralized V1.4 economics layer.
+Stop at V1.4.0. The next planned release is V1.5.0 Aircraft Maintenance and Reliability, but no V1.5 implementation has begun.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
-2. Confirm the checkpoint is on `main` and synchronized with `origin/main`.
-3. Confirm V1.3.9 is synchronized with `origin/main`, then inspect only the existing economics, route-evaluation, scheduling, demand, and completed-flight accounting paths.
-4. Keep preview calculations pure and derived; do not alter save schema or cash until the current authoritative settlement path is understood.
-5. Treat authenticated Supabase, physical touch/pinch, and complete browser-wide isolation as deferred external verification unless a reproducible defect appears.
+2. Confirm the V1.4.0 release checkpoint is on `main` and synchronized with `origin/main`.
+3. Treat `src/lib/economics/*` as the canonical calculation layer and `src/lib/economy.ts` as the compatibility and settlement boundary.
+4. Preserve preview purity, canonical `money`, save compatibility, and one-record-per-aircraft state in all future work.
+5. Do not begin V1.5.0 until it is explicitly requested; authenticated Supabase, physical touch/pinch, and complete browser-wide isolation remain deferred external verification.

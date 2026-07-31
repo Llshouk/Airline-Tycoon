@@ -86,8 +86,8 @@ export function RoutesScreen() {
           {t("routes.openRoutesFromMap")}
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)]">
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)]">
+          <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
             {visibleRoutes.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm font-semibold text-slate-500">{t("routes.noRoutesForFilter")}</p>
             ) : (
@@ -114,13 +114,12 @@ export function RoutesScreen() {
               })
             )}
           </div>
-          <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+          <aside className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
             {selectedRoute ? (
               <RouteReadOnlyCard
                 route={selectedRoute.route}
                 game={game}
                 summary={selectedRoute.summary}
-                best={selectedRoute.best}
                 scheduleTotals={selectedRoute.totals}
               />
             ) : (
@@ -139,24 +138,26 @@ function RouteReadOnlyCard({
   route,
   game,
   summary,
-  best,
   scheduleTotals
 }: {
   route: Route;
   game: GameState;
   summary: RemainingDemandSummary | null;
-  best: ReturnType<typeof bestRoutePreview>;
   scheduleTotals: ReturnType<typeof routeScheduleTotals>;
 }) {
   const { t } = useTranslation();
   const origin = airportsById[route.originAirportId];
   const destination = airportsById[route.destinationAirportId];
   const pricing = route.pricing ?? routePricingFromDefaults(route);
-  const estimatedRevenue = estimatedRouteRevenue(best?.revenue ?? 0, scheduleTotals.weeklyRevenue);
   const evaluation = evaluateRoute({ route, gameState: game });
+  const hasScheduledFlights = scheduleTotals.weeklyFlights > 0;
+  const weeklyRevenue = hasScheduledFlights ? scheduleTotals.weeklyRevenue : evaluation.estimatedWeeklyRevenue;
+  const weeklyCost = hasScheduledFlights ? scheduleTotals.weeklyCost : evaluation.estimatedWeeklyCost ?? 0;
+  const weeklyProfit = hasScheduledFlights ? scheduleTotals.weeklyProfit : evaluation.estimatedWeeklyProfit ?? 0;
+  const weeklyFlights = hasScheduledFlights ? scheduleTotals.weeklyFlights : evaluation.estimatedWeeklyFlights;
 
   return (
-    <article>
+    <article className="min-w-0">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-normal text-coral">Open</p>
@@ -175,10 +176,10 @@ function RouteReadOnlyCard({
         <Info label={t("airport.destination")} value={`${destination.iata} ${destination.city}`} />
         <Info label={t("routes.rangeRequirement")} value={`${formatNumber.format(route.distanceKm)} km`} />
         <Info label={t("detail.duration")} value={formatFlightTime(route.distanceKm)} />
-        <Info label={t("routes.weeklyScheduledCapacity")} value={String(scheduleTotals.weeklyFlights)} />
-        <Info label={t("routes.estimatedRevenue")} value={`${formatGBP.format(estimatedRevenue)}/week`} />
-        <Info label={t("routes.estimatedProfit")} value={`${formatGBP.format(scheduleTotals.weeklyProfit || best?.profit || 0)}/week`} />
-        <Info label="Status" value={t("routes.readOnly")} />
+        <Info label={t("economics.weeklyFlights")} value={String(weeklyFlights)} />
+        <Info label={`${t("economics.estimatedRevenue")} / ${t("economics.perWeek")}`} value={formatGBP.format(weeklyRevenue)} />
+        <Info label={`${t("economics.totalOperatingCost")} / ${t("economics.perWeek")}`} value={formatGBP.format(weeklyCost)} />
+        <Info label={`${t("economics.operatingProfit")} / ${t("economics.perWeek")}`} value={formatGBP.format(weeklyProfit)} />
       </div>
 
       <div className="mt-4 grid gap-2 text-sm md:grid-cols-4">
@@ -204,23 +205,23 @@ function ActiveSchedules({ route, game }: { route: Route; game: GameState }) {
   );
 
   return (
-    <div className="mt-4 rounded-md border border-slate-200 p-3">
+    <div className="mt-4 min-w-0 overflow-hidden rounded-md border border-slate-200 p-3">
       <p className="mb-2 text-sm font-black text-ink">{t("routes.activeSchedules")}</p>
       {schedules.length === 0 ? (
         <p className="text-sm text-slate-500">{t("routes.noWeeklyServices")}</p>
       ) : (
-        <div className="grid gap-2 md:grid-cols-2">
+        <div className="grid min-w-0 gap-2 md:grid-cols-2">
           {schedules.map(({ aircraft, schedule, model }) => {
             const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft, game.difficultyConfig);
             return (
-              <div key={`${aircraft.id}-${schedule.id}`} className="rounded-md bg-runway px-3 py-2 text-sm">
+              <div key={`${aircraft.id}-${schedule.id}`} className="min-w-0 rounded-md bg-runway px-3 py-2 text-sm">
                 <p className="font-bold text-ink">
                   <span className="block truncate whitespace-nowrap tabular-nums">
                     {formatScheduleFlightNumbers(schedule)} {formatRouteCode(route)} - {aircraft.registration} - {model.model}
                   </span>
                 </p>
                 <p className="text-slate-500">
-                  {schedule.daysOfWeek.length} days - {formatGBP.format(estimate.weeklyRevenue)} revenue - {formatGBP.format(estimate.weeklyProfit)} profit
+                  {schedule.daysOfWeek.length} days - {t("economics.estimatedRevenue")}: {formatGBP.format(estimate.weeklyRevenue)} - {t("economics.totalOperatingCost")}: {formatGBP.format(estimate.weeklyCost)} - {t("economics.operatingProfit")}: {formatGBP.format(estimate.weeklyProfit)}
                 </p>
               </div>
             );
@@ -299,11 +300,12 @@ function routeScheduleTotals(route: Route, game: GameState) {
           const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft, game.difficultyConfig);
           totals.weeklyFlights += estimate.weeklyFlights;
           totals.weeklyRevenue += estimate.weeklyRevenue;
+          totals.weeklyCost += estimate.weeklyCost;
           totals.weeklyProfit += estimate.weeklyProfit;
         });
       return totals;
     },
-    { weeklyFlights: 0, weeklyRevenue: 0, weeklyProfit: 0 }
+    { weeklyFlights: 0, weeklyRevenue: 0, weeklyCost: 0, weeklyProfit: 0 }
   );
 }
 

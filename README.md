@@ -1,8 +1,8 @@
-# Airline Tycoon V1.3.9
+# Airline Tycoon V1.4.0
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.3.9 - Map Final Stability Release
+Release: V1.4.0 - Operating Economics
 
 ## Features
 
@@ -11,6 +11,8 @@ Release: V1.3.9 - Map Final Stability Release
 - Open routes between real airports
 - Adjust ticket prices by cabin class
 - Estimate demand, revenue, cost and profit
+- Review per-flight fuel, crew, airport, handling, and maintenance-reserve costs
+- Compare aircraft operating profit, margin, break-even load factor, and route suitability
 - Create weekly flight schedules
 - View aircraft movement on a Leaflet 2D map or MapLibre GL 3D globe
 - Evaluate route quality, risk, demand, aircraft fit, and recommended aircraft
@@ -62,7 +64,7 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.3.9 finalizes the V1.3 map lifecycle. Leaflet and MapLibre resources have explicit owners and cleanup paths, 2D restoration is generation guarded, wrapped routes and aircraft remain visible across the date line, and failed optional map resources degrade without stopping the simulation.
+Airline Tycoon V1.4.0 adds a centralized, gameplay-balanced operating economics model. Route evaluation, route details, aircraft purchase comparison, schedule previews, aircraft details, completed-flight settlement, and weekly projections now share one calculation path. Cost assumptions remain simplified for prototype balance, and derived previews do not change cash or the save schema.
 
 ## Map Configuration
 

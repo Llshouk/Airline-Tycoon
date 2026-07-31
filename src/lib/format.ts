@@ -4,6 +4,13 @@ export const formatGBP = new Intl.NumberFormat("en-GB", {
   maximumFractionDigits: 0
 });
 
+export const formatGBPDecimal = new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
 export const formatNumber = new Intl.NumberFormat("en-GB", {
   maximumFractionDigits: 0
 });
