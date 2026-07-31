@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `38de9e33a19eb7dcaac2eb9dce51529b14702202`
+- Current HEAD: `21910f0f7c0bf775b0867a877fa46febf5e1b80d`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint explicit canonical-cash alias stripping and its regression test, then continue stabilization without speculative runtime changes.
+Checkpoint the field-exact weekly route-statistics signature, then continue stabilization without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -135,9 +135,11 @@ Checkpoint explicit canonical-cash alias stripping and its regression test, then
 
 ### Weekly route-statistics dependency audit
 
-- Finding: the narrowed memo signature intentionally includes aircraft ID plus every schedule ID, route ID, and `updatedAt` value read by route statistics
-- Evidence: supported schedule add/edit paths create or replace `updatedAt`, deletion changes the schedule-ID set, and save normalization supplies a fallback timestamp
-- Result: no missed supported update was reproduced, so the warning remains documented and production behavior was not changed merely to silence lint
+- Finding: route statistics consume aircraft identity plus schedule identity, route, operating-day count, and round-trip state
+- Root cause/design: the narrowed signature now encodes those exact fields instead of relying on `updatedAt`; a focused hook comment documents why unrelated fleet changes must not invalidate the memo
+- Files changed: `src/components/GameMap.tsx`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: the final GameMap warning is resolved; one globe canvas and one Leaflet map/TileLayer remain healthy, 18 tiles settle after a 3D to 2D return, 9/9 tests pass, and no runtime error is introduced
 
 ### Explicit globe memo dependency contracts
 
@@ -232,7 +234,7 @@ Checkpoint explicit canonical-cash alias stripping and its regression test, then
 - Issue: normalization intentionally removed four historical cash aliases through unused destructured bindings, obscuring a critical migration invariant and producing four lint warnings
 - Root cause/design: `getCurrentCash` still reads legacy aliases in priority order, then `stripLegacyCashFields` explicitly removes `cash`, `capital`, `playerMoney`, and nested `airline` before the canonical `money` field is written
 - Files changed: `src/store/gameStore.ts`, `tests/saveCompatibility.test.ts`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `21910f0f7c0bf775b0867a877fa46febf5e1b80d`
 - Test results: a new regression restores string legacy cash to exact canonical `money = 123,456,789` and proves all four duplicate fields are absent; 9/9 tests pass and lint falls from 7 to 3 warnings
 
 ## Files Modified
@@ -244,7 +246,7 @@ Checkpoint explicit canonical-cash alias stripping and its regression test, then
 - `src/components/AircraftMarketScreen.tsx`: moves effects above the nullable-game early return to preserve hook ordering; removes one unused type import
 - `src/components/AuthGate.tsx`: keeps save-before-switch, cloud-slot refresh, and the context switch action synchronized with current auth, network, and translation state
 - `src/components/ScheduleScreen.tsx`: advances default outbound/return flight numbers when the total weekly-service count changes and localizes canonical overlap errors
-- `src/components/GameMap.tsx`: accepts existing visible tile coverage, polls through fade completion, validates positive tile rectangles, clears terminal transition states, supplies current translations to 2D airport popups, declares exact globe-builder inputs, and cancels async recovery through the owning effect
+- `src/components/GameMap.tsx`: owns deterministic map recovery, translated 2D popups, exact globe-builder inputs, effect cancellation, and a field-exact weekly route-statistics signature
 - `src/components/map/MapView.tsx`: separates React pane ownership from Leaflet container ownership and moves the noninteractive 2D badge away from zoom controls
 - `src/lib/leafletTileReadiness.ts`: pure rendered-tile visibility and coverage helpers
 - `tests/leafletTileReadiness.test.ts`: regression tests for collapsed, offscreen, visible, and cached coverage
@@ -269,7 +271,7 @@ Checkpoint explicit canonical-cash alias stripping and its regression test, then
 
 - `pnpm run test`: passed, 9 tests and 0 failures, including V1.2.2 save restoration, canonical cash alias migration, and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 3 pre-existing warnings; all four intentional legacy-cash binding warnings are resolved
+- `pnpm run lint`: passed with 0 errors and 2 pre-existing warnings; the intentionally narrowed GameMap dependency is documented and resolved
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -298,6 +300,7 @@ Checkpoint explicit canonical-cash alias stripping and its regression test, then
 - Schedule time ownership: weekly wrapping, flight duration, turnaround blocks, and overlap detection retain their existing minute-based inputs after dead import removal
 - Registration ownership: the Aircraft Market generates proposed registrations and the store continues to validate uniqueness while preserving one record per aircraft
 - Canonical cash migration: legacy aliases remain readable on load, exact value is written to `money`, and duplicate top-level/nested aliases are removed before persistence
+- Weekly route statistics: the memo signature directly tracks every consumed schedule field and ignores unrelated fleet updates; both map engines remain healthy
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -336,11 +339,11 @@ Checkpoint explicit canonical-cash alias stripping and its regression test, then
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
 - A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with 3 existing warnings: the intentionally narrowed GameMap schedule signature and two aircraft `<img>` fallback warnings; no new lint errors remain.
+- Lint succeeds with 2 existing warnings, both from deliberate aircraft `<img>` fallback behavior; no hook or unused-code warnings remain.
 
 ## Next Exact Action
 
-Document the audited `GameMap` weekly-schedule signature at the hook boundary so lint accepts the intentional narrow dependency without broad fleet recomputation.
+Audit `AircraftImage` and `AircraftSideImage` error/fallback behavior before deciding whether Next Image can replace their two deliberate `<img>` elements without regressions.
 
 ## Recovery Instructions
 

@@ -159,6 +159,8 @@ export function GameMap(props: Props) {
   effectiveMapEngineRef.current = effectiveMapEngine;
   if (process.env.NODE_ENV === "development") renderMetricsRef.current.renders += 1;
   const weeklyScheduleSignature = useMemo(() => getWeeklyScheduleSignature(props.fleet), [props.fleet]);
+  // The signature contains every field consumed by route statistics; broad fleet changes must not rebuild it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const routeStatistics = useMemo(() => buildRouteMapStatistics(props.fleet), [weeklyScheduleSignature]);
   const aircraftStructuralKey = useMemo(() => getGlobeAircraftStructuralKey(props.fleet, props.displayMode), [props.fleet, props.displayMode]);
   const renderedGameTimeMs = useThrottledMapTime(
@@ -633,7 +635,12 @@ function buildRouteMapStatistics(fleet: AircraftInstance[]) {
 
 function getWeeklyScheduleSignature(fleet: AircraftInstance[]) {
   return fleet
-    .map((aircraft) => `${aircraft.id}:${aircraft.weeklySchedules.map((schedule) => `${schedule.id}:${schedule.routeId}:${schedule.updatedAt}`).join(",")}`)
+    .map(
+      (aircraft) =>
+        `${aircraft.id}:${aircraft.weeklySchedules
+          .map((schedule) => `${schedule.id}:${schedule.routeId}:${schedule.daysOfWeek.length}:${schedule.isRoundTrip ? 1 : 0}`)
+          .join(",")}`
+    )
     .join("|");
 }
 
