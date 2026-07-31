@@ -9,6 +9,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useThrottledMapTime } from "@/hooks/useThrottledMapTime";
 import { useTranslation } from "@/i18n";
 import { calculateBearing } from "@/lib/geo";
+import { detachLeafletLayer } from "@/lib/leafletLayerLifecycle";
 import { hasVisibleLeafletTileCoverage, isVisibleLeafletTileRect } from "@/lib/leafletTileReadiness";
 import { buildRoutePolylinePoints, buildRoutePolylineLatLngSegments, interpolateRoutePosition, normalizeLongitude, normalizeLongitudeDelta } from "@/lib/mapRoutePath";
 import { getEffectiveGlobeQuality, getGlobeAircraftUpdateInterval, supportsWebGL } from "@/lib/mapPreferences";
@@ -571,7 +572,7 @@ function cleanupTwoDMaps(
     leafletLayersRef.current = null;
   }
   if (leafletBaseLayerRef.current) {
-    leafletBaseLayerRef.current.remove();
+    detachLeafletLayer(leafletBaseLayerRef.current);
     leafletBaseLayerRef.current = null;
   }
   if (leafletMapRef.current) {
@@ -817,9 +818,7 @@ function replaceLeafletBaseLayer(
 ) {
   const previousLayer = baseLayerRef.current;
   if (previousLayer) {
-    previousLayer.off();
-    if (map.hasLayer(previousLayer)) map.removeLayer(previousLayer);
-    else previousLayer.remove();
+    detachLeafletLayer(previousLayer);
   }
   baseLayerRef.current = null;
   return ensureLeafletBaseLayer(L, map, baseLayerRef, diagnostics);
@@ -1040,8 +1039,7 @@ function recreateLeafletMap(
   }
   layerRef.current?.remove();
   layerRef.current = null;
-  baseLayerRef.current?.off();
-  baseLayerRef.current?.remove();
+  detachLeafletLayer(baseLayerRef.current);
   baseLayerRef.current = null;
   (mapRef.current as LeafletMap | null)?.remove();
 

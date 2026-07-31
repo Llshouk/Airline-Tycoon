@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `1733976d2cbfa3df63dd3b1c7a34c7f39a6d291d`
+- Current HEAD: `b6f750ca6bcad809ef5816738624c8a5087c6eeb`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,9 +25,18 @@
 
 ## Current Objective
 
-Checkpoint a guarded, repeatable live Supabase cloud-save acceptance command, then preserve V1.3.8 until that authenticated acceptance can run.
+Checkpoint the stale Leaflet base-layer listener fix, then preserve V1.3.8 until live authenticated, physical-touch, and full-offline acceptance can run.
 
 ## Confirmed Problems
+
+### Leaflet base-layer teardown retained callbacks after 3D-to-2D restore
+
+- Severity: P1 map interaction runtime error
+- Reproduction: on a fresh harness, switch 2D to 3D to 2D once, wait for visible Leaflet tiles, then use the zoom-in control; keyboard panning triggers the same stale callback path
+- Observed behavior: a removed `GridLayer` still received `zoomanim` or `viewreset`, then threw while reading `project` or `getCenter` from its null internal map
+- Expected behavior: replacing a TileLayer must let Leaflet detach its map callbacks before application-specific listeners are cleared
+- Relevant files: `src/components/GameMap.tsx`, `src/lib/leafletLayerLifecycle.ts`
+- Evidence: `Layer._layerAdd` registers map cleanup through `once("remove", ...)`; calling `off()` before `remove()` erased that cleanup hook and left the map subscribed to a layer whose `_map` was subsequently nulled
 
 ### Production dependency audit reports patched security advisories
 
@@ -299,20 +308,28 @@ Checkpoint a guarded, repeatable live Supabase cloud-save acceptance command, th
 - Issue: authenticated Supabase upsert/load/uniqueness acceptance remained a manual, credential-gated release step with no repeatable command or protection against overwriting a real save
 - Root cause/design: the application correctly owns user-facing cloud persistence, but acceptance needs a disposable-account harness that uses the same `user_id,difficulty` conflict target and proves insert, update, canonical cash, one-row uniqueness, delete, and cleanup without printing credentials
 - Files changed: `package.json`, `scripts/verify-cloud-save.mjs`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `b6f750ca6bcad809ef5816738624c8a5087c6eeb`
 - Test results: script syntax and help pass; missing credentials and a non-root Supabase URL fail before network access; frozen install, 11/11 tests, typecheck, zero-warning lint, production build, and production dependency audit pass. The authenticated write test remains unrun because no disposable Supabase credentials are available locally
+
+### Leaflet base-layer listener cleanup ordering
+
+- Issue: every 3D-to-2D restore replaced the base TileLayer after clearing all layer listeners, including Leaflet's own one-time removal hook
+- Root cause/design: Leaflet's removal hook is what unregisters `viewreset`, `zoomanim`, and other GridLayer callbacks from the map; all base-layer teardown paths now use one tested helper that calls `remove()` before `off()`
+- Files changed: `src/components/GameMap.tsx`, `src/lib/leafletLayerLifecycle.ts`, `tests/leafletLayerLifecycle.test.ts`, `tsconfig.tests.json`, `package.json`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: the exact fresh-page round trip plus zoom/pan no longer throws; 20 settled mobile-width cycles with zoom and keyboard pan after every return and 10 rapid reversal sequences retained one map/TileLayer/canvas, at least 20 visible tiles, and zero runtime errors
 
 ## Files Modified
 
 - `.gitignore`: excludes generated `.test-build/` output
-- `package.json`: adds focused tests and the guarded live cloud acceptance command, keeps deterministic lint, pins patched Next/PostCSS/Sharp versions, and declares the compatible Node runtime floor
+- `package.json`: adds focused map lifecycle and save tests plus the guarded live cloud acceptance command, keeps deterministic lint, pins patched Next/PostCSS/Sharp versions, and declares the compatible Node runtime floor
 - `pnpm-lock.yaml`: records the focused test dependencies and converged patched production graph
 - `pnpm-workspace.yaml`: permits the existing native builds and overrides Next's vulnerable exact PostCSS/Sharp edges with tested patched versions
 - `eslint.config.mjs`: adds Next core-web-vitals/TypeScript flat-compatible lint configuration and ignores generated artifacts
 - `src/components/AircraftMarketScreen.tsx`: moves effects above the nullable-game early return to preserve hook ordering; removes one unused type import
 - `src/components/AuthGate.tsx`: keeps save-before-switch, cloud-slot refresh, and the context switch action synchronized with current auth, network, and translation state
 - `src/components/ScheduleScreen.tsx`: advances default outbound/return flight numbers when the total weekly-service count changes and localizes canonical overlap errors
-- `src/components/GameMap.tsx`: owns deterministic map recovery, translated 2D popups, exact globe-builder inputs, effect cancellation, and a field-exact weekly route-statistics signature
+- `src/components/GameMap.tsx`: owns deterministic map recovery, removes Leaflet base layers before clearing their internal cleanup listeners, translates 2D popups, and retains exact globe and route-statistics inputs
 - `src/components/AircraftImage.tsx`: uses a fill-sized optimized image while preserving the model silhouette fallback
 - `src/components/AircraftSideImage.tsx`: uses a fill-sized optimized image while preserving localized failure fallback and per-model transforms
 - `src/components/map/MapView.tsx`: separates React pane ownership from Leaflet container ownership and moves the noninteractive 2D badge away from zoom controls
@@ -323,10 +340,12 @@ Checkpoint a guarded, repeatable live Supabase cloud-save acceptance command, th
 - `src/lib/cloudSave.ts`: preserves historical cash aliases before producing a canonical cloud-restored game
 - `tests/saveCompatibility.test.ts`: sanitized V1.2.2 restore plus local and cloud-boundary canonical cash migration assertions
 - `package.json` and `pnpm-lock.yaml`: include the development-only `fake-indexeddb` test dependency and execute the storage regression
-- `tsconfig.tests.json`: compiles the storage integration test with the existing Node test suite
+- `tsconfig.tests.json`: compiles the storage and Leaflet lifecycle regressions with the existing Node test suite
 - `tests/gameSaveStorage.test.ts`: exercises the actual async IndexedDB adapter with a sanitized pre-V1.3 persistence envelope
 - `tests/registerTestAliases.cjs`: resolves compiled `@/` imports for Node's built-in test runner
 - `scripts/verify-cloud-save.mjs`: credential-gated disposable-account acceptance for Supabase auth, conflict-target upsert, uniqueness, canonical cash, deletion, and cleanup
+- `src/lib/leafletLayerLifecycle.ts`: centralizes Leaflet's required remove-before-off ordering
+- `tests/leafletLayerLifecycle.test.ts`: regression proving the internal removal hook runs before listener clearing
 - `src/lib/mapLibreErrorPolicy.ts`: pure fatal/optional/recoverable MapLibre error classification
 - `tests/mapLibreErrorPolicy.test.ts`: optional glyph/vector/label, recoverable satellite, and fatal core-WebGL assertions
 - `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy, uses declared MapLibre style types, reads current language labels from stable listener refs, and no longer carries the superseded V1.3.0 airport-popup helper
@@ -343,7 +362,7 @@ Checkpoint a guarded, repeatable live Supabase cloud-save acceptance command, th
 
 ## Tests Completed
 
-- `pnpm run test`: passed, 11 tests and 0 failures, including pre-V1.3 IndexedDB adapter restoration, local/cloud canonical cash alias migration, and MapLibre error policy
+- `pnpm run test`: passed, 12 tests and 0 failures, including Leaflet layer cleanup ordering, pre-V1.3 IndexedDB adapter restoration, local/cloud canonical cash alias migration, and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
 - `pnpm run lint`: passed with 0 errors and 0 warnings
 - `pnpm run build`: passed, optimized Next.js 15.5.21 production build generated successfully
@@ -357,6 +376,8 @@ Checkpoint a guarded, repeatable live Supabase cloud-save acceptance command, th
 - Initial desktop 3D: passed with satellite globe, route/airport/aircraft layers, one MapLibre canvas, and non-fatal optional resource errors
 - Normal switching: 20/20 final desktop cycles passed; maximum measured 2D return was 14ms
 - Rapid switching: 20/20 sequences of 2D to 3D to 2D to 3D to 2D passed with one Leaflet map, one TileLayer, one MapLibre canvas, and no stuck transition
+- Leaflet listener reproduction: one fresh 2D to 3D to 2D cycle followed by zoom-in failed before the patch in `GridLayer._updateLevels`; after the patch, zoom and keyboard pan completed with 24 visible tiles and no error
+- Leaflet listener stress: 20 settled cycles with zoom-in, zoom-out, ArrowRight, and ArrowLeft after every 2D return plus 10 rapid reversal sequences passed with zero errors, singleton resources, and 20 or more visible tiles
 - Horizontal wrapping: keyboard-panned east beyond three worlds and west beyond three worlds; tiles and bounded overlay copies repeated, attribution remained single, and copies did not accumulate
 - Canonical selection: wrapped LAX airport, LHR-HKG route, LAX-HND date-line route, and N-HARN aircraft returned canonical fixture IDs
 - Date line: LAX-HND rendered as edge-split shortest segments with visible aircraft copies and destination-facing heading
@@ -387,7 +408,7 @@ Checkpoint a guarded, repeatable live Supabase cloud-save acceptance command, th
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
-- `git diff --check`: passed for the cloud acceptance command checkpoint
+- `git diff --check`: passed for the Leaflet listener cleanup checkpoint
 
 ## Cross-Version Regression Status
 
@@ -409,7 +430,7 @@ Checkpoint a guarded, repeatable live Supabase cloud-save acceptance command, th
 | Reputation | Not implemented; V1.6 roadmap |
 | Competition | Not implemented; V2 roadmap |
 | Events | Not implemented; V3 roadmap |
-| Maps | P0 fix plus switching, wrapping, geometry, interactions, degradation policy, and final effect/resource ownership checks passed |
+| Maps | P0 restore fix plus switching, wrapping, geometry, interactions, degradation policy, resource ownership, and removed-GridLayer listener regression checks passed |
 | Mobile | Portrait/landscape layout and repeated switching passed; real touch/pinch pending |
 | Offline/PWA | OSM failure and production app-shell origin-outage/reconnection passed; all-network offline and saved-game interaction remain pending |
 | English | MapLibre airport tooltip, map labels, and Leaflet airport popup rendered correctly |
