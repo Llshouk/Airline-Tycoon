@@ -5,11 +5,11 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `ceb4c95557890f9bcf0d2ceccf8f3e1972e63b49`
+- Current HEAD: `36f1efcea692a0c0a841e9b43a55bf170df4638b`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
-- Latest successful production build: `pnpm run build` passed on 2026-07-31 with Next.js 15.5.19
+- Latest successful production build: `pnpm run build` passed on 2026-07-31 with Next.js 15.5.21
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
 - No earlier `ACTIVE.md` or WIP patch existed at audit start
 
@@ -21,11 +21,11 @@
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Partially implemented systems: V1.3 map acceptance coverage and automated regression infrastructure
 - Next planned release: V1.3.9 final map stability, only after every V1.3.8 release gate is verified
-- Release-gate status: P0 blank-map defect, V1.2.2 fixture, slow/failed OSM, optional globe failures, typed MapLibre expressions, and map lifecycle ownership pass; V1.3.8 remains active because authenticated storage round trips, real touch/pinch input, and full browser-offline mode remain unverified
+- Release-gate status: P0 blank-map defect, V1.2.2 fixture, dependency audit, slow/failed OSM, optional globe failures, typed MapLibre expressions, and map lifecycle ownership pass; V1.3.8 remains active because authenticated storage round trips, real touch/pinch input, and full browser-offline mode remain unverified
 
 ## Current Objective
 
-Checkpoint the real IndexedDB adapter's pre-V1.3 restore contract, then resolve the newly confirmed production dependency advisories before external acceptance resumes.
+Checkpoint the production dependency security remediation, then preserve V1.3.8 until live authenticated acceptance can run.
 
 ## Confirmed Problems
 
@@ -36,7 +36,7 @@ Checkpoint the real IndexedDB adapter's pre-V1.3 restore contract, then resolve 
 - Observed behavior: the audit reports six high and six moderate advisories across `next@15.5.19` and its resolved `sharp@0.34.5` and PostCSS dependencies
 - Expected behavior: update within the compatible Next.js 15 release line and resolve transitive packages to verified patched versions without changing gameplay
 - Relevant files: `package.json`, `pnpm-lock.yaml`
-- Evidence: the registry audit identifies `next@15.5.21` as the patched Next.js release, `sharp@0.35.0` as the patched image dependency, and PostCSS versions through `8.5.17` as affected by at least one reported advisory
+- Evidence: the registry audit identified `next@15.5.21`, Sharp `0.35.0+`, and PostCSS `8.5.18` as patched; the resolved checkpoint uses Next `15.5.21`, Sharp `0.35.3`, and PostCSS `8.5.18` and reports no known vulnerabilities
 
 ### React removed Leaflet's imperative container classes during engine switches
 
@@ -283,14 +283,23 @@ Checkpoint the real IndexedDB adapter's pre-V1.3 restore contract, then resolve 
 - Issue: save compatibility had been proved only against the shared normalization functions, not against the asynchronous IndexedDB adapter used by Zustand in the browser
 - Root cause/design: no production defect was found; a development-only standards-compatible IndexedDB test now writes a sanitized V1.2 persistence envelope through `gameSaveStorage`, reads back the exact value without local-save fallback, and runs it through the production restore path
 - Files changed: `package.json`, `pnpm-lock.yaml`, `tsconfig.tests.json`, `tests/gameSaveStorage.test.ts`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `36f1efcea692a0c0a841e9b43a55bf170df4638b`
 - Test results: the real adapter preserved cash, bases, registration, cabin layout, weekly schedule, route, and difficulty; 11/11 tests pass
+
+### Production dependency security remediation
+
+- Issue: the production tree resolved framework, image-processing, and CSS-processing versions covered by 12 registry advisories
+- Root cause/design: Next remained on `15.5.19`, while its exact optional/transitive ranges retained vulnerable Sharp and PostCSS copies; compatible root pins plus parent-scoped pnpm overrides now converge each package to one patched version without a major framework upgrade
+- Files changed: `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: frozen install, 11/11 tests, typecheck, lint, and Next `15.5.21` production build pass; `pnpm audit --prod` reports no known vulnerabilities; the production image optimizer returns the A220 JPEG with HTTP 200 using Sharp `0.35.3` and libvips `8.18.3`
 
 ## Files Modified
 
 - `.gitignore`: excludes generated `.test-build/` output
-- `package.json`: adds focused tests and replaces deprecated interactive lint with `eslint .`
-- `pnpm-lock.yaml`: records direct `@eslint/eslintrc` development dependency
+- `package.json`: adds focused tests, keeps deterministic lint, pins patched Next/PostCSS/Sharp versions, and declares the compatible Node runtime floor
+- `pnpm-lock.yaml`: records the focused test dependencies and converged patched production graph
+- `pnpm-workspace.yaml`: permits the existing native builds and overrides Next's vulnerable exact PostCSS/Sharp edges with tested patched versions
 - `eslint.config.mjs`: adds Next core-web-vitals/TypeScript flat-compatible lint configuration and ignores generated artifacts
 - `src/components/AircraftMarketScreen.tsx`: moves effects above the nullable-game early return to preserve hook ordering; removes one unused type import
 - `src/components/AuthGate.tsx`: keeps save-before-switch, cloud-slot refresh, and the context switch action synchronized with current auth, network, and translation state
@@ -328,8 +337,10 @@ Checkpoint the real IndexedDB adapter's pre-V1.3 restore contract, then resolve 
 - `pnpm run test`: passed, 11 tests and 0 failures, including pre-V1.3 IndexedDB adapter restoration, local/cloud canonical cash alias migration, and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
 - `pnpm run lint`: passed with 0 errors and 0 warnings
-- `pnpm run build`: passed, optimized Next.js production build generated successfully
-- `pnpm audit --prod`: reports 12 pre-existing production dependency advisories (6 high, 6 moderate); remediation is the next isolated V1.3.8 iteration
+- `pnpm run build`: passed, optimized Next.js 15.5.21 production build generated successfully
+- `pnpm install --frozen-lockfile`: passed with the committed pnpm resolution model
+- `pnpm audit --prod`: passed with `No known vulnerabilities found`
+- Production aircraft image optimization: `/aircraft/a220-300.jpg` and its `/_next/image` 640px optimized response both returned HTTP 200; the optimized JPEG was 8,158 bytes and the production server logged no runtime error
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
 - Initial desktop 3D: passed with satellite globe, route/airport/aircraft layers, one MapLibre canvas, and non-fatal optional resource errors
@@ -365,7 +376,7 @@ Checkpoint the real IndexedDB adapter's pre-V1.3 restore contract, then resolve 
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
-- `git diff --check`: passed for the IndexedDB compatibility checkpoint
+- `git diff --check`: passed for the dependency security checkpoint
 
 ## Cross-Version Regression Status
 
@@ -375,7 +386,7 @@ Checkpoint the real IndexedDB adapter's pre-V1.3 restore contract, then resolve 
 | Authentication | Deployed V1.3.8 and local configuration gates render; authenticated flow and airline switching not exercised |
 | Cloud save | Shared V1.2.2 payload and legacy-cash restore passed; authenticated Supabase upsert/load not reverified |
 | Local save | Sanitized V1.2 persistence envelope passed through the actual async IndexedDB adapter and production restore path; browser UI rehydration remains unverified |
-| Fleet | Harness renders owned aircraft data; optimized aircraft images and missing-file fallback passed; gameplay workflow unchanged |
+| Fleet | Harness renders owned aircraft data; optimized aircraft images, native Sharp 0.35.3 production response, and missing-file fallback passed; gameplay workflow unchanged |
 | Schedules | In-flight fixture renders; default numbering now follows weekly-service mutations; authenticated create/delete UI pass pending |
 | Routes | Wrapped and date-line route rendering/clicks passed |
 | Cabin configuration | Not reverified; no related code changed |
@@ -399,18 +410,16 @@ Checkpoint the real IndexedDB adapter's pre-V1.3 restore contract, then resolve 
 - Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
 - Production app-shell origin outage and reconnection pass, but full browser-offline mode still cannot be toggled; external network isolation and authenticated/local saved-game interaction remain unverified.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- The resolved production dependency tree has 12 audit advisories; no advisory originates from the development-only IndexedDB test package, and remediation is queued before further feature work.
 - Lint succeeds with zero errors and zero warnings.
 
 ## Next Exact Action
 
-Upgrade Next.js within the 15.5 patch line and resolve the audited `sharp` and PostCSS transitive versions, then rerun the complete build, test, image, and production audit checks.
+Configure non-production Supabase environment variables and provide or authorize a disposable authenticated test account, then run the pre-V1.3 cloud upsert/load and duplicate-row acceptance check.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
 2. Confirm the checkpoint is on `main` and synchronized with `origin/main`.
-3. Run `pnpm run test`, `pnpm run typecheck`, `pnpm run lint`, and `pnpm run build` before changing persistence code.
-4. Resolve the production dependency audit without a major framework upgrade and rerun all automated and aircraft-image checks.
-5. Configure a non-production Supabase project and disposable authenticated account, then verify old-save cloud upsert/load and one-row uniqueness without exposing credentials.
-6. Repeat the remaining physical touch/pinch and full browser-offline checks in a capable browser, and leave version `1.3.8` until the complete acceptance matrix passes.
+3. Run `pnpm install --frozen-lockfile`, `pnpm audit --prod`, `pnpm run test`, `pnpm run typecheck`, `pnpm run lint`, and `pnpm run build` before changing persistence code.
+4. Configure a non-production Supabase project and disposable authenticated account, then verify old-save cloud upsert/load and one-row uniqueness without exposing credentials.
+5. Repeat the remaining physical touch/pinch and full browser-offline checks in a capable browser, and leave version `1.3.8` until the complete acceptance matrix passes.
