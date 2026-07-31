@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `792714fcbc38aaa8ac2b1f9bdfd61d1e9c59fa7f`
+- Current HEAD: `6f7e73da4a29e7282ed84868ec590e71f29add25`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint removal of the unreachable legacy MapLibre airport popup, then continue stabilization without speculative runtime changes.
+Checkpoint the current-value `AuthGate` airline-switch callbacks, then continue stabilization without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -168,8 +168,16 @@ Checkpoint removal of the unreachable legacy MapLibre airport popup, then contin
 - Issue: `createAirportPopup` remained after V1.3.7 replaced its hover caller with the translated `createAirportTooltip` and replaced click popups with the React information card
 - Root cause/design: source history and a repository-wide reference search prove the helper has no caller or unique current behavior, so only the dead function is removed
 - Files changed: `src/components/map/providers/MapLibreGlobeProvider.tsx`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `6f7e73da4a29e7282ed84868ec590e71f29add25`
 - Test results: lint falls from 15 to 14 warnings; EDI hover still renders through the active tooltip path with Chinese airport status, one globe canvas remains, and no runtime error is introduced
+
+### Current-value AuthGate airline switching
+
+- Issue: the memoized auth context could retain a switch handler created with an old online state or translation function
+- Root cause/design: save-before-switch, cloud-slot refresh, and airline switching were ordinary render-time functions while the context memo omitted the switch handler; each operation is now a callback with exact dependencies and the context tracks the current switch callback
+- Files changed: `src/components/AuthGate.tsx`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: the stale-handler warning is removed and lint falls from 14 to 13 warnings; the real unauthenticated gate renders the expected local Supabase configuration state without runtime errors; authenticated switching remains blocked on test credentials
 
 ## Files Modified
 
@@ -178,6 +186,7 @@ Checkpoint removal of the unreachable legacy MapLibre airport popup, then contin
 - `pnpm-lock.yaml`: records direct `@eslint/eslintrc` development dependency
 - `eslint.config.mjs`: adds Next core-web-vitals/TypeScript flat-compatible lint configuration and ignores generated artifacts
 - `src/components/AircraftMarketScreen.tsx`: moves effects above the nullable-game early return to preserve hook ordering; removes one unused type import
+- `src/components/AuthGate.tsx`: keeps save-before-switch, cloud-slot refresh, and the context switch action synchronized with current auth, network, and translation state
 - `src/components/GameMap.tsx`: accepts existing visible tile coverage, polls through fade completion, validates positive tile rectangles, clears terminal transition states, supplies current translations to 2D airport popups, declares exact globe-builder inputs, and cancels async recovery through the owning effect
 - `src/components/map/MapView.tsx`: separates React pane ownership from Leaflet container ownership and moves the noninteractive 2D badge away from zoom controls
 - `src/lib/leafletTileReadiness.ts`: pure rendered-tile visibility and coverage helpers
@@ -201,7 +210,7 @@ Checkpoint removal of the unreachable legacy MapLibre airport popup, then contin
 
 - `pnpm run test`: passed, 8 tests and 0 failures, including V1.2.2 save restoration and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 14 pre-existing warnings; the unused legacy MapLibre popup warning is resolved
+- `pnpm run lint`: passed with 0 errors and 13 pre-existing warnings; the stale AuthGate switch-handler warning is resolved
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -222,6 +231,7 @@ Checkpoint removal of the unreachable legacy MapLibre airport popup, then contin
 - Leaflet cancellation ownership: 12 rapid reversals, an in-progress map unmount, and a fresh normal recovery completed without runtime errors, duplicate resources, or a stuck transition
 - Globe fallback callback: callback identity is tied directly to the translated parent handler; a real engine cycle retained one map/canvas and produced no runtime error
 - MapLibre airport hover ownership: source history confirms V1.3.7 replaced the legacy popup; EDI still renders through the translated active tooltip after its removal
+- Auth gate callback ownership: unauthenticated local gate and configuration messaging render without runtime errors; authenticated save-before-switch remains an explicit credential-gated check
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -232,7 +242,7 @@ Checkpoint removal of the unreachable legacy MapLibre airport popup, then contin
 | Area | Status |
 | --- | --- |
 | Saves | V1.2.2 compact save restore/normalize passed with all release-gate fields preserved |
-| Authentication | Deployed V1.3.8 login gate renders; authenticated flow not exercised |
+| Authentication | Deployed V1.3.8 and local configuration gates render; authenticated flow and airline switching not exercised |
 | Cloud save | Shared V1.2.2 payload restore passed; authenticated Supabase upsert/load not reverified |
 | Local save | V1.2.2 state restore/normalize passed; actual IndexedDB rehydration not reverified |
 | Fleet | Harness renders owned aircraft data; gameplay workflow unchanged |
@@ -260,11 +270,11 @@ Checkpoint removal of the unreachable legacy MapLibre airport popup, then contin
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
 - A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with 14 existing warnings, primarily remaining hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
+- Lint succeeds with 13 existing warnings, primarily remaining hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
 
 ## Next Exact Action
 
-Audit the `AuthGate` airline-options memo dependency and prove whether a changed switch handler can leave stale signed-in controls before changing it.
+Audit the `ScheduleScreen` aircraft-selection effect and prove which game or selected-aircraft changes must reset the editor before changing its dependency contract.
 
 ## Recovery Instructions
 

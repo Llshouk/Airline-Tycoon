@@ -1,7 +1,7 @@
 "use client";
 
 import type { Session, User } from "@supabase/supabase-js";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { DIFFICULTY_CONFIGS, DIFFICULTY_ORDER, type GameDifficulty } from "@/config/difficulty";
 import { useTranslation } from "@/i18n";
@@ -66,6 +66,40 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const user = session?.user ?? null;
   const isAdmin = isAdminUser(user);
 
+  const saveCurrentBeforeSwitch = useCallback(async () => {
+    const currentGame = useGameStore.getState().game;
+    if (!currentGame || !configured || !user || !isOnline) return;
+    await saveGameToCloud(currentGame);
+  }, [configured, isOnline, user]);
+
+  const refreshCloudSlots = useCallback(async () => {
+    if (!configured || !isOnline) return;
+    try {
+      const slots = await getCloudSaveSlots();
+      setCloudSlots(slots);
+      setMessage(Object.values(slots).some(Boolean) ? null : t("cloud.noCloudSaveFound"));
+    } catch (error) {
+      setMessage(errorMessage(error, t("cloud.cloudSaveFailed")));
+    }
+  }, [configured, isOnline, t]);
+
+  const handleSwitchAirline = useCallback(async () => {
+    setIsSwitchingAirline(true);
+    setMessage(t("save.switching"));
+    try {
+      await saveCurrentBeforeSwitch();
+      await refreshCloudSlots();
+      setLocalMetadata(getLocalSaveMetadata());
+      setCanEnterGame(false);
+      setMessage(t("save.savedBeforeSwitching"));
+    } catch (error) {
+      setMessage(errorMessage(error, t("cloud.cloudSaveFailed")));
+      setCanEnterGame(false);
+    } finally {
+      setIsSwitchingAirline(false);
+    }
+  }, [refreshCloudSlots, saveCurrentBeforeSwitch, t]);
+
   useEffect(() => {
     setAdminUser(isAdmin);
   }, [isAdmin, setAdminUser]);
@@ -122,42 +156,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   const contextValue = useMemo<AuthContextValue>(
     () => ({ user, isAuthLoading, isAdmin, selectedDifficulty, isSwitchingAirline, switchAirline: () => void handleSwitchAirline() }),
-    [isAdmin, isAuthLoading, isSwitchingAirline, selectedDifficulty, user]
+    [handleSwitchAirline, isAdmin, isAuthLoading, isSwitchingAirline, selectedDifficulty, user]
   );
-
-  async function saveCurrentBeforeSwitch() {
-    const currentGame = useGameStore.getState().game;
-    if (!currentGame || !configured || !user || !isOnline) return;
-    await saveGameToCloud(currentGame);
-  }
-
-  async function handleSwitchAirline() {
-    setIsSwitchingAirline(true);
-    setMessage(t("save.switching"));
-    try {
-      await saveCurrentBeforeSwitch();
-      await refreshCloudSlots();
-      setLocalMetadata(getLocalSaveMetadata());
-      setCanEnterGame(false);
-      setMessage(t("save.savedBeforeSwitching"));
-    } catch (error) {
-      setMessage(errorMessage(error, t("cloud.cloudSaveFailed")));
-      setCanEnterGame(false);
-    } finally {
-      setIsSwitchingAirline(false);
-    }
-  }
-
-  async function refreshCloudSlots() {
-    if (!configured || !isOnline) return;
-    try {
-      const slots = await getCloudSaveSlots();
-      setCloudSlots(slots);
-      setMessage(Object.values(slots).some(Boolean) ? null : t("cloud.noCloudSaveFound"));
-    } catch (error) {
-      setMessage(errorMessage(error, t("cloud.cloudSaveFailed")));
-    }
-  }
 
   async function handleLoadCloudSave(difficulty: GameDifficulty) {
     await runAction(async () => {
