@@ -14,7 +14,7 @@ import {
   routePricingFromDefaults
 } from "@/lib/economy";
 import { distanceKm, routeIdFor } from "@/lib/geo";
-import { createId, createRegistration } from "@/lib/ids";
+import { createId } from "@/lib/ids";
 import { createCompactSaveState, pruneOperationalFlights, restoreGameStateFromCloudSave } from "@/lib/cloudSave";
 import { gameSaveStorage, safeGetLocalStorage, safeSetLocalStorage, skipNextGameSaveWrite } from "@/lib/gameSaveStorage";
 import {
