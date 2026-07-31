@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `5cd17f5e056970984bc4c18e317a54cd681b9d16`
+- Current HEAD: `4dd8ef69bee82446a097c49fcc9acc60a05a5abd`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint the live MapLibre tooltip-language repair, then continue the map effect and resource ownership audit without speculative runtime changes.
+Checkpoint the bilingual Leaflet/Google airport-popup repair, then continue the map effect and resource ownership audit without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -122,8 +122,22 @@ Checkpoint the live MapLibre tooltip-language repair, then continue the map effe
 - Issue: changing the app language updated country labels but long-lived airport, route, and aircraft hover listeners kept the interaction labels captured during first map creation
 - Root cause/design: the single-owner MapLibre mount effect intentionally has no language dependency, but its listener closures read `language` and `labels.interaction` directly instead of current-value refs
 - Files changed: `src/components/map/providers/MapLibreGlobeProvider.tsx`, `src/app/map-harness/MapHarnessClient.tsx`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `4dd8ef69bee82446a097c49fcc9acc60a05a5abd`
 - Test results: the same AMS tooltip changed from `Unopened Airport` to `未开通机场` while provider, canvas count, and MapLibre creation count remained unchanged; a subsequent 3D to 2D to 3D round trip restored 18 tiles in 14ms
+
+### Bilingual 2D airport popups
+
+- Issue: Leaflet and Google airport popup HTML embedded English size, base-role, and network-status labels even when the active game language was Chinese
+- Root cause/design: both providers shared a hard-coded popup builder that sat outside React's translation context; current translated labels now travel through the existing latest-render ref used by persistent map listeners
+- Files changed: `src/components/GameMap.tsx`, `src/i18n/en.ts`, `src/i18n/zh.ts`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: the same LGW marker rendered `Airport size: Large`, `Not base airport`, and `Not connected yet` in English, then `机场规模: 大型`, `非基地机场`, and `尚未接入航线网络` in Chinese; provider remained `leaflet2d` with one map and 18 visible tiles
+
+### Weekly route-statistics dependency audit
+
+- Finding: the narrowed memo signature intentionally includes aircraft ID plus every schedule ID, route ID, and `updatedAt` value read by route statistics
+- Evidence: supported schedule add/edit paths create or replace `updatedAt`, deletion changes the schedule-ID set, and save normalization supplies a fallback timestamp
+- Result: no missed supported update was reproduced, so the warning remains documented and production behavior was not changed merely to silence lint
 
 ## Files Modified
 
@@ -132,7 +146,7 @@ Checkpoint the live MapLibre tooltip-language repair, then continue the map effe
 - `pnpm-lock.yaml`: records direct `@eslint/eslintrc` development dependency
 - `eslint.config.mjs`: adds Next core-web-vitals/TypeScript flat-compatible lint configuration and ignores generated artifacts
 - `src/components/AircraftMarketScreen.tsx`: moves effects above the nullable-game early return to preserve hook ordering; removes one unused type import
-- `src/components/GameMap.tsx`: accepts existing visible tile coverage, polls through fade completion, validates positive tile rectangles, and clears all terminal transition states
+- `src/components/GameMap.tsx`: accepts existing visible tile coverage, polls through fade completion, validates positive tile rectangles, clears terminal transition states, and supplies current translations to 2D airport popups
 - `src/components/map/MapView.tsx`: separates React pane ownership from Leaflet container ownership and moves the noninteractive 2D badge away from zoom controls
 - `src/lib/leafletTileReadiness.ts`: pure rendered-tile visibility and coverage helpers
 - `tests/leafletTileReadiness.test.ts`: regression tests for collapsed, offscreen, visible, and cached coverage
@@ -144,6 +158,8 @@ Checkpoint the live MapLibre tooltip-language repair, then continue the map effe
 - `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy, uses declared MapLibre style types, and reads current language labels from stable listener refs
 - `src/components/map/maplibreGlobeSatelliteStyle.ts`: declares country filters and label text as valid MapLibre expressions
 - `src/components/map/maplibreGlobeStyle.ts`: restricts shared style mutations to scalar or valid MapLibre expression values
+- `src/i18n/en.ts`: English 2D airport popup labels and airport-size tiers
+- `src/i18n/zh.ts`: Chinese 2D airport popup labels and airport-size tiers
 - `tsconfig.tests.json`: small CommonJS compile target for focused Node tests
 - `src/app/map-harness/page.tsx`: production-404 guard for the real-component map fixture
 - `src/app/map-harness/MapHarnessClient.tsx`: development-only real `GameMap` routes, flights, engine and EN/ZH controls, and canonical-selection output
@@ -153,7 +169,7 @@ Checkpoint the live MapLibre tooltip-language repair, then continue the map effe
 
 - `pnpm run test`: passed, 8 tests and 0 failures, including V1.2.2 save restoration and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 20 pre-existing warnings; the stale MapLibre language dependency warning is resolved
+- `pnpm run lint`: passed with 0 errors and 20 pre-existing warnings; no new warning was introduced
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -169,6 +185,7 @@ Checkpoint the live MapLibre tooltip-language repair, then continue the map effe
 - Error policy: OpenFreeMap/glyph/country-label failures classify optional, NASA/post-core failures recoverable, and pre-core WebGL context failure fatal
 - Typed style initialization: no unsafe `as never` remains under `src`; the real development harness rendered a complete globe after hot reload, and a 3D to 2D to 3D round trip retained one active canvas and restored 18 visible raster tiles in 12ms
 - Bilingual listener lifecycle: reproduced `language=zh` with an English AMS hover tooltip, then verified English and Chinese status text on one persistent MapLibre instance with no additional map creation
+- Bilingual 2D popup lifecycle: reproduced a Chinese game with English-only LGW details, then verified complete English and Chinese popup labels after language changes while retaining one Leaflet map and 18 visible tiles
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -197,8 +214,8 @@ Checkpoint the live MapLibre tooltip-language repair, then continue the map effe
 | Maps | P0 fix plus switching, wrapping, geometry, interactions, slow/failed OSM, satellite, vector, glyph, and label policy checks passed |
 | Mobile | Portrait/landscape layout and repeated switching passed; real touch/pinch pending |
 | Offline/PWA | OSM failure path passed; full temporary-offline app-shell/save check pending |
-| English | Same-instance MapLibre airport tooltip and map labels rendered correctly |
-| Chinese | Same-instance MapLibre airport tooltip updated immediately without rebuilding the globe |
+| English | MapLibre airport tooltip, map labels, and Leaflet airport popup rendered correctly |
+| Chinese | MapLibre airport tooltip updated without rebuilding the globe; Leaflet airport popup rendered translated size, role, and network status |
 
 ## Remaining Risks
 
@@ -211,7 +228,7 @@ Checkpoint the live MapLibre tooltip-language repair, then continue the map effe
 
 ## Next Exact Action
 
-Audit the remaining `GameMap` memo/effect dependency warnings, beginning with the weekly-schedule route-statistics signature, and prove whether any real update can be missed before changing it.
+Audit the remaining `GameMap` globe-data memo dependencies, beginning with `buildGlobeAirportData`, and prove whether any real prop update can be missed before changing it.
 
 ## Recovery Instructions
 

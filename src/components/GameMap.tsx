@@ -67,6 +67,20 @@ type Props = {
   onSelectFlight: (flightId: string) => void;
 };
 
+type AirportPopupLabels = {
+  size: string;
+  sizeTiers: Record<(typeof airports)[number]["sizeTier"], string>;
+  primaryBase: string;
+  secondaryBase: string;
+  notBaseAirport: string;
+  connectedToNetwork: string;
+  notConnectedYet: string;
+};
+
+type MapRenderProps = Props & {
+  airportPopupLabels: AirportPopupLabels;
+};
+
 declare global {
   interface Window {
     google?: any;
@@ -76,6 +90,22 @@ declare global {
 
 export function GameMap(props: Props) {
   const { language, t } = useTranslation();
+  const airportPopupLabels = useMemo<AirportPopupLabels>(
+    () => ({
+      size: t("map.airportSize"),
+      sizeTiers: {
+        regional: t("map.airportSizeRegional"),
+        large: t("map.airportSizeLarge"),
+        mega: t("map.airportSizeMega")
+      },
+      primaryBase: t("map.primaryBase"),
+      secondaryBase: t("map.secondaryBase"),
+      notBaseAirport: t("map.notBaseAirport"),
+      connectedToNetwork: t("map.connectedToNetwork"),
+      notConnectedYet: t("map.notConnectedYet")
+    }),
+    [t]
+  );
   const isOnline = useOnlineStatus();
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const googleMapRef = useRef<any>(null);
@@ -93,7 +123,7 @@ export function GameMap(props: Props) {
   const leafletViewportListenersCleanupRef = useRef<(() => void) | null>(null);
   const leafletOverlayRedrawFrameRef = useRef<number | null>(null);
   const previousTwoDProviderRef = useRef<"google" | "leaflet" | null>(null);
-  const latestPropsRef = useRef(props);
+  const latestPropsRef = useRef<MapRenderProps>({ ...props, airportPopupLabels });
   const effectiveMapEngineRef = useRef<MapEngine>("2d");
   const mapSwitchGenerationRef = useRef(0);
   const previousEffectiveMapEngineRef = useRef<MapEngine>("2d");
@@ -117,7 +147,7 @@ export function GameMap(props: Props) {
   const isPreparingTwoD = mapTransitionState === "preparing-2d" || (globeWasActiveRef.current && !isGlobeActive);
   const shouldRenderGlobe = (hasMountedGlobe || isGlobeActive) && !globeFailed;
   const shouldPrepareGlobeData = hasMountedGlobe || selectedMapEngine === "globe3d";
-  latestPropsRef.current = props;
+  latestPropsRef.current = { ...props, airportPopupLabels };
   effectiveMapEngineRef.current = effectiveMapEngine;
   if (process.env.NODE_ENV === "development") renderMetricsRef.current.renders += 1;
   const weeklyScheduleSignature = useMemo(() => getWeeklyScheduleSignature(props.fleet), [props.fleet]);
@@ -269,7 +299,7 @@ export function GameMap(props: Props) {
   useEffect(() => {
     if (effectiveMapEngine === "globe3d" || isPreparingTwoD) return;
     drawLatestTwoDMap();
-  }, [drawLatestTwoDMap, effectiveMapEngine, isPreparingTwoD, props]);
+  }, [airportPopupLabels, drawLatestTwoDMap, effectiveMapEngine, isPreparingTwoD, props]);
 
   const restoreLeafletAfterGlobe = useCallback(
     async (generation: number) => {
@@ -755,7 +785,7 @@ function attachLeafletViewportListeners(
   L: typeof import("leaflet"),
   mapRef: MutableRefObject<any>,
   moduleRef: MutableRefObject<typeof import("leaflet") | null>,
-  latestPropsRef: MutableRefObject<Props>,
+  latestPropsRef: MutableRefObject<MapRenderProps>,
   layerRef: MutableRefObject<LayerGroup | null>,
   cleanupRef: MutableRefObject<(() => void) | null>,
   overlayFrameRef: MutableRefObject<number | null>
@@ -951,7 +981,7 @@ function recreateLeafletMap(
   layerRef: MutableRefObject<LayerGroup | null>,
   baseLayerRef: MutableRefObject<TileLayer | null>,
   moduleRef: MutableRefObject<typeof import("leaflet") | null>,
-  latestPropsRef: MutableRefObject<Props>,
+  latestPropsRef: MutableRefObject<MapRenderProps>,
   viewportCleanupRef: MutableRefObject<(() => void) | null>,
   overlayFrameRef: MutableRefObject<number | null>
 ) {
@@ -979,7 +1009,7 @@ function recreateLeafletMap(
   return recreatedMap;
 }
 
-function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: LeafletMap, layerRef: MutableRefObject<LayerGroup | null>) {
+function drawLeafletLayers(props: MapRenderProps, L: typeof import("leaflet"), map: LeafletMap, layerRef: MutableRefObject<LayerGroup | null>) {
   if (!map) return;
   if (layerRef.current) {
     layerRef.current.remove();
@@ -1080,7 +1110,7 @@ function drawLeafletLayers(props: Props, L: typeof import("leaflet"), map: Leafl
           window.setTimeout(() => {
             L.popup({ offset: [0, -26] })
               .setLatLng([airport.lat, copyLng])
-              .setContent(airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded))
+              .setContent(airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded, props.airportPopupLabels))
               .openOn(map);
           }, 0);
         });
@@ -1120,7 +1150,7 @@ async function initGoogleMap(element: HTMLDivElement, mapRef: MutableRefObject<a
   });
 }
 
-function drawGoogleLayers(props: Props, map: any, layersRef: MutableRefObject<any[]>) {
+function drawGoogleLayers(props: MapRenderProps, map: any, layersRef: MutableRefObject<any[]>) {
   if (!window.google || !map) return;
   layersRef.current.forEach((layer) => layer.setMap(null));
   layersRef.current = [];
@@ -1196,7 +1226,7 @@ function drawGoogleLayers(props: Props, map: any, layersRef: MutableRefObject<an
       const isExpanded = props.expandedAirportIds.includes(airport.id);
       const markerKind = airportMarkerKind(isBase, isExpanded);
       const infoWindow = new window.google.maps.InfoWindow({
-        content: airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded)
+        content: airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded, props.airportPopupLabels)
       });
       const pinScale = isBase ? 1 : isExpanded ? 0.9 : 0.78;
       const marker = new window.google.maps.Marker({
@@ -1269,16 +1299,22 @@ function aircraftIconHtml(bearing: number, category: AircraftIconCategory) {
   `;
 }
 
-function airportDetailsHtml(airport: (typeof airports)[number], isPrimaryBase: boolean, isSecondaryBase: boolean, isExpanded: boolean) {
-  const baseLabel = isPrimaryBase ? "Primary Base" : isSecondaryBase ? "Secondary Base" : "Not base airport";
+function airportDetailsHtml(
+  airport: (typeof airports)[number],
+  isPrimaryBase: boolean,
+  isSecondaryBase: boolean,
+  isExpanded: boolean,
+  labels: AirportPopupLabels
+) {
+  const baseLabel = isPrimaryBase ? labels.primaryBase : isSecondaryBase ? labels.secondaryBase : labels.notBaseAirport;
   return `
     <div class="airport-popup">
       <strong>${airport.name}</strong>
       <span>${airport.iata} / ${airport.icao}</span>
       <span>${airport.city}, ${airport.country}</span>
-      <span>Size: ${airport.sizeTier}</span>
+      <span>${labels.size}: ${labels.sizeTiers[airport.sizeTier]}</span>
       <span>${baseLabel}</span>
-      <span>${isExpanded ? "Connected to network" : "Not connected yet"}</span>
+      <span>${isExpanded ? labels.connectedToNetwork : labels.notConnectedYet}</span>
     </div>
   `;
 }
