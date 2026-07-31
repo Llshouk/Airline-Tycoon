@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `40f11fd75875bd33cbbf9a0f8d012d38d68762e0`
+- Current HEAD: `f6429833a3fd960a1c703244740f5d8cb1b12e38`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Record the completed map lifecycle ownership audit and preserve V1.3.8 until the environment-gated acceptance checks can run.
+Checkpoint production app-shell outage recovery and preserve V1.3.8 until the remaining external acceptance checks can run.
 
 ## Confirmed Problems
 
@@ -250,8 +250,16 @@ Record the completed map lifecycle ownership audit and preserve V1.3.8 until the
 - Finding: every currently owned Leaflet and MapLibre listener, observer, timer, animation frame, popup, layer, and map instance has a deterministic cleanup owner; `MapView` owns no imperative resource
 - Evidence/design: source review covered every map-related effect and async boundary; a delayed aircraft-icon experiment produced no retained resource or post-unmount exception and was fully reverted because no defect was reproduced
 - Files changed: `docs/codex-progress/ACTIVE.md`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `f6429833a3fd960a1c703244740f5d8cb1b12e38`
 - Test results: three additional settled 2D/3D cycles retained one Leaflet map, one TileLayer, and one globe canvas; route unmount reduced all map roots, Leaflet containers, and MapLibre canvases to zero with no console error
+
+### Production app-shell outage and recovery
+
+- Finding: the production service worker serves a complete hydrated app shell after the same-origin Next server becomes unavailable, then returns cleanly to the network response after reconnection
+- Evidence/design: V1.3.8 was loaded once from `next start`, the listening process was stopped, `/` reloaded with the complete auth UI and no console error, and a second reload after server restart remained healthy
+- Files changed: `docs/codex-progress/ACTIVE.md`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: production build output on port 3100 survived a real origin outage and reconnection; no service-worker runtime change was made because the tested shell already passed
 
 ## Files Modified
 
@@ -321,10 +329,11 @@ Record the completed map lifecycle ownership audit and preserve V1.3.8 until the
 - Weekly route statistics: the memo signature directly tracks every consumed schedule field and ignores unrelated fleet updates; both map engines remain healthy
 - Aircraft images: A220 market and side-view assets render with preserved aspect ratio; a missing optimized source transitions to the existing fallback without a broken-image remnant
 - Resource ownership: all map effects have a single acquisition/cleanup owner; settled switching retains one instance per engine and route unmount leaves no map root or canvas
+- Production app shell: a first-session production load rehydrated from the service worker while the origin server was stopped, then recovered online without warnings or errors
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
-- `git diff --check`: passed for the documentation-only lifecycle checkpoint
+- `git diff --check`: passed for the documentation-only production outage checkpoint
 
 ## Cross-Version Regression Status
 
@@ -348,7 +357,7 @@ Record the completed map lifecycle ownership audit and preserve V1.3.8 until the
 | Events | Not implemented; V3 roadmap |
 | Maps | P0 fix plus switching, wrapping, geometry, interactions, degradation policy, and final effect/resource ownership checks passed |
 | Mobile | Portrait/landscape layout and repeated switching passed; real touch/pinch pending |
-| Offline/PWA | OSM failure path passed; full temporary-offline app-shell/save check pending |
+| Offline/PWA | OSM failure and production app-shell origin-outage/reconnection passed; all-network offline and saved-game interaction remain pending |
 | English | MapLibre airport tooltip, map labels, and Leaflet airport popup rendered correctly |
 | Chinese | MapLibre and Leaflet airport details render translated status; Schedule preview-overlap errors now have a compiler-checked Chinese mapping |
 
@@ -356,7 +365,7 @@ Record the completed map lifecycle ownership audit and preserve V1.3.8 until the
 
 - The V1.2.2 payload passes the shared restore/normalize path, but authenticated cloud upsert/load and actual IndexedDB browser rehydration have not been exercised in this session.
 - Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
-- Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
+- Production app-shell origin outage and reconnection pass, but full browser-offline mode still cannot be toggled; external network isolation and authenticated/local saved-game interaction remain unverified.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
 - Lint succeeds with zero errors and zero warnings.
 
