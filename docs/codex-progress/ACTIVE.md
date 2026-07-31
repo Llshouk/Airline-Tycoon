@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `36f1efcea692a0c0a841e9b43a55bf170df4638b`
+- Current HEAD: `1733976d2cbfa3df63dd3b1c7a34c7f39a6d291d`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint the production dependency security remediation, then preserve V1.3.8 until live authenticated acceptance can run.
+Checkpoint a guarded, repeatable live Supabase cloud-save acceptance command, then preserve V1.3.8 until that authenticated acceptance can run.
 
 ## Confirmed Problems
 
@@ -291,13 +291,21 @@ Checkpoint the production dependency security remediation, then preserve V1.3.8 
 - Issue: the production tree resolved framework, image-processing, and CSS-processing versions covered by 12 registry advisories
 - Root cause/design: Next remained on `15.5.19`, while its exact optional/transitive ranges retained vulnerable Sharp and PostCSS copies; compatible root pins plus parent-scoped pnpm overrides now converge each package to one patched version without a major framework upgrade
 - Files changed: `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `1733976d2cbfa3df63dd3b1c7a34c7f39a6d291d`
 - Test results: frozen install, 11/11 tests, typecheck, lint, and Next `15.5.21` production build pass; `pnpm audit --prod` reports no known vulnerabilities; the production image optimizer returns the A220 JPEG with HTTP 200 using Sharp `0.35.3` and libvips `8.18.3`
+
+### Guarded live cloud-save acceptance command
+
+- Issue: authenticated Supabase upsert/load/uniqueness acceptance remained a manual, credential-gated release step with no repeatable command or protection against overwriting a real save
+- Root cause/design: the application correctly owns user-facing cloud persistence, but acceptance needs a disposable-account harness that uses the same `user_id,difficulty` conflict target and proves insert, update, canonical cash, one-row uniqueness, delete, and cleanup without printing credentials
+- Files changed: `package.json`, `scripts/verify-cloud-save.mjs`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: script syntax and help pass; missing credentials and a non-root Supabase URL fail before network access; frozen install, 11/11 tests, typecheck, zero-warning lint, production build, and production dependency audit pass. The authenticated write test remains unrun because no disposable Supabase credentials are available locally
 
 ## Files Modified
 
 - `.gitignore`: excludes generated `.test-build/` output
-- `package.json`: adds focused tests, keeps deterministic lint, pins patched Next/PostCSS/Sharp versions, and declares the compatible Node runtime floor
+- `package.json`: adds focused tests and the guarded live cloud acceptance command, keeps deterministic lint, pins patched Next/PostCSS/Sharp versions, and declares the compatible Node runtime floor
 - `pnpm-lock.yaml`: records the focused test dependencies and converged patched production graph
 - `pnpm-workspace.yaml`: permits the existing native builds and overrides Next's vulnerable exact PostCSS/Sharp edges with tested patched versions
 - `eslint.config.mjs`: adds Next core-web-vitals/TypeScript flat-compatible lint configuration and ignores generated artifacts
@@ -318,6 +326,7 @@ Checkpoint the production dependency security remediation, then preserve V1.3.8 
 - `tsconfig.tests.json`: compiles the storage integration test with the existing Node test suite
 - `tests/gameSaveStorage.test.ts`: exercises the actual async IndexedDB adapter with a sanitized pre-V1.3 persistence envelope
 - `tests/registerTestAliases.cjs`: resolves compiled `@/` imports for Node's built-in test runner
+- `scripts/verify-cloud-save.mjs`: credential-gated disposable-account acceptance for Supabase auth, conflict-target upsert, uniqueness, canonical cash, deletion, and cleanup
 - `src/lib/mapLibreErrorPolicy.ts`: pure fatal/optional/recoverable MapLibre error classification
 - `tests/mapLibreErrorPolicy.test.ts`: optional glyph/vector/label, recoverable satellite, and fatal core-WebGL assertions
 - `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy, uses declared MapLibre style types, reads current language labels from stable listener refs, and no longer carries the superseded V1.3.0 airport-popup helper
@@ -340,6 +349,8 @@ Checkpoint the production dependency security remediation, then preserve V1.3.8 
 - `pnpm run build`: passed, optimized Next.js 15.5.21 production build generated successfully
 - `pnpm install --frozen-lockfile`: passed with the committed pnpm resolution model
 - `pnpm audit --prod`: passed with `No known vulnerabilities found`
+- `pnpm run test:cloud -- --help`: passed and documents the required disposable-account environment contract
+- Cloud acceptance guard checks: missing credentials and a Supabase URL containing `/auth/v1` both exit before client creation or network access; no secret values are printed
 - Production aircraft image optimization: `/aircraft/a220-300.jpg` and its `/_next/image` 640px optimized response both returned HTTP 200; the optimized JPEG was 8,158 bytes and the production server logged no runtime error
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -376,7 +387,7 @@ Checkpoint the production dependency security remediation, then preserve V1.3.8 
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
-- `git diff --check`: passed for the dependency security checkpoint
+- `git diff --check`: passed for the cloud acceptance command checkpoint
 
 ## Cross-Version Regression Status
 
@@ -384,7 +395,7 @@ Checkpoint the production dependency security remediation, then preserve V1.3.8 
 | --- | --- |
 | Saves | V1.2.2 compact restore and actual IndexedDB-adapter round trip passed; all five historical cash aliases normalize into canonical `money` |
 | Authentication | Deployed V1.3.8 and local configuration gates render; authenticated flow and airline switching not exercised |
-| Cloud save | Shared V1.2.2 payload and legacy-cash restore passed; authenticated Supabase upsert/load not reverified |
+| Cloud save | Shared V1.2.2 payload and legacy-cash restore passed; a guarded disposable-account acceptance command now covers auth, upsert, uniqueness, canonical cash, and cleanup, but it has not yet run against Supabase |
 | Local save | Sanitized V1.2 persistence envelope passed through the actual async IndexedDB adapter and production restore path; browser UI rehydration remains unverified |
 | Fleet | Harness renders owned aircraft data; optimized aircraft images, native Sharp 0.35.3 production response, and missing-file fallback passed; gameplay workflow unchanged |
 | Schedules | In-flight fixture renders; default numbering now follows weekly-service mutations; authenticated create/delete UI pass pending |
@@ -406,7 +417,7 @@ Checkpoint the production dependency security remediation, then preserve V1.3.8 
 
 ## Remaining Risks
 
-- V1.2.2 and every historical cash alias pass the cloud boundary, and the actual IndexedDB adapter round trip passes under a standards-compatible test implementation; authenticated Supabase upsert/load and browser UI rehydration have not been exercised.
+- V1.2.2 and every historical cash alias pass the cloud boundary, and the actual IndexedDB adapter round trip passes under a standards-compatible test implementation; `pnpm run test:cloud` is ready, but authenticated Supabase upsert/load and browser UI rehydration have not been exercised.
 - Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
 - Production app-shell origin outage and reconnection pass, but full browser-offline mode still cannot be toggled; external network isolation and authenticated/local saved-game interaction remain unverified.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
@@ -414,12 +425,12 @@ Checkpoint the production dependency security remediation, then preserve V1.3.8 
 
 ## Next Exact Action
 
-Configure non-production Supabase environment variables and provide or authorize a disposable authenticated test account, then run the pre-V1.3 cloud upsert/load and duplicate-row acceptance check.
+Configure non-production Supabase environment variables for an empty disposable authenticated account, set `CLOUD_SAVE_TEST_CONFIRM_DISPOSABLE_ACCOUNT=yes`, then run `pnpm run test:cloud` and record the live result without exposing credentials.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
 2. Confirm the checkpoint is on `main` and synchronized with `origin/main`.
 3. Run `pnpm install --frozen-lockfile`, `pnpm audit --prod`, `pnpm run test`, `pnpm run typecheck`, `pnpm run lint`, and `pnpm run build` before changing persistence code.
-4. Configure a non-production Supabase project and disposable authenticated account, then verify old-save cloud upsert/load and one-row uniqueness without exposing credentials.
+4. Configure a non-production Supabase project and empty disposable authenticated account, review `pnpm run test:cloud -- --help`, then run `pnpm run test:cloud` without exposing credentials.
 5. Repeat the remaining physical touch/pinch and full browser-offline checks in a capable browser, and leave version `1.3.8` until the complete acceptance matrix passes.
