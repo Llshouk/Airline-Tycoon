@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `1d2e224bd886436d861cd97ae7025376f70b9c28`
+- Current HEAD: `fee702a674da9ac21e3ee1b280643a95c039dd75`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint the Schedule editor's current weekly-service flight-number defaults, then continue stabilization without speculative runtime changes.
+Checkpoint the Schedule preview memo's exact dependencies, then continue stabilization without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -184,8 +184,16 @@ Checkpoint the Schedule editor's current weekly-service flight-number defaults, 
 - Issue: after creating or deleting a weekly service, the Schedule form could retain the just-used default flight number because airline name and selected aircraft ID had not changed
 - Root cause/design: the default-number effect read total fleet schedules but did not depend on a schedule mutation; it now derives the total weekly-service count and depends only on that count plus exact airline/aircraft identifiers
 - Files changed: `src/components/ScheduleScreen.tsx`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `fee702a674da9ac21e3ee1b280643a95c039dd75`
 - Test results: the stale Schedule effect warning is removed and lint falls from 13 to 12 warnings; typecheck, focused tests, and production build pass; authenticated create/delete UI verification remains credential-gated
+
+### Exact Schedule preview memo dependencies
+
+- Issue: changing UI language rebuilt schedule blocks, conflict geometry, and demand validation even though the preview memo produces only canonical validation data
+- Root cause/design: localization occurs when `showScheduleFailure` passes canonical errors through `localizeScheduleError`; the preview itself never reads `t`, so the unnecessary dependency is removed
+- Files changed: `src/components/ScheduleScreen.tsx`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: lint falls from 12 to 11 warnings; typecheck, focused tests, and production build pass with no validation behavior change
 
 ## Files Modified
 
@@ -219,7 +227,7 @@ Checkpoint the Schedule editor's current weekly-service flight-number defaults, 
 
 - `pnpm run test`: passed, 8 tests and 0 failures, including V1.2.2 save restoration and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 12 pre-existing warnings; the stale Schedule default-number effect warning is resolved
+- `pnpm run lint`: passed with 0 errors and 11 pre-existing warnings; the unnecessary Schedule preview translation dependency is resolved
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -242,6 +250,7 @@ Checkpoint the Schedule editor's current weekly-service flight-number defaults, 
 - MapLibre airport hover ownership: source history confirms V1.3.7 replaced the legacy popup; EDI still renders through the translated active tooltip after its removal
 - Auth gate callback ownership: unauthenticated local gate and configuration messaging render without runtime errors; authenticated save-before-switch remains an explicit credential-gated check
 - Schedule defaults: immutable create/delete paths change total weekly-service count, which now recomputes the next outbound/return pair even when selected aircraft and airline are unchanged
+- Schedule preview ownership: canonical conflict calculations no longer rebuild on language-only changes; submission remains the sole localization boundary
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -280,11 +289,11 @@ Checkpoint the Schedule editor's current weekly-service flight-number defaults, 
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
 - A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with 12 existing warnings, primarily the intentional GameMap signature, one unnecessary Schedule memo dependency, migration cleanup variables, and aircraft `<img>` fallback behavior; no new lint errors remain.
+- Lint succeeds with 11 existing warnings, primarily the intentional GameMap signature, migration cleanup variables, unused legacy imports, and aircraft `<img>` fallback behavior; no new lint errors remain.
 
 ## Next Exact Action
 
-Audit the remaining unnecessary `t` dependency in the Schedule preview memo and remove it only if no translated value participates in preview construction.
+Add the missing bilingual mapping for the canonical Schedule conflict-preview error so Chinese users do not receive the English fallback on save.
 
 ## Recovery Instructions
 

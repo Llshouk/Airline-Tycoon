@@ -209,7 +209,7 @@ export function ScheduleScreen() {
       conflict
     });
     return { blocks, conflict, error: error ?? (conflict ? "Schedule conflict: preview overlaps existing aircraft timetable." : null) };
-  }, [departureTimeLocal, editingScheduleId, game, isRoundTrip, outboundFlightNumber, returnFlightNumber, selectedAircraft, selectedDays, selectedRoute, t]);
+  }, [departureTimeLocal, editingScheduleId, game, isRoundTrip, outboundFlightNumber, returnFlightNumber, selectedAircraft, selectedDays, selectedRoute]);
 
   const demandPreview = useMemo(() => {
     if (!game || !selectedAircraft || !selectedRoute) return null;
