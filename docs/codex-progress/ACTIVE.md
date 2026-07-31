@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `ca5e6338c44638584367545c6dc4ec4d19bd3eed`
+- Current HEAD: `6432faa40b4c66788c225c434f10222ee9b42113`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint the explicit globe memo dependency contracts, then continue the map effect and resource ownership audit without speculative runtime changes.
+Checkpoint the effect-owned Leaflet recovery cancellation, then continue the map effect and resource ownership audit without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -144,8 +144,16 @@ Checkpoint the explicit globe memo dependency contracts, then continue the map e
 - Issue: airport, route, and aircraft memos passed the complete component props object into narrow data builders, so lint could not prove that their dependency lists covered every input
 - Root cause/design: each builder now accepts a typed `Pick` containing only the fields it reads, and each memo constructs that input from the exact values in its dependency list
 - Files changed: `src/components/GameMap.tsx`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `6432faa40b4c66788c225c434f10222ee9b42113`
 - Test results: all three broad-props memo warnings are removed; lint falls from 20 to 17 warnings, the populated globe renders with one canvas and no runtime errors, and a 3D to 2D to 3D cycle restores 18 tiles in 13ms
+
+### Effect-owned Leaflet recovery cancellation
+
+- Issue: unmount cleanup could cancel an active tile wait, but the async restore still saw its map-switch generation as current and could start another retry against a removed Leaflet map
+- Root cause/design: map generations protect engine reversals, while component unmount has no successor generation; the restore now also checks an effect-owned cancellation predicate at every async boundary and the cleanup invokes the latest wait handle through a stable callback
+- Files changed: `src/components/GameMap.tsx`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: the resource-cleanup warning is removed; 12 rapid 2D/3D reversals retained one map, TileLayer, and globe canvas; unmounting during return emitted no runtime error; a fresh 3D to 2D recovery restored 18 tiles in 17ms
 
 ## Files Modified
 
@@ -154,7 +162,7 @@ Checkpoint the explicit globe memo dependency contracts, then continue the map e
 - `pnpm-lock.yaml`: records direct `@eslint/eslintrc` development dependency
 - `eslint.config.mjs`: adds Next core-web-vitals/TypeScript flat-compatible lint configuration and ignores generated artifacts
 - `src/components/AircraftMarketScreen.tsx`: moves effects above the nullable-game early return to preserve hook ordering; removes one unused type import
-- `src/components/GameMap.tsx`: accepts existing visible tile coverage, polls through fade completion, validates positive tile rectangles, clears terminal transition states, supplies current translations to 2D airport popups, and declares exact globe-builder inputs
+- `src/components/GameMap.tsx`: accepts existing visible tile coverage, polls through fade completion, validates positive tile rectangles, clears terminal transition states, supplies current translations to 2D airport popups, declares exact globe-builder inputs, and cancels async recovery through the owning effect
 - `src/components/map/MapView.tsx`: separates React pane ownership from Leaflet container ownership and moves the noninteractive 2D badge away from zoom controls
 - `src/lib/leafletTileReadiness.ts`: pure rendered-tile visibility and coverage helpers
 - `tests/leafletTileReadiness.test.ts`: regression tests for collapsed, offscreen, visible, and cached coverage
@@ -177,7 +185,7 @@ Checkpoint the explicit globe memo dependency contracts, then continue the map e
 
 - `pnpm run test`: passed, 8 tests and 0 failures, including V1.2.2 save restoration and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 17 pre-existing warnings; three broad-props globe memo warnings are resolved
+- `pnpm run lint`: passed with 0 errors and 16 pre-existing warnings; the mutable-ref cleanup warning is resolved
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -195,6 +203,7 @@ Checkpoint the explicit globe memo dependency contracts, then continue the map e
 - Bilingual listener lifecycle: reproduced `language=zh` with an English AMS hover tooltip, then verified English and Chinese status text on one persistent MapLibre instance with no additional map creation
 - Bilingual 2D popup lifecycle: reproduced a Chinese game with English-only LGW details, then verified complete English and Chinese popup labels after language changes while retaining one Leaflet map and 18 visible tiles
 - Globe memo contracts: typed airport, route, and aircraft inputs rendered a populated globe with one canvas and no runtime errors; a 3D to 2D to 3D cycle retained one map and one TileLayer and restored 18 tiles in 13ms
+- Leaflet cancellation ownership: 12 rapid reversals, an in-progress map unmount, and a fresh normal recovery completed without runtime errors, duplicate resources, or a stuck transition
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -233,11 +242,11 @@ Checkpoint the explicit globe memo dependency contracts, then continue the map e
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
 - A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with 17 existing warnings, primarily remaining hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
+- Lint succeeds with 16 existing warnings, primarily remaining hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
 
 ## Next Exact Action
 
-Audit the Leaflet tile-readiness cancellation cleanup warning in `GameMap` and prove whether a stale ref can cancel the wrong transition before changing it.
+Audit the remaining `GameMap` globe-error callback warning and prove whether callback changes can be missed before changing its dependency contract.
 
 ## Recovery Instructions
 

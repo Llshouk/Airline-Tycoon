@@ -266,6 +266,10 @@ export function GameMap(props: Props) {
     }
   }, [twoDProvider]);
 
+  const cancelLeafletTileReadiness = useCallback(() => {
+    leafletTileReadinessCancelRef.current?.();
+  }, []);
+
   useEffect(() => {
     if (previousTwoDProviderRef.current && previousTwoDProviderRef.current !== twoDProvider) {
       cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileReadinessCancelRef, leafletTileGenerationRef, leafletTileErrorCountRef, leafletTileLoadCountRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef);
@@ -337,17 +341,17 @@ export function GameMap(props: Props) {
   }, [airportPopupLabels, drawLatestTwoDMap, effectiveMapEngine, isPreparingTwoD, props]);
 
   const restoreLeafletAfterGlobe = useCallback(
-    async (generation: number) => {
-      if (twoDProvider !== "leaflet" || generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return false;
+    async (generation: number, isCancelled: () => boolean) => {
+      if (isCancelled() || twoDProvider !== "leaflet" || generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return false;
       await waitForAnimationFrames(2);
-      if (generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return false;
+      if (isCancelled() || generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return false;
 
       const container = mapElementRef.current;
       const leaflet = leafletModuleRef.current;
       const map = leafletMapRef.current as LeafletMap | null;
       if (!container?.isConnected || !container.clientWidth || !container.clientHeight || !leaflet || !map) return false;
 
-      const isCurrentTransition = () => generation === mapSwitchGenerationRef.current && effectiveMapEngineRef.current === "2d";
+      const isCurrentTransition = () => !isCancelled() && generation === mapSwitchGenerationRef.current && effectiveMapEngineRef.current === "2d";
       map.stop();
       normalizeLeafletRestoreCenter(map);
       map.invalidateSize({ animate: false, pan: false });
@@ -436,7 +440,7 @@ export function GameMap(props: Props) {
     const generation = ++mapSwitchGenerationRef.current;
 
     if (effectiveMapEngine === "globe3d" || (selectedMapEngine === "globe3d" && !globeFailed)) {
-      leafletTileReadinessCancelRef.current?.();
+      cancelLeafletTileReadiness();
       setMapTransitionState("idle");
       return;
     }
@@ -444,7 +448,7 @@ export function GameMap(props: Props) {
     if (previousEffectiveMapEngine !== "globe3d") return;
     setMapTransitionState("preparing-2d");
     let cancelled = false;
-    void restoreLeafletAfterGlobe(generation)
+    void restoreLeafletAfterGlobe(generation, () => cancelled)
       .then((ready) => {
         if (cancelled || generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return;
         if (!ready) setLeafletBaseTilesUnavailable(true);
@@ -461,9 +465,9 @@ export function GameMap(props: Props) {
 
     return () => {
       cancelled = true;
-      leafletTileReadinessCancelRef.current?.();
+      cancelLeafletTileReadiness();
     };
-  }, [effectiveMapEngine, globeFailed, restoreLeafletAfterGlobe, selectedMapEngine]);
+  }, [cancelLeafletTileReadiness, effectiveMapEngine, globeFailed, restoreLeafletAfterGlobe, selectedMapEngine]);
 
   return (
     <MapView
