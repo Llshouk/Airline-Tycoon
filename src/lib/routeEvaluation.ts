@@ -3,7 +3,7 @@ import { airports, airportsById } from "@/data/airports";
 import { calculateCabinDemandByDistance, estimateDemand } from "@/lib/demand";
 import { estimateCargoRatePerTon, estimateExpectedFlightProfit, estimateTicketPrices } from "@/lib/economy";
 import { distanceKm } from "@/lib/geo";
-import type { AircraftInstance, Airport, CabinDemand, CabinLayout, GameState, Route } from "@/types/game";
+import type { Airport, CabinDemand, CabinLayout, GameState, Route } from "@/types/game";
 
 export type RouteGrade = "A+" | "A" | "B" | "C" | "D";
 export type RouteRiskLevel = "low" | "medium" | "high";
