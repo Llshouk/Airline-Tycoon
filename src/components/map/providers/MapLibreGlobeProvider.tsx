@@ -1056,18 +1056,6 @@ function numberProperty(properties: Record<string, unknown>, key: string) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function createAirportPopup(properties: Record<string, unknown>) {
-  const content = document.createElement("div");
-  content.className = "text-sm text-slate-800";
-  const title = document.createElement("strong");
-  title.textContent = `${stringProperty(properties, "iata")} ${stringProperty(properties, "name")}`.trim();
-  const detail = document.createElement("p");
-  detail.className = "mt-1";
-  detail.textContent = [stringProperty(properties, "city"), stringProperty(properties, "country")].filter(Boolean).join(", ");
-  content.append(title, detail);
-  return content;
-}
-
 function stringProperty(properties: Record<string, unknown>, key: string) {
   const value = properties[key];
   return typeof value === "string" ? value : "";

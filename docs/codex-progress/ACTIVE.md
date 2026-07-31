@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `74a360c5a5b9f788f78ff4973cef7ba6a9c46070`
+- Current HEAD: `792714fcbc38aaa8ac2b1f9bdfd61d1e9c59fa7f`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint the explicit globe-fallback callback dependency, then continue the map effect and resource ownership audit without speculative runtime changes.
+Checkpoint removal of the unreachable legacy MapLibre airport popup, then continue stabilization without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -160,8 +160,16 @@ Checkpoint the explicit globe-fallback callback dependency, then continue the ma
 - Issue: `handleGlobeError` read the fallback callback through the complete props object, so lint could not verify the otherwise correct property-level dependency
 - Root cause/design: the parent callback can change with the active translation function; `GameMap` now captures that exact callback value and depends on it directly
 - Files changed: `src/components/GameMap.tsx`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `792714fcbc38aaa8ac2b1f9bdfd61d1e9c59fa7f`
 - Test results: the broad-props callback warning is removed, leaving only the intentionally audited weekly-signature warning in `GameMap`; a real 2D/3D cycle completed with one canvas, 18 tiles restored in 12ms, and no runtime errors
+
+### Unreachable legacy MapLibre airport popup
+
+- Issue: `createAirportPopup` remained after V1.3.7 replaced its hover caller with the translated `createAirportTooltip` and replaced click popups with the React information card
+- Root cause/design: source history and a repository-wide reference search prove the helper has no caller or unique current behavior, so only the dead function is removed
+- Files changed: `src/components/map/providers/MapLibreGlobeProvider.tsx`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: lint falls from 15 to 14 warnings; EDI hover still renders through the active tooltip path with Chinese airport status, one globe canvas remains, and no runtime error is introduced
 
 ## Files Modified
 
@@ -179,7 +187,7 @@ Checkpoint the explicit globe-fallback callback dependency, then continue the ma
 - `tests/registerTestAliases.cjs`: resolves compiled `@/` imports for Node's built-in test runner
 - `src/lib/mapLibreErrorPolicy.ts`: pure fatal/optional/recoverable MapLibre error classification
 - `tests/mapLibreErrorPolicy.test.ts`: optional glyph/vector/label, recoverable satellite, and fatal core-WebGL assertions
-- `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy, uses declared MapLibre style types, and reads current language labels from stable listener refs
+- `src/components/map/providers/MapLibreGlobeProvider.tsx`: consumes the shared error policy, uses declared MapLibre style types, reads current language labels from stable listener refs, and no longer carries the superseded V1.3.0 airport-popup helper
 - `src/components/map/maplibreGlobeSatelliteStyle.ts`: declares country filters and label text as valid MapLibre expressions
 - `src/components/map/maplibreGlobeStyle.ts`: restricts shared style mutations to scalar or valid MapLibre expression values
 - `src/i18n/en.ts`: English 2D airport popup labels and airport-size tiers
@@ -193,7 +201,7 @@ Checkpoint the explicit globe-fallback callback dependency, then continue the ma
 
 - `pnpm run test`: passed, 8 tests and 0 failures, including V1.2.2 save restoration and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 15 pre-existing warnings; the broad-props fallback callback warning is resolved
+- `pnpm run lint`: passed with 0 errors and 14 pre-existing warnings; the unused legacy MapLibre popup warning is resolved
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -213,6 +221,7 @@ Checkpoint the explicit globe-fallback callback dependency, then continue the ma
 - Globe memo contracts: typed airport, route, and aircraft inputs rendered a populated globe with one canvas and no runtime errors; a 3D to 2D to 3D cycle retained one map and one TileLayer and restored 18 tiles in 13ms
 - Leaflet cancellation ownership: 12 rapid reversals, an in-progress map unmount, and a fresh normal recovery completed without runtime errors, duplicate resources, or a stuck transition
 - Globe fallback callback: callback identity is tied directly to the translated parent handler; a real engine cycle retained one map/canvas and produced no runtime error
+- MapLibre airport hover ownership: source history confirms V1.3.7 replaced the legacy popup; EDI still renders through the translated active tooltip after its removal
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -251,11 +260,11 @@ Checkpoint the explicit globe-fallback callback dependency, then continue the ma
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
 - A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with 15 existing warnings, primarily remaining hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
+- Lint succeeds with 14 existing warnings, primarily remaining hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
 
 ## Next Exact Action
 
-Inspect the unused legacy `createAirportPopup` path in `MapLibreGlobeProvider` and remove it only if all current airport interaction paths are owned by the React detail panel.
+Audit the `AuthGate` airline-options memo dependency and prove whether a changed switch handler can leave stale signed-in controls before changing it.
 
 ## Recovery Instructions
 
