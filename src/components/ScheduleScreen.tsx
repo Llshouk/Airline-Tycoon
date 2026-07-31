@@ -82,6 +82,9 @@ export function ScheduleScreen() {
     [editingScheduleId, game, isRoundTrip, selectedRoute, selectedScheduleBase]
   );
   const selectedAircraft = visibleAircraft.find((aircraft) => aircraft.id === aircraftId) ?? visibleAircraft[0];
+  const selectedAircraftId = selectedAircraft?.id;
+  const scheduleAirlineName = game?.airlineName;
+  const weeklyScheduleCount = game?.fleet.reduce((count, aircraft) => count + aircraft.weeklySchedules.length, 0) ?? 0;
   const model = selectedAircraft ? aircraftById[selectedAircraft.modelId] : null;
   const recommendedDepartureTime = useMemo(
     () =>
@@ -126,14 +129,12 @@ export function ScheduleScreen() {
   }, [editingScheduleId, hasUserEditedDepartureTime, recommendedDepartureTime]);
 
   useEffect(() => {
-    if (!game || !selectedAircraft || editingScheduleId) return;
-    const allSchedules = game.fleet.flatMap((aircraft) => aircraft.weeklySchedules);
-    const index = allSchedules.length;
-    const outbound = generateDefaultFlightNumber(game.airlineName, index);
+    if (scheduleAirlineName === undefined || selectedAircraftId === undefined || editingScheduleId) return;
+    const outbound = generateDefaultFlightNumber(scheduleAirlineName, weeklyScheduleCount);
     const inbound = nextFlightNumber(outbound);
     setOutboundFlightNumber(outbound);
     setReturnFlightNumber(inbound);
-  }, [editingScheduleId, game?.airlineName, selectedAircraft?.id]);
+  }, [editingScheduleId, scheduleAirlineName, selectedAircraftId, weeklyScheduleCount]);
 
   useEffect(() => {
     if (!toast) return;

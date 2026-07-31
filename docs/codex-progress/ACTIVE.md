@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `6f7e73da4a29e7282ed84868ec590e71f29add25`
+- Current HEAD: `1d2e224bd886436d861cd97ae7025376f70b9c28`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint the current-value `AuthGate` airline-switch callbacks, then continue stabilization without speculative runtime changes.
+Checkpoint the Schedule editor's current weekly-service flight-number defaults, then continue stabilization without speculative runtime changes.
 
 ## Confirmed Problems
 
@@ -176,8 +176,16 @@ Checkpoint the current-value `AuthGate` airline-switch callbacks, then continue 
 - Issue: the memoized auth context could retain a switch handler created with an old online state or translation function
 - Root cause/design: save-before-switch, cloud-slot refresh, and airline switching were ordinary render-time functions while the context memo omitted the switch handler; each operation is now a callback with exact dependencies and the context tracks the current switch callback
 - Files changed: `src/components/AuthGate.tsx`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `1d2e224bd886436d861cd97ae7025376f70b9c28`
 - Test results: the stale-handler warning is removed and lint falls from 14 to 13 warnings; the real unauthenticated gate renders the expected local Supabase configuration state without runtime errors; authenticated switching remains blocked on test credentials
+
+### Current weekly-service flight-number defaults
+
+- Issue: after creating or deleting a weekly service, the Schedule form could retain the just-used default flight number because airline name and selected aircraft ID had not changed
+- Root cause/design: the default-number effect read total fleet schedules but did not depend on a schedule mutation; it now derives the total weekly-service count and depends only on that count plus exact airline/aircraft identifiers
+- Files changed: `src/components/ScheduleScreen.tsx`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: the stale Schedule effect warning is removed and lint falls from 13 to 12 warnings; typecheck, focused tests, and production build pass; authenticated create/delete UI verification remains credential-gated
 
 ## Files Modified
 
@@ -187,6 +195,7 @@ Checkpoint the current-value `AuthGate` airline-switch callbacks, then continue 
 - `eslint.config.mjs`: adds Next core-web-vitals/TypeScript flat-compatible lint configuration and ignores generated artifacts
 - `src/components/AircraftMarketScreen.tsx`: moves effects above the nullable-game early return to preserve hook ordering; removes one unused type import
 - `src/components/AuthGate.tsx`: keeps save-before-switch, cloud-slot refresh, and the context switch action synchronized with current auth, network, and translation state
+- `src/components/ScheduleScreen.tsx`: advances default outbound/return flight numbers when the total weekly-service count changes
 - `src/components/GameMap.tsx`: accepts existing visible tile coverage, polls through fade completion, validates positive tile rectangles, clears terminal transition states, supplies current translations to 2D airport popups, declares exact globe-builder inputs, and cancels async recovery through the owning effect
 - `src/components/map/MapView.tsx`: separates React pane ownership from Leaflet container ownership and moves the noninteractive 2D badge away from zoom controls
 - `src/lib/leafletTileReadiness.ts`: pure rendered-tile visibility and coverage helpers
@@ -210,7 +219,7 @@ Checkpoint the current-value `AuthGate` airline-switch callbacks, then continue 
 
 - `pnpm run test`: passed, 8 tests and 0 failures, including V1.2.2 save restoration and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 13 pre-existing warnings; the stale AuthGate switch-handler warning is resolved
+- `pnpm run lint`: passed with 0 errors and 12 pre-existing warnings; the stale Schedule default-number effect warning is resolved
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -232,6 +241,7 @@ Checkpoint the current-value `AuthGate` airline-switch callbacks, then continue 
 - Globe fallback callback: callback identity is tied directly to the translated parent handler; a real engine cycle retained one map/canvas and produced no runtime error
 - MapLibre airport hover ownership: source history confirms V1.3.7 replaced the legacy popup; EDI still renders through the translated active tooltip after its removal
 - Auth gate callback ownership: unauthenticated local gate and configuration messaging render without runtime errors; authenticated save-before-switch remains an explicit credential-gated check
+- Schedule defaults: immutable create/delete paths change total weekly-service count, which now recomputes the next outbound/return pair even when selected aircraft and airline are unchanged
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -246,7 +256,7 @@ Checkpoint the current-value `AuthGate` airline-switch callbacks, then continue 
 | Cloud save | Shared V1.2.2 payload restore passed; authenticated Supabase upsert/load not reverified |
 | Local save | V1.2.2 state restore/normalize passed; actual IndexedDB rehydration not reverified |
 | Fleet | Harness renders owned aircraft data; gameplay workflow unchanged |
-| Schedules | In-flight fixture renders; scheduling workflow unchanged |
+| Schedules | In-flight fixture renders; default numbering now follows weekly-service mutations; authenticated create/delete UI pass pending |
 | Routes | Wrapped and date-line route rendering/clicks passed |
 | Cabin configuration | Not reverified; no related code changed |
 | Airport board | Not reverified; no related code changed |
@@ -270,11 +280,11 @@ Checkpoint the current-value `AuthGate` airline-switch callbacks, then continue 
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
 - A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with 13 existing warnings, primarily remaining hook dependency debt and intentional aircraft `<img>` fallback behavior; no new lint errors remain.
+- Lint succeeds with 12 existing warnings, primarily the intentional GameMap signature, one unnecessary Schedule memo dependency, migration cleanup variables, and aircraft `<img>` fallback behavior; no new lint errors remain.
 
 ## Next Exact Action
 
-Audit the `ScheduleScreen` aircraft-selection effect and prove which game or selected-aircraft changes must reset the editor before changing its dependency contract.
+Audit the remaining unnecessary `t` dependency in the Schedule preview memo and remove it only if no translated value participates in preview construction.
 
 ## Recovery Instructions
 
