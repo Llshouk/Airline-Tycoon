@@ -978,16 +978,27 @@ function getLatestSchedulePosition(aircraft: AircraftInstance, routes: Route[]) 
   };
 }
 
+type LegacyGameState = GameState & {
+  cash?: unknown;
+  capital?: unknown;
+  playerMoney?: unknown;
+  baseAirport?: unknown;
+  airline?: { cash?: unknown; money?: unknown };
+};
+
+function stripLegacyCashFields(game: LegacyGameState): GameState {
+  const cleanGame = { ...game };
+  delete cleanGame.cash;
+  delete cleanGame.capital;
+  delete cleanGame.playerMoney;
+  delete cleanGame.airline;
+  return cleanGame;
+}
+
 export function normalizeGame(game: GameState | null | undefined): GameState | null {
   if (!game) return null;
-  const rawGame = game as GameState & {
-    cash?: unknown;
-    capital?: unknown;
-    playerMoney?: unknown;
-    baseAirport?: unknown;
-    airline?: { cash?: unknown; money?: unknown };
-  };
-  const { cash: _cash, capital: _capital, playerMoney: _playerMoney, airline: _airline, ...cleanGame } = rawGame;
+  const rawGame = game as LegacyGameState;
+  const cleanGame = stripLegacyCashFields(rawGame);
   const money = getCurrentCash(rawGame);
   const difficultyConfig = getDifficultyConfig(game.difficulty);
   const timeMultiplier = isTimeMultiplier(game.timeMultiplier) ? game.timeMultiplier : difficultyConfig.speedMultiplier;

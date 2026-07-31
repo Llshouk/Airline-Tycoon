@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { restoreGameStateFromCloudSave } from "../src/lib/cloudSave";
 import { normalizeGame } from "../src/store/gameStore";
+import type { GameState } from "../src/types/game";
 
 const departureGameTime = Date.UTC(2026, 1, 2, 8);
 const arrivalGameTime = Date.UTC(2026, 1, 2, 15);
@@ -132,4 +133,24 @@ test("restores a V1.2.2 compact save without losing authoritative game fields", 
   assert.deepEqual(restored.routes[0].pricing, v122CompactSave.routes[0].pricing);
   assert.equal(restored.flightLog[0].aircraftRegistration, "G-V122");
   assert.equal(restored.updatedAt, "2026-02-01T00:00:00.000Z");
+});
+
+test("migrates legacy cash aliases into canonical money without retaining duplicate fields", () => {
+  const restoredCompactSave = restoreGameStateFromCloudSave(v122CompactSave);
+  const restored = normalizeGame({
+    ...restoredCompactSave,
+    money: undefined,
+    cash: "123456789",
+    capital: 222,
+    playerMoney: 333,
+    airline: { cash: 444, money: 555 }
+  } as unknown as GameState);
+
+  assert.ok(restored);
+  assert.equal(restored.money, 123_456_789);
+  const normalizedRecord = restored as unknown as Record<string, unknown>;
+  assert.equal("cash" in normalizedRecord, false);
+  assert.equal("capital" in normalizedRecord, false);
+  assert.equal("playerMoney" in normalizedRecord, false);
+  assert.equal("airline" in normalizedRecord, false);
 });
