@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `21910f0f7c0bf775b0867a877fa46febf5e1b80d`
+- Current HEAD: `41119863a7b4c6b75012bb8651b5a82dc76b910f`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -25,7 +25,7 @@
 
 ## Current Objective
 
-Checkpoint the field-exact weekly route-statistics signature, then continue stabilization without speculative runtime changes.
+Checkpoint optimized aircraft images with preserved fallbacks, then continue the map lifecycle ownership audit.
 
 ## Confirmed Problems
 
@@ -138,7 +138,7 @@ Checkpoint the field-exact weekly route-statistics signature, then continue stab
 - Finding: route statistics consume aircraft identity plus schedule identity, route, operating-day count, and round-trip state
 - Root cause/design: the narrowed signature now encodes those exact fields instead of relying on `updatedAt`; a focused hook comment documents why unrelated fleet changes must not invalidate the memo
 - Files changed: `src/components/GameMap.tsx`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `41119863a7b4c6b75012bb8651b5a82dc76b910f`
 - Test results: the final GameMap warning is resolved; one globe canvas and one Leaflet map/TileLayer remain healthy, 18 tiles settle after a 3D to 2D return, 9/9 tests pass, and no runtime error is introduced
 
 ### Explicit globe memo dependency contracts
@@ -237,6 +237,14 @@ Checkpoint the field-exact weekly route-statistics signature, then continue stab
 - Commit SHA: `21910f0f7c0bf775b0867a877fa46febf5e1b80d`
 - Test results: a new regression restores string legacy cash to exact canonical `money = 123,456,789` and proves all four duplicate fields are absent; 9/9 tests pass and lint falls from 7 to 3 warnings
 
+### Optimized aircraft images with preserved fallbacks
+
+- Issue: the two shared aircraft image components used raw `<img>` elements, leaving the final two lint warnings and bypassing Next.js image sizing and optimization
+- Root cause/design: both components already own stable relative containers and source-specific failure state; `next/image` now fills those containers with `object-contain`, keeps the same `onError` fallback, and preserves side-image scale and offset transforms
+- Files changed: `src/components/AircraftImage.tsx`, `src/components/AircraftSideImage.tsx`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: valid A220 market and side images render uncropped, an intentionally missing image resolves to the existing localized placeholder, lint is clean with zero warnings, 9/9 tests pass, and the production build succeeds
+
 ## Files Modified
 
 - `.gitignore`: excludes generated `.test-build/` output
@@ -247,6 +255,8 @@ Checkpoint the field-exact weekly route-statistics signature, then continue stab
 - `src/components/AuthGate.tsx`: keeps save-before-switch, cloud-slot refresh, and the context switch action synchronized with current auth, network, and translation state
 - `src/components/ScheduleScreen.tsx`: advances default outbound/return flight numbers when the total weekly-service count changes and localizes canonical overlap errors
 - `src/components/GameMap.tsx`: owns deterministic map recovery, translated 2D popups, exact globe-builder inputs, effect cancellation, and a field-exact weekly route-statistics signature
+- `src/components/AircraftImage.tsx`: uses a fill-sized optimized image while preserving the model silhouette fallback
+- `src/components/AircraftSideImage.tsx`: uses a fill-sized optimized image while preserving localized failure fallback and per-model transforms
 - `src/components/map/MapView.tsx`: separates React pane ownership from Leaflet container ownership and moves the noninteractive 2D badge away from zoom controls
 - `src/lib/leafletTileReadiness.ts`: pure rendered-tile visibility and coverage helpers
 - `tests/leafletTileReadiness.test.ts`: regression tests for collapsed, offscreen, visible, and cached coverage
@@ -271,7 +281,7 @@ Checkpoint the field-exact weekly route-statistics signature, then continue stab
 
 - `pnpm run test`: passed, 9 tests and 0 failures, including V1.2.2 save restoration, canonical cash alias migration, and MapLibre error policy
 - `pnpm run typecheck`: passed, `tsc --noEmit`
-- `pnpm run lint`: passed with 0 errors and 2 pre-existing warnings; the intentionally narrowed GameMap dependency is documented and resolved
+- `pnpm run lint`: passed with 0 errors and 0 warnings
 - `pnpm run build`: passed, optimized Next.js production build generated successfully
 - Production harness containment: `GET /map-harness` returned HTTP 404 from `next start`
 - Initial desktop 2D: passed with 18 visible 256px OSM tiles, 10 route paths, 150 wrapped airport markers, 10 wrapped aircraft markers, one attribution, one map, and one TileLayer
@@ -301,6 +311,7 @@ Checkpoint the field-exact weekly route-statistics signature, then continue stab
 - Registration ownership: the Aircraft Market generates proposed registrations and the store continues to validate uniqueness while preserving one record per aircraft
 - Canonical cash migration: legacy aliases remain readable on load, exact value is written to `money`, and duplicate top-level/nested aliases are removed before persistence
 - Weekly route statistics: the memo signature directly tracks every consumed schedule field and ignores unrelated fleet updates; both map engines remain healthy
+- Aircraft images: A220 market and side-view assets render with preserved aspect ratio; a missing optimized source transitions to the existing fallback without a broken-image remnant
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
@@ -314,7 +325,7 @@ Checkpoint the field-exact weekly route-statistics signature, then continue stab
 | Authentication | Deployed V1.3.8 and local configuration gates render; authenticated flow and airline switching not exercised |
 | Cloud save | Shared V1.2.2 payload restore passed; authenticated Supabase upsert/load not reverified |
 | Local save | V1.2.2 state restore/normalize passed; actual IndexedDB rehydration not reverified |
-| Fleet | Harness renders owned aircraft data; gameplay workflow unchanged |
+| Fleet | Harness renders owned aircraft data; optimized aircraft images and missing-file fallback passed; gameplay workflow unchanged |
 | Schedules | In-flight fixture renders; default numbering now follows weekly-service mutations; authenticated create/delete UI pass pending |
 | Routes | Wrapped and date-line route rendering/clicks passed |
 | Cabin configuration | Not reverified; no related code changed |
@@ -337,13 +348,13 @@ Checkpoint the field-exact weekly route-statistics signature, then continue stab
 - The V1.2.2 payload passes the shared restore/normalize path, but authenticated cloud upsert/load and actual IndexedDB browser rehydration have not been exercised in this session.
 - Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
-- A complete effect-by-effect map resource ownership audit is still pending; existing hook dependency warnings must be assessed against Strict Mode and stale-closure behavior before any lifecycle cleanup.
+- A complete effect-by-effect map resource ownership audit is still pending despite clean hook dependencies; Strict Mode cleanup, listeners, observers, timers, and provider instance ownership still require a final source pass.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
-- Lint succeeds with 2 existing warnings, both from deliberate aircraft `<img>` fallback behavior; no hook or unused-code warnings remain.
+- Lint succeeds with zero errors and zero warnings.
 
 ## Next Exact Action
 
-Audit `AircraftImage` and `AircraftSideImage` error/fallback behavior before deciding whether Next Image can replace their two deliberate `<img>` elements without regressions.
+Complete the effect-by-effect map resource ownership audit across `GameMap`, `MapView`, and `MapLibreGlobeProvider`, then change only a reproduced lifecycle defect.
 
 ## Recovery Instructions
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useTranslation } from "@/i18n";
 
@@ -38,11 +39,13 @@ export function AircraftSideImage({
   return (
     <div className={`relative flex w-full items-center justify-center overflow-hidden rounded-md border border-slate-100 bg-white ${sizeClass[size]} ${className}`}>
       {src && !failed ? (
-        <img
+        <Image
           src={src}
           alt={alt}
+          fill
+          sizes="(max-width: 1024px) 100vw, 640px"
           onError={() => setFailed(true)}
-          className="max-h-full max-w-full object-contain"
+          className="object-contain"
           style={{ transform: `translate(${imageOffsetX}px, ${imageOffsetY}px) scale(${imageScale})` }}
         />
       ) : (

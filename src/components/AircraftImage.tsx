@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { AircraftModel } from "@/types/game";
 
@@ -13,9 +14,11 @@ export function AircraftImage({ model, className = "h-24" }: { model: AircraftMo
   return (
     <div className={`relative overflow-hidden rounded-md border border-slate-100 bg-white ${className}`}>
       {model.imageUrl && !failed ? (
-        <img
+        <Image
           src={model.imageUrl}
           alt={model.imageAlt}
+          fill
+          sizes="(max-width: 640px) 100vw, 320px"
           onError={() => setFailed(true)}
           className="h-full w-full object-contain p-2"
         />
