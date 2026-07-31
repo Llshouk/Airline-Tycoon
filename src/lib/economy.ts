@@ -1,5 +1,6 @@
-import { COST_BALANCE_MULTIPLIER, GAME_BALANCE, GAME_REVENUE_MULTIPLIER, PRICE_ELASTICITY } from "@/config/gameBalance";
+import { GAME_BALANCE, GAME_REVENUE_MULTIPLIER, PRICE_ELASTICITY } from "@/config/gameBalance";
 import { getDifficultyConfig, type DifficultyConfig } from "@/config/difficulty";
+import { calculateRouteEconomics, calculateScheduleFrequency } from "@/lib/economics/routeEconomics";
 import type { AircraftInstance, AircraftModel, CabinDemand, CabinLayout, CabinPrices, Route, RoutePricing, WeeklySchedule } from "@/types/game";
 
 type PriceDemandClass = keyof RoutePricing;
@@ -40,40 +41,36 @@ export function estimateFlightFinancials(
   const cabinLayout = "cabinLayout" in aircraft ? aircraft.cabinLayout : aircraft;
   const adjustedDemand = estimatePriceAdjustedDemand(route);
   const prices = route.pricing ?? routePricingFromDefaults(route);
-  const soldSeats = estimateSoldSeats(adjustedDemand, cabinLayout, seed);
-  const cargoTons = Math.min(cabinLayout.cargoTons, adjustedDemand.cargoTons * (0.78 + deterministicNoise(seed + 17) * 0.2));
   const longHaulBonus = route.distanceKm >= 5500 ? GAME_BALANCE.longHaulRevenueBonus : 1;
-  const baseRevenue =
-    soldSeats.first * prices.first +
-    soldSeats.business * prices.business +
-    soldSeats.premiumEconomy * prices.premiumEconomy +
-    soldSeats.economy * prices.economy +
-    cargoTons * prices.cargo;
   // Easy uses the existing gameplay-balanced revenue model. Simulation stacks an
   // arcade bonus on top. Realistic removes artificial revenue inflation so
   // unprofitable routes can genuinely lose money.
-  const revenue =
+  const revenueMultiplier =
     difficulty.difficulty === "realistic"
-      ? baseRevenue
-      : baseRevenue * GAME_REVENUE_MULTIPLIER * longHaulBonus * difficulty.revenueMultiplier;
-  const flightTimeHours = route.distanceKm / model.cruiseSpeedKmh;
-  const cost =
-    (route.distanceKm * model.fuelCostPerKm +
-      (10000 + route.distanceKm * 5) +
-      flightTimeHours * 3000 +
-      route.distanceKm * 20 +
-      cargoTons * 35) *
-    COST_BALANCE_MULTIPLIER;
-  const passengerCount = soldSeats.first + soldSeats.business + soldSeats.premiumEconomy + soldSeats.economy;
+      ? 1
+      : GAME_REVENUE_MULTIPLIER * longHaulBonus * difficulty.revenueMultiplier;
+  const economics = calculateRouteEconomics({
+    distanceKm: route.distanceKm,
+    aircraftRangeKm: model.rangeKm,
+    cruiseSpeedKmh: model.cruiseSpeedKmh,
+    fuelCostPerKm: model.fuelCostPerKm,
+    cabinLayout,
+    demand: adjustedDemand,
+    pricing: prices,
+    loadFactor: GAME_BALANCE.minLoadFactor + deterministicNoise(seed) * (GAME_BALANCE.maxLoadFactor - GAME_BALANCE.minLoadFactor),
+    cargoLoadFactor: 0.78 + deterministicNoise(seed + 17) * 0.2,
+    revenueMultiplier
+  });
 
   return {
-    soldSeats,
+    soldSeats: economics.soldSeats,
     adjustedDemand,
-    passengerCount,
-    cargoTons: Math.round(cargoTons * 10) / 10,
-    revenue: Math.round(revenue),
-    cost: Math.round(cost),
-    profit: Math.round(revenue - cost)
+    passengerCount: economics.passengerCount,
+    cargoTons: economics.cargoTons,
+    revenue: Math.round(economics.estimatedRevenuePerFlight),
+    cost: Math.round(economics.estimatedTotalCostPerFlight),
+    profit: Math.round(economics.estimatedOperatingProfitPerFlight),
+    economics
   };
 }
 
@@ -188,27 +185,18 @@ export function estimateScheduleFinancials(input: {
 }) {
   const cabinLayout = "cabinLayout" in input.aircraft ? input.aircraft.cabinLayout : input.aircraft;
   const perFlight = estimateExpectedFlightProfit(input.route, input.model, cabinLayout, input.difficultyConfig);
-  const legsPerService = input.isRoundTrip ? 2 : 1;
-  const weeklyFlights = input.daysOfWeek.length * legsPerService;
+  const frequency = calculateScheduleFrequency(input.daysOfWeek, input.isRoundTrip);
+  const weeklyFlights = frequency.flightsPerWeek;
   return {
     perFlight,
+    servicesPerWeek: frequency.servicesPerWeek,
+    legsPerService: frequency.legsPerService,
     weeklyFlights,
     weeklyRevenue: perFlight.revenue * weeklyFlights,
     weeklyCost: perFlight.cost * weeklyFlights,
     weeklyProfit: perFlight.profit * weeklyFlights,
     weeklyPassengerCount: perFlight.passengerCount * weeklyFlights,
     weeklyCargoTons: Math.round(perFlight.cargoTons * weeklyFlights * 10) / 10
-  };
-}
-
-function estimateSoldSeats(demand: CabinDemand, layout: CabinLayout, seed: number): CabinDemand {
-  const loadFactor = GAME_BALANCE.minLoadFactor + deterministicNoise(seed) * (GAME_BALANCE.maxLoadFactor - GAME_BALANCE.minLoadFactor);
-  return {
-    first: Math.min(layout.first, Math.round(demand.first * loadFactor)),
-    business: Math.min(layout.business, Math.round(demand.business * loadFactor)),
-    premiumEconomy: Math.min(layout.premiumEconomy, Math.round(demand.premiumEconomy * loadFactor)),
-    economy: Math.min(layout.economy, Math.round(demand.economy * loadFactor)),
-    cargoTons: 0
   };
 }
 

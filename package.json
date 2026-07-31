@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "tsc -p tsconfig.tests.json && node --require ./tests/registerTestAliases.cjs --test .test-build/tests/gameSaveStorage.test.js .test-build/tests/leafletLayerLifecycle.test.js .test-build/tests/leafletTileReadiness.test.js .test-build/tests/mapLibreErrorPolicy.test.js .test-build/tests/saveCompatibility.test.js",
+    "test": "tsc -p tsconfig.tests.json && node --require ./tests/registerTestAliases.cjs --test .test-build/tests/gameSaveStorage.test.js .test-build/tests/leafletLayerLifecycle.test.js .test-build/tests/leafletTileReadiness.test.js .test-build/tests/mapLibreErrorPolicy.test.js .test-build/tests/routeEconomics.test.js .test-build/tests/saveCompatibility.test.js",
     "test:cloud": "node ./scripts/verify-cloud-save.mjs",
     "typecheck": "tsc --noEmit"
   },
