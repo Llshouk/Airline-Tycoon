@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current version: `1.3.8`
-- Current HEAD: `41119863a7b4c6b75012bb8651b5a82dc76b910f`
+- Current HEAD: `40f11fd75875bd33cbbf9a0f8d012d38d68762e0`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Working-tree status: green V1.3.8 checkpoint pending commit
 - Audit date: 2026-07-31
@@ -21,11 +21,11 @@
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Partially implemented systems: V1.3 map acceptance coverage and automated regression infrastructure
 - Next planned release: V1.3.9 final map stability, only after every V1.3.8 release gate is verified
-- Release-gate status: P0 blank-map defect, V1.2.2 fixture, slow/failed OSM, optional globe failures, and typed MapLibre expressions pass; V1.3.8 remains active because authenticated storage round trips, real touch/pinch input, full browser-offline mode, and the map lifecycle ownership audit remain unverified
+- Release-gate status: P0 blank-map defect, V1.2.2 fixture, slow/failed OSM, optional globe failures, typed MapLibre expressions, and map lifecycle ownership pass; V1.3.8 remains active because authenticated storage round trips, real touch/pinch input, and full browser-offline mode remain unverified
 
 ## Current Objective
 
-Checkpoint optimized aircraft images with preserved fallbacks, then continue the map lifecycle ownership audit.
+Record the completed map lifecycle ownership audit and preserve V1.3.8 until the environment-gated acceptance checks can run.
 
 ## Confirmed Problems
 
@@ -242,8 +242,16 @@ Checkpoint optimized aircraft images with preserved fallbacks, then continue the
 - Issue: the two shared aircraft image components used raw `<img>` elements, leaving the final two lint warnings and bypassing Next.js image sizing and optimization
 - Root cause/design: both components already own stable relative containers and source-specific failure state; `next/image` now fills those containers with `object-contain`, keeps the same `onError` fallback, and preserves side-image scale and offset transforms
 - Files changed: `src/components/AircraftImage.tsx`, `src/components/AircraftSideImage.tsx`
-- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Commit SHA: `40f11fd75875bd33cbbf9a0f8d012d38d68762e0`
 - Test results: valid A220 market and side images render uncropped, an intentionally missing image resolves to the existing localized placeholder, lint is clean with zero warnings, 9/9 tests pass, and the production build succeeds
+
+### Map effect and resource ownership audit
+
+- Finding: every currently owned Leaflet and MapLibre listener, observer, timer, animation frame, popup, layer, and map instance has a deterministic cleanup owner; `MapView` owns no imperative resource
+- Evidence/design: source review covered every map-related effect and async boundary; a delayed aircraft-icon experiment produced no retained resource or post-unmount exception and was fully reverted because no defect was reproduced
+- Files changed: `docs/codex-progress/ACTIVE.md`
+- Commit SHA: pending this green checkpoint; inspect repository HEAD after commit
+- Test results: three additional settled 2D/3D cycles retained one Leaflet map, one TileLayer, and one globe canvas; route unmount reduced all map roots, Leaflet containers, and MapLibre canvases to zero with no console error
 
 ## Files Modified
 
@@ -312,10 +320,11 @@ Checkpoint optimized aircraft images with preserved fallbacks, then continue the
 - Canonical cash migration: legacy aliases remain readable on load, exact value is written to `money`, and duplicate top-level/nested aliases are removed before persistence
 - Weekly route statistics: the memo signature directly tracks every consumed schedule field and ignores unrelated fleet updates; both map engines remain healthy
 - Aircraft images: A220 market and side-view assets render with preserved aspect ratio; a missing optimized source transitions to the existing fallback without a broken-image remnant
+- Resource ownership: all map effects have a single acquisition/cleanup owner; settled switching retains one instance per engine and route unmount leaves no map root or canvas
 - Mobile portrait (390x844): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed; controls did not overlap
 - Mobile landscape (844x390): no horizontal overflow; initial 2D/3D and 10 repeated cycles passed
 - Zoom controls: pointer zoom-in loaded zoom-level 3 tiles; zoom-out returned to minimum zoom and disabled correctly
-- `git diff --check`: pending final diff review for this checkpoint
+- `git diff --check`: passed for the documentation-only lifecycle checkpoint
 
 ## Cross-Version Regression Status
 
@@ -337,7 +346,7 @@ Checkpoint optimized aircraft images with preserved fallbacks, then continue the
 | Reputation | Not implemented; V1.6 roadmap |
 | Competition | Not implemented; V2 roadmap |
 | Events | Not implemented; V3 roadmap |
-| Maps | P0 fix plus switching, wrapping, geometry, interactions, slow/failed OSM, satellite, vector, glyph, and label policy checks passed |
+| Maps | P0 fix plus switching, wrapping, geometry, interactions, degradation policy, and final effect/resource ownership checks passed |
 | Mobile | Portrait/landscape layout and repeated switching passed; real touch/pinch pending |
 | Offline/PWA | OSM failure path passed; full temporary-offline app-shell/save check pending |
 | English | MapLibre airport tooltip, map labels, and Leaflet airport popup rendered correctly |
@@ -348,18 +357,17 @@ Checkpoint optimized aircraft images with preserved fallbacks, then continue the
 - The V1.2.2 payload passes the shared restore/normalize path, but authenticated cloud upsert/load and actual IndexedDB browser rehydration have not been exercised in this session.
 - Real touch panning, pinch zoom, and information-card scrolling were not available through the current desktop browser input surface.
 - Full browser-offline mode could not be toggled because the available browser exposes no network-emulation capability; individual OSM, satellite, vector, and glyph endpoints were faulted instead.
-- A complete effect-by-effect map resource ownership audit is still pending despite clean hook dependencies; Strict Mode cleanup, listeners, observers, timers, and provider instance ownership still require a final source pass.
 - Production map verification is blocked by an unauthenticated Supabase gate in the available browser; local tests use the real map component without bypassing authentication.
 - Lint succeeds with zero errors and zero warnings.
 
 ## Next Exact Action
 
-Complete the effect-by-effect map resource ownership audit across `GameMap`, `MapView`, and `MapLibreGlobeProvider`, then change only a reproduced lifecycle defect.
+Configure non-production Supabase environment variables and provide or authorize a disposable authenticated test account, then run the pre-V1.3 cloud upsert/load and duplicate-row acceptance check.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
 2. Confirm the checkpoint is on `main` and synchronized with `origin/main`.
 3. Run `pnpm run test`, `pnpm run typecheck`, `pnpm run lint`, and `pnpm run build` before changing persistence code.
-4. Inspect map effects and resource refs in `src/components/GameMap.tsx`, `src/components/map/MapView.tsx`, and `src/components/map/providers/MapLibreGlobeProvider.tsx`.
-5. Verify Strict Mode ownership, cleanup, generations, timers, listeners, and observers, and leave version `1.3.8` until the complete acceptance matrix passes.
+4. Configure a non-production Supabase project and disposable authenticated account, then verify old-save cloud upsert/load and one-row uniqueness without exposing credentials.
+5. Repeat the remaining physical touch/pinch and full browser-offline checks in a capable browser, and leave version `1.3.8` until the complete acceptance matrix passes.
