@@ -1,6 +1,6 @@
 {
   "name": "airline-tycoon-v1",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "engines": {
     "node": ">=20.9.0"
@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "tsc -p tsconfig.tests.json && node --require ./tests/registerTestAliases.cjs --test .test-build/tests/gameSaveStorage.test.js .test-build/tests/leafletLayerLifecycle.test.js .test-build/tests/leafletTileReadiness.test.js .test-build/tests/mapLibreErrorPolicy.test.js .test-build/tests/routeEconomics.test.js .test-build/tests/saveCompatibility.test.js",
+    "test": "tsc -p tsconfig.tests.json && node --require ./tests/registerTestAliases.cjs --test .test-build/tests/aircraftMaintenance.test.js .test-build/tests/gameSaveStorage.test.js .test-build/tests/leafletLayerLifecycle.test.js .test-build/tests/leafletTileReadiness.test.js .test-build/tests/mapLibreErrorPolicy.test.js .test-build/tests/routeEconomics.test.js .test-build/tests/saveCompatibility.test.js",
     "test:cloud": "node ./scripts/verify-cloud-save.mjs",
     "typecheck": "tsc --noEmit"
   },
@@ -19,11 +19,11 @@
     "@types/leaflet": "^1.9.20",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
-    "maplibre-gl": "^5.24.0",
-    "next": "15.5.21",
+    "maplibre-gl": "6.4.1",
+    "next": "15.5.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
@@ -34,9 +34,9 @@
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.0.0",
-    "eslint-config-next": "15.5.21",
+    "eslint-config-next": "15.5.24",
     "fake-indexeddb": "6.2.5",
-    "postcss": "8.5.18",
+    "postcss": "8.5.23",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.0"
   }

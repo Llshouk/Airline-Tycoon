@@ -9,6 +9,7 @@ build/
 dist/
 *.tsbuildinfo
 .test-build/
+public/maplibre-workers/
 
 # Local environment files
 .env

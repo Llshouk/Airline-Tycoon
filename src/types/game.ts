@@ -2,9 +2,9 @@ import type { DifficultyConfig, GameDifficulty } from "@/config/difficulty";
 
 export type AirportSizeTier = "regional" | "large" | "mega";
 export type CabinClass = "first" | "business" | "premiumEconomy" | "economy";
-export type AircraftStatus = "idle" | "scheduled" | "in-flight";
+export type AircraftStatus = "idle" | "scheduled" | "in-flight" | "maintenance" | "grounded";
 export type FlightStatus = "scheduled" | "in-flight" | "completed";
-export type FlightOperationalStatus = "onTime" | "delayed" | "departed" | "arrived";
+export type FlightOperationalStatus = "onTime" | "delayed" | "departed" | "arrived" | "grounded";
 export type RouteBand = "short-haul" | "medium-haul" | "long-haul";
 export type AircraftVisualVariant = "narrow-body" | "wide-body" | "long-haul-wide-body";
 export type TimeMultiplier = 1 | 5 | 10 | 20 | 50 | 100;
@@ -120,6 +120,32 @@ export interface AircraftInstance {
   totalFlights: number;
   passengerCount: number;
   cargoTransportedTons: number;
+  lifecycle?: AircraftLifecycle;
+}
+
+export type MaintenanceKind = "inspection" | "service";
+
+export interface AircraftMaintenanceTask {
+  kind: MaintenanceKind;
+  startedGameTimeMs: number;
+  completesGameTimeMs: number;
+  totalCost: number;
+  reserveUsed: number;
+  cashCost: number;
+}
+
+export interface AircraftLifecycle {
+  acquiredGameTimeMs: number;
+  flightHours: number;
+  flightCycles: number;
+  condition: number;
+  lastServiceGameTimeMs: number;
+  hoursSinceService: number;
+  cyclesSinceService: number;
+  reserveBalance: number;
+  totalMaintenanceCost: number;
+  totalMaintenanceCashCost: number;
+  maintenance?: AircraftMaintenanceTask;
 }
 
 export interface ScheduleItem {
@@ -136,6 +162,10 @@ export interface ScheduleItem {
   actualDepartureGameTime?: number;
   actualArrivalGameTime?: number;
   delayMinutes?: number;
+  baseDelayMinutes?: number;
+  technicalDelayMinutes?: number;
+  technicalChecked?: boolean;
+  maintenanceDelayMinutes?: number;
   operationalStatus?: FlightOperationalStatus;
   departureGameTime: number;
   arrivalGameTime: number;

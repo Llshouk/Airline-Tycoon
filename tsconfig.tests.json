@@ -19,6 +19,7 @@
     "src/lib/leafletLayerLifecycle.ts",
     "src/lib/leafletTileReadiness.ts",
     "tests/gameSaveStorage.test.ts",
+    "tests/aircraftMaintenance.test.ts",
     "tests/leafletLayerLifecycle.test.ts",
     "tests/leafletTileReadiness.test.ts",
     "tests/mapLibreErrorPolicy.test.ts",

@@ -78,16 +78,3 @@ export type WeeklyEconomicsResult = ScheduleFrequency & {
   weeklyPassengerCount: number;
   weeklyCargoTons: number;
 };
-
-export type AircraftEconomicsResult = {
-  rangeCompatible: boolean;
-  routeSuitability: RouteSuitability;
-  estimatedFuelCostPerFlight: number;
-  estimatedOperatingCostPerFlight: number;
-  estimatedCostPerKm: number;
-  estimatedCostPerSeatKm?: number;
-  capacityUtilization: number;
-  estimatedBreakEvenLoadFactor?: number;
-  estimatedOperatingProfitPerFlight: number;
-  estimatedOperatingMargin: number;
-};

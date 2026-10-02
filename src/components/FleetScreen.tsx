@@ -7,6 +7,7 @@ import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
 import { useGameStore } from "@/store/gameStore";
+import { getMaintenanceStatus, normalizeAircraftLifecycle } from "@/lib/aircraftMaintenance";
 import type { AircraftInstance } from "@/types/game";
 
 export function FleetScreen() {
@@ -92,6 +93,8 @@ export function FleetScreen() {
                   <div className="border-t border-slate-100">
                     {group.aircraft.map((aircraft) => {
                       const homeBase = airportsById[aircraft.homeBaseAirportId];
+                      const lifecycle = normalizeAircraftLifecycle(aircraft, game.currentGameTimeMs);
+                      const maintenanceStatus = getMaintenanceStatus(lifecycle, game.currentGameTimeMs);
                       return (
                         <button
                           key={aircraft.id}
@@ -109,7 +112,12 @@ export function FleetScreen() {
                               {homeBase ? `${t("fleet.homeBase")}: ${homeBase.iata}` : t("fleet.homeBase")}
                             </span>
                           </span>
-                          <span className="shrink-0 rounded-md bg-runway px-2 py-1 text-xs font-bold capitalize text-jet">{aircraft.status}</span>
+                          <span className="max-w-[60%] shrink-0 break-words text-right text-xs font-bold text-jet">
+                            <span className="block">{aircraft.status === "maintenance" || aircraft.status === "grounded" ? t(`maintenance.status.${aircraft.status}`) : t(`status.${aircraft.status}`)}</span>
+                            <span className={`mt-1 block ${maintenanceStatus === "healthy" ? "text-slate-500" : "text-coral"}`}>
+                              {lifecycle.condition.toFixed(1)}% · {t(`maintenance.status.${maintenanceStatus}`)}
+                            </span>
+                          </span>
                         </button>
                       );
                     })}

@@ -4,11 +4,12 @@ import { aircraftById } from "@/data/aircraft";
 import { getDifficultyConfig, type GameDifficulty } from "@/config/difficulty";
 import { airports, airportsById } from "@/data/airports";
 import { validateCabinLayout } from "@/lib/cabin";
+import { advanceAircraftOperations, generateOperationalDelayMinutes } from "@/lib/aircraftOperations";
+import { beginAircraftMaintenance, getMaintenanceStatus, normalizeAircraftLifecycle, quoteMaintenance } from "@/lib/aircraftMaintenance";
 import { addCash, canAfford, getCurrentCash, spendCash, updateCash } from "@/lib/cash";
 import { estimateDemand } from "@/lib/demand";
 import {
   estimateCargoRatePerTon,
-  estimateFlightFinancials,
   estimateRouteOpeningCost,
   estimateTicketPrices,
   routePricingFromDefaults
@@ -43,6 +44,7 @@ import type {
   DayOfWeek,
   GameState,
   LeaderboardEntry,
+  MaintenanceKind,
   Route,
   RoutePricing,
   ScheduleItem,
@@ -54,9 +56,6 @@ const STARTING_CAPITAL = 1000000000;
 const BASE_AIRPORT_COST = 100000000;
 const INITIAL_GAME_TIME = Date.UTC(2026, 0, 1, 6, 0, 0);
 const LEADERBOARD_KEY = "airline-tycoon-v1-leaderboard";
-const BASE_DELAY_PROBABILITY = 0.3;
-const DELAY_PROBABILITY_JITTER = 0.05;
-const MAX_DELAY_MINUTES = 180;
 
 type GameStore = {
   game: GameState | null;
@@ -75,6 +74,7 @@ type GameStore = {
   setPrimaryBaseAirport: (airportId: string) => { ok: boolean; message: string };
   updateRoutePricing: (routeId: string, pricing: RoutePricing) => void;
   updateAircraftRegistration: (aircraftId: string, registration: string) => { ok: boolean; message: string };
+  startAircraftMaintenance: (aircraftId: string, kind: MaintenanceKind) => { ok: boolean; error?: "noGame" | "airborne" | "busy" | "cash" | "missing" };
   addConsoleMoney: (amount: number) => void;
   setConsoleMoney: (amount: number) => void;
   addConsoleStats: (input: { completedFlights?: number; passengerCount?: number; cargoTransportedTons?: number }) => void;
@@ -209,6 +209,7 @@ export const useGameStore = create<GameStore>()(
           passengerCount: 0,
           cargoTransportedTons: 0
         };
+        aircraft.lifecycle = normalizeAircraftLifecycle(aircraft, game.currentGameTimeMs);
         const nextGame = {
           ...gameAfterPurchase,
           fleet: [...game.fleet, aircraft]
@@ -220,6 +221,31 @@ export const useGameStore = create<GameStore>()(
           notice: message
         });
         return { ok: true, message, aircraft };
+      },
+      startAircraftMaintenance: (aircraftId, kind) => {
+        advanceSimulation(set, normalizeGame(get().game), Date.now());
+        const game = normalizeGame(get().game);
+        if (!game || game.gameStatus !== "active") return { ok: false, error: "noGame" };
+        const aircraft = game.fleet.find((item) => item.id === aircraftId);
+        const model = aircraft && aircraftById[aircraft.modelId];
+        if (!aircraft || !model || (kind !== "inspection" && kind !== "service")) return { ok: false, error: "missing" };
+        if (aircraft.status === "in-flight") return { ok: false, error: "airborne" };
+        const lifecycle = normalizeAircraftLifecycle(aircraft, game.currentGameTimeMs);
+        if (lifecycle.maintenance) return { ok: false, error: "busy" };
+        const quote = quoteMaintenance(model, lifecycle, kind);
+        if (!canAfford(game, quote.cashCost)) return { ok: false, error: "cash" };
+        const nextGame = {
+          ...spendCash(game, quote.cashCost),
+          totalProfit: game.totalProfit - quote.cashCost,
+          fleet: game.fleet.map((item) => item.id === aircraft.id ? {
+            ...item,
+            status: "maintenance" as const,
+            lifecycle: beginAircraftMaintenance(lifecycle, model, kind, game.currentGameTimeMs)
+          } : item)
+        };
+        updateLeaderboard(nextGame);
+        set({ game: withUpdatedAt(nextGame), notice: null });
+        return { ok: true };
       },
       openRoute: (originAirportId, destinationAirportId, pricing) => {
         const game = normalizeGame(get().game);
@@ -617,7 +643,7 @@ export const useGameStore = create<GameStore>()(
           item.id === aircraft.id
             ? {
                 ...testAircraft,
-                schedule: applyOperationalDelays(mergeGeneratedEvents(retainedSchedule, generated), testAircraft, game.routes)
+                schedule: mergeGeneratedEvents(retainedSchedule, generated)
               }
             : item
         );
@@ -698,68 +724,17 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
   const expandedAirportIds = [...nextGame.expandedAirportIds];
 
   const fleet = nextGame.fleet.map((aircraft) => {
-    const model = aircraftById[aircraft.modelId];
-    let currentAirportId = aircraft.currentAirportId;
-    let totalRevenue = aircraft.totalRevenue;
-    let totalFlights = aircraft.totalFlights;
-    let aircraftPassengers = aircraft.passengerCount;
-    let aircraftCargo = aircraft.cargoTransportedTons;
-
-    const schedule = aircraft.schedule.map((item) => {
-      if (!model || item.status === "completed") return item;
-      if (currentGameTimeMs >= item.arrivalGameTime) {
-        const route = nextGame.routes.find((candidate) => candidate.id === item.routeId);
-        if (!route) return item;
-        const financials = estimateFlightFinancials(route, model, aircraft, item.departureGameTime + item.arrivalGameTime, nextGame.difficultyConfig);
-        money += financials.profit;
-        totalProfit += financials.profit;
-        completedFlights += 1;
-        totalRevenue += financials.revenue;
-        totalFlights += 1;
-        passengerCount += financials.passengerCount;
-        cargoTransportedTons += financials.cargoTons;
-        aircraftPassengers += financials.passengerCount;
-        aircraftCargo += financials.cargoTons;
-        currentAirportId = item.destinationAirportId;
-        expandedAirportIds.push(item.destinationAirportId);
-        flightLog.unshift({
-          id: item.id,
-          aircraftId: aircraft.id,
-          aircraftRegistration: aircraft.registration,
-          flightNumber: item.flightNumber,
-          routeId: route.id,
-          originAirportId: item.originAirportId,
-          destinationAirportId: item.destinationAirportId,
-          completedGameTime: item.arrivalGameTime,
-          revenue: financials.revenue,
-          cost: financials.cost,
-          profit: financials.profit,
-          passengerCount: financials.passengerCount,
-          cargoTons: financials.cargoTons
-        });
-        return { ...item, status: "completed" as const, operationalStatus: "arrived" as const, ...financials };
-      }
-
-      if (currentGameTimeMs >= item.departureGameTime) {
-        return { ...item, status: "in-flight" as const, operationalStatus: item.delayMinutes && item.delayMinutes > 0 ? ("delayed" as const) : ("departed" as const) };
-      }
-      return item;
+    const operation = advanceAircraftOperations(aircraft, nextGame.routes, currentGameTimeMs, nextGame.difficultyConfig);
+    operation.entries.forEach((entry) => {
+      money += entry.profit;
+      totalProfit += entry.profit;
+      completedFlights += 1;
+      passengerCount += entry.passengerCount;
+      cargoTransportedTons += entry.cargoTons;
+      expandedAirportIds.push(entry.destinationAirportId);
+      flightLog.unshift(entry);
     });
-
-    const retainedSchedule = pruneOperationalFlights(schedule, currentGameTimeMs);
-    const hasFuture = retainedSchedule.some((item) => item.status === "scheduled");
-    const hasActive = retainedSchedule.some((item) => item.status === "in-flight");
-
-    return {
-      ...aircraft,
-      currentAirportId,
-      status: hasActive ? ("in-flight" as const) : hasFuture ? ("scheduled" as const) : ("idle" as const),
-      schedule: retainedSchedule,
-      totalRevenue,
-      totalFlights,
-      passengerCount: aircraftPassengers,
-      cargoTransportedTons: Math.round(aircraftCargo * 10) / 10
-    };
+    return operation.aircraft;
   });
 
   const completedNotice = completedFlights > nextGame.completedFlights ? "Flight completed. Finance log updated." : null;
@@ -791,60 +766,10 @@ function instantiateRecurringFlights(game: GameState) {
       );
       return {
         ...aircraft,
-        schedule: pruneOperationalFlights(applyOperationalDelays(merged, aircraft, game.routes), game.currentGameTimeMs)
+        schedule: pruneOperationalFlights(merged, game.currentGameTimeMs)
       };
     })
   };
-}
-
-function applyOperationalDelays(items: ScheduleItem[], aircraft: AircraftInstance, routes: Route[]) {
-  let readyGameTime = 0;
-  return [...items]
-    .sort((a, b) => (a.scheduledDepartureGameTime ?? a.departureGameTime) - (b.scheduledDepartureGameTime ?? b.departureGameTime))
-    .map((item) => {
-      if (item.status === "completed") {
-        readyGameTime = Math.max(readyGameTime, item.readyGameTime);
-        return item;
-      }
-      const route = routes.find((candidate) => candidate.id === item.routeId);
-      const model = aircraftById[aircraft.modelId];
-      if (!route || !model) return item;
-      const scheduledDepartureGameTime = item.scheduledDepartureGameTime ?? item.departureGameTime;
-      const flightDuration = flightWaitMs(route.distanceKm, model.cruiseSpeedKmh);
-      const delayMinutes = item.delayMinutes ?? generateDelayMinutes(item.id);
-      const baseDelayedDeparture = scheduledDepartureGameTime + delayMinutes * 60_000;
-      const actualDepartureGameTime = Math.max(baseDelayedDeparture, readyGameTime);
-      const actualArrivalGameTime = actualDepartureGameTime + flightDuration;
-      const nextReadyGameTime = actualArrivalGameTime + turnaroundWaitMs(model.turnaroundMinutes);
-      readyGameTime = nextReadyGameTime;
-      return {
-        ...item,
-        scheduledDepartureGameTime,
-        scheduledArrivalGameTime: item.scheduledArrivalGameTime ?? scheduledDepartureGameTime + flightDuration,
-        actualDepartureGameTime,
-        actualArrivalGameTime,
-        delayMinutes: Math.round((actualDepartureGameTime - scheduledDepartureGameTime) / 60_000),
-        operationalStatus: actualDepartureGameTime > scheduledDepartureGameTime ? ("delayed" as const) : ("onTime" as const),
-        departureGameTime: actualDepartureGameTime,
-        arrivalGameTime: actualArrivalGameTime,
-        readyGameTime: nextReadyGameTime
-      };
-    });
-}
-
-function generateDelayMinutes(seedText: string) {
-  const probabilityNoise = deterministicNoise(seedText, 17);
-  const delayProbability = BASE_DELAY_PROBABILITY + (probabilityNoise * 2 - 1) * DELAY_PROBABILITY_JITTER;
-  if (deterministicNoise(seedText, 29) > delayProbability) return 0;
-  return Math.round(deterministicNoise(seedText, 41) * MAX_DELAY_MINUTES);
-}
-
-function deterministicNoise(seedText: string, salt: number) {
-  let hash = salt;
-  for (let index = 0; index < seedText.length; index += 1) {
-    hash = (hash * 31 + seedText.charCodeAt(index)) % 1_000_003;
-  }
-  return (Math.sin(hash) + 1) / 2;
 }
 
 function generateWeeklyEvents(aircraft: AircraftInstance, routes: Route[], fromGameTime: number, toGameTime: number) {
@@ -925,6 +850,7 @@ function createFlightItem(input: {
     scheduledArrivalGameTime: arrivalGameTime,
     actualDepartureGameTime: input.departureGameTime,
     actualArrivalGameTime: arrivalGameTime,
+    baseDelayMinutes: generateOperationalDelayMinutes(input.fixedId ?? `${input.aircraft.id}-${input.departureGameTime}`),
     delayMinutes: 0,
     operationalStatus: "onTime",
     departureGameTime: input.departureGameTime,
@@ -1080,8 +1006,12 @@ export function normalizeGame(game: GameState | null | undefined): GameState | n
           updatedAt: schedule.updatedAt ?? new Date(game.startedAtRealMs).toISOString()
         };
       });
+      const lifecycle = normalizeAircraftLifecycle(aircraft, game.currentGameTimeMs);
+      const maintenanceStatus = getMaintenanceStatus(lifecycle, game.currentGameTimeMs);
       return {
         ...aircraft,
+        lifecycle,
+        status: aircraft.status !== "in-flight" && (maintenanceStatus === "grounded" || maintenanceStatus === "maintenance") ? maintenanceStatus : aircraft.status,
         homeBaseAirportId:
           (aircraft.homeBaseAirportId && baseAirports.includes(aircraft.homeBaseAirportId))
             ? aircraft.homeBaseAirportId

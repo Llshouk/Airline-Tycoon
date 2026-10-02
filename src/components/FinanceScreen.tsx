@@ -23,6 +23,7 @@ export function FinanceScreen() {
         <Panel label={t("top.cash")} value={formatGBP.format(cash)} />
         <Panel label={t("dashboard.totalProfit")} value={formatGBP.format(game.totalProfit)} />
         <Panel label={t("finance.completedFlights")} value={String(game.completedFlights)} />
+        <Panel label={t("maintenance.totalCashCost")} value={formatGBP.format(game.fleet.reduce((sum, aircraft) => sum + (aircraft.lifecycle?.totalMaintenanceCashCost ?? 0), 0))} />
         <Panel label={t("dashboard.passengers")} value={game.passengerCount.toLocaleString("en-GB")} />
         <Panel label="Cargo transported" value={`${game.cargoTransportedTons.toFixed(1)} t`} />
       </div>

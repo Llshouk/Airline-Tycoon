@@ -535,6 +535,11 @@ export function ScheduleScreen() {
               {t("schedule.roundTrip")}
             </button>
           </div>
+          {selectedAircraft && (selectedAircraft.status === "maintenance" || selectedAircraft.status === "grounded") ? (
+            <p className="border-l-2 border-coral pl-3 text-sm font-semibold text-coral">
+              {t(`maintenance.status.${selectedAircraft.status}`)}. {t("maintenance.scheduleRetained")}
+            </p>
+          ) : null}
           {projection && selectedRoute ? (
             <ScheduleFinancialSummary
               routeLabel={`${airportsById[selectedRoute.originAirportId].iata} - ${airportsById[selectedRoute.destinationAirportId].iata}`}

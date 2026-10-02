@@ -95,7 +95,7 @@ export function Dashboard() {
                         </td>
                         <td className="px-3 py-2">{model?.manufacturer} {model?.model}</td>
                         <td className="px-3 py-2">{airport?.iata}</td>
-                        <td className="px-3 py-2 capitalize">{aircraft.status}</td>
+                        <td className="px-3 py-2">{aircraft.status === "maintenance" || aircraft.status === "grounded" ? t(`maintenance.status.${aircraft.status}`) : t(`status.${aircraft.status}`)}</td>
                       </tr>
                     );
                   })

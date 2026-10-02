@@ -1,3 +1,4 @@
+import type * as maplibregl from "maplibre-gl";
 import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
 
 const NASA_BLUE_MARBLE_TILE_URL =
@@ -67,8 +68,8 @@ export function applyBrightSatelliteEarth(map: maplibregl.Map) {
   const targetLayers = satelliteLayers.length > 0 ? satelliteLayers : rasterLayers;
 
   targetLayers.forEach((layer) => {
-    Object.entries(SATELLITE_RASTER_PAINT).forEach(([property, value]) => {
-      map.setPaintProperty(layer.id, property, value);
+    (Object.keys(SATELLITE_RASTER_PAINT) as Array<keyof typeof SATELLITE_RASTER_PAINT>).forEach((property) => {
+      map.setPaintProperty(layer.id, property, SATELLITE_RASTER_PAINT[property]);
     });
   });
 

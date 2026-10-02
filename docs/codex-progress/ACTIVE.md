@@ -4,31 +4,47 @@
 
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
-- Current version: `1.4.0`
+- Current version: `1.5.0`
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
-- Current release checkpoint: the V1.4.0 release commit containing this document
+- V1.4.0 release HEAD / V1.5.0 baseline: `8b696cd96e6bc5d53d2b95d6ae80f397a0140f01`
+- Current release checkpoint: the V1.5.0 release commit containing this document
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
-- Working-tree status: green V1.4.0 release checkpoint
-- Audit date: 2026-07-31
-- Latest successful production build: `pnpm run build` passed on 2026-07-31 with Next.js 15.5.21
+- Working-tree status: green V1.5.0 release checkpoint
+- Latest focused review date: 2026-10-02
+- Latest successful production build: `pnpm run build` passed on 2026-10-02 with Next.js 15.5.24
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
 - No earlier `ACTIVE.md` or WIP patch existed at audit start
 
 ## Roadmap Position
 
 - Current major version: V1
-- Current minor version: V1.4.0
-- Current release objective: V1.4.0 Operating Economics complete; stop before V1.5 work
-- Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
-- Partially implemented systems: none in the V1.4 release scope
-- Next planned release: V1.5.0 Aircraft Maintenance and Reliability
-- Release-gate status: V1.3.9 map stabilization and V1.4.0 operating economics pass automated, browser, build, responsive-layout, compatibility, and security gates
+- Current minor version: V1.5.0
+- Current release objective: Aircraft Maintenance and Reliability; stop before V1.6 work
+- Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
+- Simplified maintenance scope: immediate ground-based inspections/service and retained-flight holds work; future bookings, workshop capacity, model-specific verified limits, and explicit cancellation/rebooking remain TODOs
+- Next planned release: V1.6.0 Reputation and Passenger Experience
+- Release-gate status: V1.5 automated tests, typecheck, lint, maintenance browser acceptance, responsive layout, save compatibility, dependency audit, updated-map smoke, production build, and production asset checks pass
 
 ## Current Objective
 
-Release V1.4.0 with centralized operating economics, preserve authoritative cash/save behavior, and stop before V1.5.0.
+Resume the user's requested next unfinished release from the clean V1.4.0 checkpoint, release V1.5.0 with independent aircraft lifecycle and maintenance, review confirmed redundant code, preserve authoritative cash/save behavior, and stop before V1.6.0.
+
+## V1.5.0 Work and Evidence
+
+- Added centralized lifecycle defaults, gameplay service thresholds, inspection/full-service quotes, reserve-funded cash shortfalls, maintenance completion, condition wear, and bounded deterministic technical delays.
+- Extracted per-aircraft chronological advancement into `aircraftOperations.ts`; only newly completed legs produce accounting entries. Grounded legs cannot settle and timelines retain all pending flights.
+- Integrated maintenance with real owned-aircraft details, Fleet status/condition, Schedule warnings, Finance additional spend, airport-board grounding labels, and the canonical cash/total-profit paths.
+- Persisted optional lifecycle/task data and technical decisions in compact format 2, with no database-table migration, aircraft merging, or reset of registrations/cabins/routes/timetables.
+- Removed confirmed unused Windows launcher and null/alias map providers, unused aircraft economics wrapper/type, repeated cloud-load normalization, and newly persisted derived settlement previews. See `docs/code-health-review.md` for retained large modules and known follow-up risks.
+- Security gate found seven new production advisories since July. Updated Next.js/ESLint config to 15.5.24, Sharp to 0.35.4, PostCSS to 8.5.23, and MapLibre to 6.4.1. Production dependency audit now reports no known vulnerabilities.
+- MapLibre 6 migration uses namespace imports and typed paint/layout keys. Next configuration prepares the locked library's module worker, sibling shared module, and license as ignored generated public assets. A worker-only URL initially lost gameplay overlays; emitting both files restored them without changing map data/interaction logic.
+- Automated gate: 37/37 tests pass (15 maintenance plus 22 existing), typecheck and zero-warning lint pass, frozen installation and production dependency audit pass.
+- Maintenance browser fixture: three independent A220s, synthetic GBP 1,000,000 cash, and a GBP 50,000 reserve. Service on condition 60 cost GBP 137,000, used the reserve, charged GBP 87,000 once, then restored condition and resumed the delayed leg at 14:00 game UTC. The separate condition-25 aircraft stayed grounded with zero cycles/revenue. Compact reload and a second 12-hour advance left cash/profit/flight count unchanged after the two eligible flights settled.
+- English/Chinese maintenance labels and a 390x844 detail panel passed with document width 390/390. The disposable maintenance route was removed after acceptance, including stale generated route types.
+- Updated-map smoke: satellite globe, airports, countries, aircraft, routes, 5 desktop and 3 mobile 2D/3D cycles, one map/canvas, positive-size tiles, and 2D zoom pass. No runtime error was captured; optional map-resource warnings remain non-fatal as in the baseline.
+- Optimized production build and post-build typecheck pass on Next.js 15.5.24. Production `next start` returns HTTP 200 for the homepage, A220 JPEG and optimized image, worker/shared modules with JavaScript MIME types, and the MapLibre license. Both `/map-harness` and the removed `/maintenance-harness` return 404. Live authenticated Supabase requests remain credential-gated; compact JSON restore and existing persistence adapter tests pass locally.
 
 ## Resolved V1.3 Problems
 
@@ -394,7 +410,7 @@ Release V1.4.0 with centralized operating economics, preserve authoritative cash
 - `docs/codex-progress/ACTIVE.md`: factual audit, evidence, gate status, and recovery handoff
 - `docs/map-lifecycle.md`: final Leaflet, MapLibre, engine-switch, and failure-degradation ownership contract
 
-## Tests Completed
+## Historical Tests Through V1.4.0
 
 - V1.4.0 release gate: `pnpm install --frozen-lockfile`, `pnpm audit --prod`, 22/22 tests, typecheck, zero-error lint, production build, and `git diff --check` passed on 2026-07-31
 - V1.4.0 calculation coverage: deterministic short- and long-haul economics, range ineligibility, zero seats/distance, NaN/Infinity/negative sanitization, bounded load factors, cost-category sums, and one-way/round-trip weekly scaling all pass
@@ -466,23 +482,23 @@ Release V1.4.0 with centralized operating economics, preserve authoritative cash
 | Authentication | Deployed V1.3.8 and local configuration gates render; authenticated flow and airline switching not exercised |
 | Cloud save | Shared V1.2.2 payload and legacy-cash restore passed; a guarded disposable-account acceptance command now covers auth, upsert, uniqueness, canonical cash, and cleanup, but it has not yet run against Supabase |
 | Local save | Sanitized V1.2 persistence envelope passed through the actual async IndexedDB adapter and production restore path; browser UI rehydration remains unverified |
-| Fleet | Owned-aircraft details render route-specific per-flight and weekly economics while every aircraft record remains independent; image and fallback checks continue to pass |
-| Schedules | Shared economics preview and normalized one-way/round-trip weekly frequency passed; authoritative completion applies shared profit exactly once |
+| Fleet | Independent lifecycle, maintenance details, condition/status, unchanged aircraft images and per-flight economics verified |
+| Schedules | Shared economics, maintenance holds, technical delays, turnaround propagation, grounding mid-timeline, and once-only settlement pass |
 | Routes | Route evaluation/details use the centralized calculation path; actual schedules drive weekly projections where available; wrapped and date-line map routes still pass |
 | Cabin configuration | Not reverified; no related code changed |
-| Airport board | Not reverified; no related code changed |
-| Delay system | Not reverified; no related code changed |
+| Airport board | Grounded departure labeling/visibility integrated and typechecked; no full live-board browser test in this release |
+| Delay system | Base delays, deterministic technical decisions, maintenance postponement and turnaround integration tested without repeated-tick drift |
 | Route evaluation | Eligible owned aircraft compare by per-flight profit with range, suitability, weekly totals, score, grade, risk, reasons, and suggestions preserved |
 | Operating economics | V1.4.0 complete: centralized categories, profit metrics, frequency scaling, shared previews, and authoritative settlement verified |
-| Maintenance | Not implemented; V1.5 roadmap |
+| Maintenance | V1.5 implemented and verified with simplified immediate ground-service workflow; advanced bookings/cancellations deferred |
 | Reputation | Not implemented; V1.6 roadmap |
 | Competition | Not implemented; V2 roadmap |
 | Events | Not implemented; V3 roadmap |
-| Maps | P0 restore fix plus switching, wrapping, geometry, interactions, degradation policy, resource ownership, and removed-GridLayer listener regression checks passed |
+| Maps | Existing lifecycle regressions pass; MapLibre 6 module worker/shared preparation, desktop/mobile globe, engine cycles and 2D zoom verified |
 | Mobile | Portrait/landscape map switching and 390px economics layouts passed without document overflow; real touch/pinch pending |
 | Offline/PWA | OSM failure and production app-shell origin-outage/reconnection passed; all-network offline and saved-game interaction remain pending |
-| English | Map interactions and all new V1.4 economics labels rendered correctly |
-| Chinese | Map interactions, Schedule overlap errors, and all new V1.4 economics labels rendered correctly |
+| English | All new V1.4 economics and V1.5 maintenance labels rendered correctly |
+| Chinese | New maintenance/economics labels render correctly; older unrelated mojibake strings remain documented |
 
 ## Deferred External Verification
 
@@ -490,16 +506,17 @@ Release V1.4.0 with centralized operating economics, preserve authoritative cash
 - Physical-device touch panning, pinch zoom, and information-card scrolling
 - Complete browser-wide network isolation with authenticated/local saved-game interaction; production app-shell origin outage/reconnection and failed map-resource behavior already pass
 
-These checks remain useful external acceptance coverage. There is no current evidence that they represent a reproducible code defect, so they do not block the completed V1.4.0 release.
+These checks remain useful external acceptance coverage and are not claimed as completed by the local V1.5 maintenance tests.
 
 ## Next Exact Action
 
-Stop at V1.4.0. The next planned release is V1.5.0 Aircraft Maintenance and Reliability, but no V1.5 implementation has begun.
+Stop at the green V1.5.0 checkpoint after commit/push to `main`. V1.6.0 Reputation and Passenger Experience has not begun.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
-2. Confirm the V1.4.0 release checkpoint is on `main` and synchronized with `origin/main`.
+2. Confirm the V1.5.0 release checkpoint is on `main` and synchronized with `origin/main`.
 3. Treat `src/lib/economics/*` as the canonical calculation layer and `src/lib/economy.ts` as the compatibility and settlement boundary.
 4. Preserve preview purity, canonical `money`, save compatibility, and one-record-per-aircraft state in all future work.
-5. Do not begin V1.5.0 until it is explicitly requested; authenticated Supabase, physical touch/pinch, and complete browser-wide isolation remain deferred external verification.
+5. Treat `aircraftMaintenance.ts` as the lifecycle/compatibility owner and `aircraftOperations.ts` as the chronological flight-settlement owner; do not create a second cash or maintenance timeline.
+6. Stop before V1.6.0 until it is explicitly requested; authenticated Supabase, physical touch/pinch, and complete browser-wide isolation remain deferred external verification.

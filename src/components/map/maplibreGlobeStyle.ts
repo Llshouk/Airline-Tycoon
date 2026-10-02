@@ -1,4 +1,4 @@
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { ExpressionSpecification } from "maplibre-gl";
 
 export type GlobeVisualStyle = "light-modern";
@@ -55,10 +55,10 @@ export function applyDarkGlobeBackdrop(map: maplibregl.Map) {
 
 type GlobeStylePropertyValue = string | number | boolean | ExpressionSpecification;
 
-function setPaint(map: maplibregl.Map, layerId: string, property: string, value: GlobeStylePropertyValue) {
+function setPaint(map: maplibregl.Map, layerId: string, property: Parameters<maplibregl.Map["setPaintProperty"]>[1], value: GlobeStylePropertyValue) {
   if (map.getLayer(layerId)) map.setPaintProperty(layerId, property, value);
 }
 
-function setLayout(map: maplibregl.Map, layerId: string, property: string, value: GlobeStylePropertyValue) {
+function setLayout(map: maplibregl.Map, layerId: string, property: Parameters<maplibregl.Map["setLayoutProperty"]>[1], value: GlobeStylePropertyValue) {
   if (map.getLayer(layerId)) map.setLayoutProperty(layerId, property, value);
 }

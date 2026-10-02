@@ -1043,7 +1043,7 @@ function FlightBoardColumn({
               </span>
               {!compact ? <span className="truncate font-mono font-bold text-slate-300">{row.aircraft.registration}</span> : null}
               <span className={`justify-self-end rounded px-2 py-1 text-[10px] font-black uppercase tracking-normal ${row.isDelayed ? "bg-amber-300 text-slate-950" : "bg-white/10 text-slate-100"}`}>
-                {row.isDelayed ? `${t("airport.delayed")} ${formatBoardTime(row.actualTime)}` : airportStatusLabel(row.statusKey, t)}
+                {row.item.operationalStatus === "grounded" ? t("maintenance.status.grounded") : row.isDelayed ? `${t("airport.delayed")} ${formatBoardTime(row.actualTime)}` : airportStatusLabel(row.statusKey, t)}
               </span>
             </div>
           ))}
@@ -1088,7 +1088,7 @@ function airportBoardRows(airportId: string, game: GameState, type: "departure" 
         const actualTime = explicitActualTime ?? scheduledTime;
         const explicitDelayMinutes = item.delayMinutes ?? 0;
         const delayMinutes = Math.max(explicitDelayMinutes, Math.max(0, Math.round((actualTime - scheduledTime) / 60_000)));
-        const isDelayed = (item.status as string) === "delayed" || item.operationalStatus === "delayed" || explicitDelayMinutes > 0 || delayMinutes > 0 || actualTime > scheduledTime;
+        const isDelayed = item.operationalStatus === "grounded" || item.operationalStatus === "delayed" || explicitDelayMinutes > 0 || delayMinutes > 0 || actualTime > scheduledTime;
         const shouldShow =
           type === "departure"
             ? shouldShowDepartureOnAirportBoard({ flight: item, now, windowStart, windowEnd })
@@ -1128,6 +1128,7 @@ function shouldShowDepartureOnAirportBoard({
   const scheduledTime = flight.scheduledDepartureGameTime ?? flight.departureGameTime;
   const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
   if (!scheduledToday) return false;
+  if (flight.operationalStatus === "grounded") return true;
 
   const departureTime = flight.actualDepartureGameTime ?? scheduledTime;
   const minutesSinceDeparture = (now - departureTime) / 60_000;

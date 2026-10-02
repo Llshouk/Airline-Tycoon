@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AircraftWeeklyTimetableGrid } from "@/components/AircraftWeeklyTimetableGrid";
 import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { OperatingEconomicsPanel } from "@/components/OperatingEconomicsPanel";
+import { AircraftMaintenancePanel } from "@/components/AircraftMaintenancePanel";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -143,6 +144,7 @@ export function AircraftDetailPanel({
           </aside>
 
           <div className="min-w-0">
+            <AircraftMaintenancePanel aircraft={aircraft} game={game} />
             {operatingPreview ? (
               <OperatingEconomicsPanel
                 economics={operatingPreview.economics}
@@ -212,6 +214,8 @@ function aircraftCurrentLocationLabel(aircraft: AircraftInstance) {
 }
 
 function statusLabel(status: FlightStatus | AircraftInstance["status"] | "conflict", t: ReturnType<typeof useTranslation>["t"]) {
+  if (status === "maintenance" || status === "grounded") return t(`maintenance.status.${status}`);
+  if (status === "idle") return t("status.idle");
   if (status === "in-flight") return t("status.in-flight");
   if (status === "completed") return t("status.completed");
   if (status === "conflict") return t("status.conflict");

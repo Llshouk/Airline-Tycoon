@@ -1,6 +1,7 @@
 "use client";
 
-import maplibregl, { type ExpressionSpecification, type SymbolLayerSpecification } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import type { ExpressionSpecification, SymbolLayerSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point, Position } from "geojson";
@@ -9,6 +10,8 @@ import { applyBrightSatelliteEarth, applyCountryLabels, applyLightOceanTint, get
 import { classifyMapLibreError, type GlobeMapErrorDiagnostics } from "@/lib/mapLibreErrorPolicy";
 import { normalizeLongitude, splitPolylineAtAntimeridian } from "@/lib/mapRoutePath";
 import type { EffectiveGlobeQuality, MapAircraftMarker, MapAirportMarker, MapGlobeFailureReason, MapRouteLine } from "@/components/map/mapTypes";
+
+maplibregl.setWorkerUrl(`/maplibre-workers/maplibre-gl-worker.mjs?v=${maplibregl.getVersion()}`);
 
 const AIRCRAFT_IMAGE_ID = "aircraft-icon";
 const AIRPORT_SOURCE_ID = "airports-source";
@@ -861,7 +864,7 @@ function setGeoJsonSourceData(map: maplibregl.Map, sourceId: string, data: Featu
 
 function applyGlobeQuality(map: maplibregl.Map, quality: EffectiveGlobeQuality) {
   const reduced = quality === "reduced";
-  const setPaint = (layerId: string, property: string, value: number) => {
+  const setPaint = (layerId: string, property: Parameters<maplibregl.Map["setPaintProperty"]>[1], value: number) => {
     if (map.getLayer(layerId)) map.setPaintProperty(layerId, property, value);
   };
   const setVisibility = (layerId: string, visibility: "visible" | "none") => {

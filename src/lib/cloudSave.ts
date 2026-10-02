@@ -7,6 +7,7 @@ import { estimateCargoRatePerTon, estimateTicketPrices, routePricingFromDefaults
 import { distanceKm } from "@/lib/geo";
 import { supabase, supabaseConfigError } from "@/lib/supabaseClient";
 import { DAY_MS, GAME_SPEED_OPTIONS } from "@/lib/time";
+import { normalizeAircraftLifecycle } from "@/lib/aircraftMaintenance";
 import { getLocalSaveMetadataSync, safeGetLocalStorage } from "@/lib/gameSaveStorage";
 import type { AircraftInstance, GameState, Route, TimeMultiplier } from "@/types/game";
 
@@ -28,6 +29,7 @@ export type CompactAircraftSave = Pick<
   | "totalFlights"
   | "passengerCount"
   | "cargoTransportedTons"
+  | "lifecycle"
 >;
 
 export type CompactRouteSave = Pick<
@@ -202,7 +204,8 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
       totalRevenue: aircraft.totalRevenue,
       totalFlights: aircraft.totalFlights,
       passengerCount: aircraft.passengerCount,
-      cargoTransportedTons: aircraft.cargoTransportedTons
+      cargoTransportedTons: aircraft.cargoTransportedTons,
+      lifecycle: normalizeAircraftLifecycle(aircraft, gameState.currentGameTimeMs)
     })),
     routes: gameState.routes.map((route) => ({
       id: route.id,
@@ -239,17 +242,18 @@ export async function loadGameFromCloud(difficulty: GameDifficulty): Promise<Clo
   if (error) throw createCloudSaveError("game_saves.select", error, { user, difficulty });
   if (!data) return null;
 
+  const compactSave = normalizeCloudPayload(data.game_state, data.difficulty);
   return {
-    compactSave: normalizeCloudPayload(data.game_state, data.difficulty),
-    gameState: restoreGameStateFromCloudSave(data.game_state, data.difficulty),
+    compactSave,
+    gameState: restoreCompactGameState(compactSave),
     metadata: {
       saveName: data.save_name,
-      difficulty: normalizeCloudPayload(data.game_state, data.difficulty).difficulty,
-      gameStatus: normalizeCloudPayload(data.game_state, data.difficulty).gameStatus,
-      airlineName: normalizeCloudPayload(data.game_state, data.difficulty).airlineName,
-      money: normalizeCloudPayload(data.game_state, data.difficulty).money,
-      fleetSize: normalizeCloudPayload(data.game_state, data.difficulty).fleet.length,
-      routeCount: normalizeCloudPayload(data.game_state, data.difficulty).routes.length,
+      difficulty: compactSave.difficulty,
+      gameStatus: compactSave.gameStatus,
+      airlineName: compactSave.airlineName,
+      money: compactSave.money,
+      fleetSize: compactSave.fleet.length,
+      routeCount: compactSave.routes.length,
       updatedAt: data.updated_at,
       createdAt: data.created_at
     }
@@ -313,7 +317,10 @@ export function getLocalSaveMetadata(): LocalSaveMetadata {
 }
 
 export function restoreGameStateFromCloudSave(saveState: unknown, rowDifficulty?: string): GameState {
-  const compact = normalizeCloudPayload(saveState, rowDifficulty);
+  return restoreCompactGameState(normalizeCloudPayload(saveState, rowDifficulty));
+}
+
+function restoreCompactGameState(compact: CompactGameSave): GameState {
   return {
     airlineName: compact.airlineName,
     difficulty: compact.difficulty,
@@ -330,7 +337,10 @@ export function restoreGameStateFromCloudSave(saveState: unknown, rowDifficulty?
     currentGameTimeMs: compact.currentGameTimeMs,
     timeMultiplier: compact.timeMultiplier,
     isPaused: compact.isPaused,
-    fleet: compact.fleet,
+    fleet: compact.fleet.map((aircraft) => ({
+      ...aircraft,
+      lifecycle: normalizeAircraftLifecycle(aircraft, compact.currentGameTimeMs)
+    })),
     routes: compact.routes.map(restoreCompactRoute),
     flightLog: compact.flightLogSummary ?? [],
     totalProfit: compact.totalProfit,

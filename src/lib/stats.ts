@@ -28,9 +28,9 @@ export function calculateDashboardStats(game: GameState): DashboardStats {
   const fleetStats = calculateFleetStats(game.fleet);
   const routeStats = calculateRouteStats(game.routes);
   const scheduleStats = calculateScheduleStats(game);
-  const totalRevenue = game.flightLog.reduce((sum, entry) => sum + entry.revenue, 0);
-  const totalOperatingCost = game.flightLog.reduce((sum, entry) => sum + entry.cost, 0);
-  const totalProfit = game.flightLog.reduce((sum, entry) => sum + entry.profit, 0);
+  const totalRevenue = game.fleet.reduce((sum, aircraft) => sum + aircraft.totalRevenue, 0);
+  const totalProfit = game.totalProfit;
+  const totalOperatingCost = Math.max(0, totalRevenue - totalProfit);
   const cash = getCurrentCash(game);
   const companyValuation = calculateCompanyValuation({
     cash,
@@ -63,7 +63,7 @@ export function calculateDashboardStats(game: GameState): DashboardStats {
 
 export function calculateFleetStats(fleet: AircraftInstance[]) {
   return {
-    activeAircraft: fleet.filter((aircraft) => aircraft.status !== "idle").length,
+    activeAircraft: fleet.filter((aircraft) => aircraft.status === "scheduled" || aircraft.status === "in-flight").length,
     aircraftInFlight: fleet.filter((aircraft) => aircraft.status === "in-flight").length,
     fleetValue: fleet.reduce((sum, aircraft) => sum + (aircraft.purchasePriceGBP ?? aircraftById[aircraft.modelId]?.estimatedPriceGBP ?? 0) * 0.82, 0)
   };

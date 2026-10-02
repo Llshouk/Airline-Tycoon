@@ -1,8 +1,8 @@
-# Airline Tycoon V1.4.0
+# Airline Tycoon V1.5.0
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.4.0 - Operating Economics
+Release: V1.5.0 - Aircraft Maintenance and Reliability
 
 ## Features
 
@@ -13,6 +13,9 @@ Release: V1.4.0 - Operating Economics
 - Estimate demand, revenue, cost and profit
 - Review per-flight fuel, crew, airport, handling, and maintenance-reserve costs
 - Compare aircraft operating profit, margin, break-even load factor, and route suitability
+- Track aircraft age, flight hours, cycles, condition, and reliability
+- Inspect and service aircraft, review reserve-funded costs, and recover grounded aircraft
+- Retain timetables while maintenance and technical delays postpone departures
 - Create weekly flight schedules
 - View aircraft movement on a Leaflet 2D map or MapLibre GL 3D globe
 - Evaluate route quality, risk, demand, aircraft fit, and recommended aircraft
@@ -64,7 +67,9 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.4.0 adds a centralized, gameplay-balanced operating economics model. Route evaluation, route details, aircraft purchase comparison, schedule previews, aircraft details, completed-flight settlement, and weekly projections now share one calculation path. Cost assumptions remain simplified for prototype balance, and derived previews do not change cash or the save schema.
+Airline Tycoon V1.5.0 adds a gameplay-balanced aircraft maintenance and reliability system on top of the shared V1.4 operating economics. Each owned aircraft keeps independent hours, cycles, condition, and maintenance progress. Flight-cost reserves fund service first; only the shortfall is charged again to cash and profit. Existing saves receive safe defaults without resetting the airline or merging aircraft.
+
+Maintenance starts immediately when an aircraft is on the ground. Future calendar bookings, workshop capacity, and explicit technical cancellations are deferred. This remains a playable prototype, not an airworthiness simulator. See [maintenance rules](docs/aircraft-maintenance.md) and [code health review](docs/code-health-review.md) for assumptions and follow-up work.
 
 ## Map Configuration
 
@@ -75,6 +80,8 @@ NEXT_PUBLIC_MAPLIBRE_GLOBE_SATELLITE_STYLE_URL
 ```
 
 Do not put private map provider keys in source control. Remote map styles and tiles are not stored in game saves or precached by the service worker.
+
+The optional globe uses MapLibre 6 and requires WebGL2; the existing 2D fallback remains available. Development and production builds automatically copy the installed module worker, shared module, and license into `public/maplibre-workers/`. These generated assets are ignored by Git and are recreated from the locked dependency; do not remove this build preparation when deploying.
 
 ## Cloud Save
 
