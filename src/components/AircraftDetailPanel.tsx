@@ -31,9 +31,7 @@ export function AircraftDetailPanel({
   const model = aircraftById[aircraft.modelId];
   const homeBase = airportsById[aircraft.homeBaseAirportId];
   const currentLocation = aircraftCurrentLocationLabel(aircraft);
-  const totalProfit = game.flightLog
-    .filter((entry) => entry.aircraftId === aircraft.id)
-    .reduce((sum, entry) => sum + entry.profit, 0);
+  const totalProfit = aircraft.totalProfit ?? 0;
   const operatingPreview = getAircraftOperatingPreview(aircraft, game);
 
   return (
@@ -128,7 +126,7 @@ export function AircraftDetailPanel({
               <Info label={t("detail.status")} value={statusLabel(aircraft.status, t)} />
               <Info label={t("detail.totalFlights")} value={String(aircraft.totalFlights)} />
               <Info label={t("detail.totalRevenue")} value={formatGBP.format(aircraft.totalRevenue)} />
-              <Info label={t("detail.totalProfit")} value={formatGBP.format(totalProfit)} />
+              <Info label={t(aircraft.profitHistoryIncomplete ? "detail.recordedProfit" : "detail.totalProfit")} value={formatGBP.format(totalProfit)} />
               <Info label="Cargo" value={`${aircraft.cargoTransportedTons.toFixed(1)} t`} />
             </div>
             <div className="rounded-md border border-slate-200 p-3">
@@ -178,7 +176,7 @@ function getAircraftOperatingPreview(aircraft: AircraftInstance, game: GameState
   if (weeklySchedule) {
     const route = game.routes.find((item) => item.id === weeklySchedule.routeId);
     if (!route) return null;
-    const estimate = estimateWeeklyScheduleFinancials(weeklySchedule, route, model, aircraft, game.difficultyConfig);
+    const estimate = estimateWeeklyScheduleFinancials(weeklySchedule, route, model, aircraft, game.difficultyConfig, game.currentGameTimeMs);
     return {
       routeLabel: `${airportsById[route.originAirportId]?.iata ?? route.originAirportId} - ${airportsById[route.destinationAirportId]?.iata ?? route.destinationAirportId}`,
       economics: estimate.perFlight.economics,
@@ -218,6 +216,7 @@ function statusLabel(status: FlightStatus | AircraftInstance["status"] | "confli
   if (status === "idle") return t("status.idle");
   if (status === "in-flight") return t("status.in-flight");
   if (status === "completed") return t("status.completed");
+  if (status === "cancelled") return t("airport.cancelled");
   if (status === "conflict") return t("status.conflict");
   return t("status.scheduled");
 }

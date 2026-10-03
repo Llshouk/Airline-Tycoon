@@ -22,7 +22,7 @@ export function Dashboard() {
   const stats = calculateDashboardStats(game);
   const nextFlights = game.fleet.flatMap((aircraft) =>
     aircraft.schedule
-      .filter((item) => item.status !== "completed")
+      .filter((item) => item.status === "scheduled" || item.status === "in-flight")
       .map((item) => ({ item, aircraft }))
   );
 

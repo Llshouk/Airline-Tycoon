@@ -25,9 +25,19 @@ The project has some dead scaffolding and duplicated work, but the working game 
 ## Follow-Up Risks
 
 - Parts of the existing Chinese dictionary contain mojibake and some older screens still have English strings. All new maintenance strings render correctly; a focused localization repair is needed separately.
-- Owned-aircraft detail profit still derives from the bounded recent log, so its existing lifetime label can undercount old operations. Adding a cumulative per-aircraft profit field needs an explicit compatibility policy; this release does not invent historical values.
+- Resolved in the 2026-10-03 follow-up: owned-aircraft detail profit now uses an additive cumulative field. Legacy aircraft with missing history are marked partial rather than assigned invented historical profit.
 - Game normalization still rebuilds several derived objects frequently. Profile a large fleet before changing memoization or state ownership.
 - Grounded flights are retained rather than silently deleted. A later cancellation/rebooking workflow should make long grounding backlogs manageable.
+
+## Maintenance Follow-Up (2026-10-03)
+
+- Reservations and cancellation recovery extend the existing per-aircraft timeline; no second settlement loop, extra cash field, new dependency, or independent fleet-group state was introduced.
+- One planner serves both individual and batch booking; one quote function supplies cost/duration to actions, previews, and timetable blocks.
+- Future cancellations are bounded by the existing two-week generation horizon and retained as tombstones until their dates pass. Historical events still use the existing age/count limits.
+- New instant and reserved maintenance cancel conflicting dated flights while preserving weekly templates. Old active maintenance tasks retain their original delay behavior for compatibility.
+- Whole-GBP shortfalls remove cash drift after normalization. Persistent processed-time watermarks prevent pruned dated events from resurrecting.
+- Cross-aircraft affordability during large catch-up still follows the existing stable fleet-processing order, not a new globally sorted event engine. A global event queue and profiling very large offline catch-up remain future work.
+- No broad map, auth, translation or gameplay rewrite was made. A missing favicon remains an unrelated baseline 404; new maintenance UI did not produce JavaScript runtime errors.
 
 ## Dependency Safety
 

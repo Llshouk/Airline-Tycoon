@@ -37,6 +37,16 @@ export function normalizeAircraftLifecycle(aircraft: Pick<AircraftInstance, "lif
         cashCost: nonnegative(task.cashCost)
       }
     : undefined;
+  const plan = raw?.reservation;
+  const reservation = plan && (plan.kind === "inspection" || plan.kind === "service") &&
+    typeof plan.afterFlightId === "string" && plan.afterFlightId.length > 0
+    ? { ...plan, state: plan.state === "blocked" ? "blocked" as const : "scheduled" as const,
+        startsAfterGameTimeMs: Number.isFinite(plan.startsAfterGameTimeMs) ? plan.startsAfterGameTimeMs : undefined }
+    : undefined;
+  const window = raw?.recovery;
+  const recovery = window && Number.isFinite(window.startsGameTimeMs) && Number.isFinite(window.completesGameTimeMs) &&
+    window.completesGameTimeMs > window.startsGameTimeMs && typeof window.airportId === "string"
+    ? { ...window } : undefined;
   return {
     acquiredGameTimeMs,
     flightHours: nonnegative(raw?.flightHours),
@@ -48,7 +58,9 @@ export function normalizeAircraftLifecycle(aircraft: Pick<AircraftInstance, "lif
     reserveBalance: nonnegative(raw?.reserveBalance),
     totalMaintenanceCost: nonnegative(raw?.totalMaintenanceCost),
     totalMaintenanceCashCost: nonnegative(raw?.totalMaintenanceCashCost),
-    maintenance
+    maintenance,
+    reservation,
+    recovery
   };
 }
 
@@ -95,13 +107,14 @@ export function recordAircraftFlight(lifecycle: AircraftLifecycle, durationMs: n
 }
 
 export function quoteMaintenance(model: AircraftModel, lifecycle: AircraftLifecycle, kind: MaintenanceKind) {
-  // TODO: Support future bookings and base workshop capacity; V1.5 starts work immediately on the ground.
+  // TODO: Add base workshop capacity and model-specific service packages.
   const sizeFactor = model.type === "widebody" ? 1.6 : 1;
   const labourCost = Math.round((kind === "inspection" ? 12_000 : 65_000) * sizeFactor);
   const partsCost = Math.round((100 - lifecycle.condition) * (kind === "inspection" ? 200 : 1_800) * sizeFactor);
   const totalCost = labourCost + partsCost;
   // Reserve was already charged in V1.4 flight cost; only the shortfall is new cash/profit cost.
-  const reserveUsed = Math.min(totalCost, lifecycle.reserveBalance);
+  // Cash is stored in whole GBP. Retain fractional reserve rather than rounding up its spend.
+  const reserveUsed = Math.min(totalCost, Math.floor(lifecycle.reserveBalance));
   return {
     labourCost,
     partsCost,

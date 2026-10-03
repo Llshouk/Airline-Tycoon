@@ -1,8 +1,8 @@
-# Airline Tycoon V1.5.0
+# Airline Tycoon V1.5.1
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.5.0 - Aircraft Maintenance and Reliability
+Release: V1.5.1 - Maintenance Reservations and Stability
 
 ## Features
 
@@ -15,7 +15,8 @@ Release: V1.5.0 - Aircraft Maintenance and Reliability
 - Compare aircraft operating profit, margin, break-even load factor, and route suitability
 - Track aircraft age, flight hours, cycles, condition, and reliability
 - Inspect and service aircraft, review reserve-funded costs, and recover grounded aircraft
-- Retain timetables while maintenance and technical delays postpone departures
+- Reserve maintenance after a chosen flight and preview conflicting cancellations
+- Book maintenance for multiple independent aircraft and retain weekly timetable templates
 - Create weekly flight schedules
 - View aircraft movement on a Leaflet 2D map or MapLibre GL 3D globe
 - Evaluate route quality, risk, demand, aircraft fit, and recommended aircraft
@@ -67,9 +68,9 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.5.0 adds a gameplay-balanced aircraft maintenance and reliability system on top of the shared V1.4 operating economics. Each owned aircraft keeps independent hours, cycles, condition, and maintenance progress. Flight-cost reserves fund service first; only the shortfall is charged again to cash and profit. Existing saves receive safe defaults without resetting the airline or merging aircraft.
+Airline Tycoon V1.5.1 builds on the aircraft maintenance and reliability system with after-flight reservations, batch booking, automatic cancellation of conflicting dated flights, and recovery from the aircraft's actual location. Each aircraft keeps its own registration, schedule, lifecycle and cumulative profit. Stability fixes prevent duplicate charges, cash rounding drift and cancelled-flight regeneration after reload. Existing saves remain compatible.
 
-Maintenance starts immediately when an aircraft is on the ground. Future calendar bookings, workshop capacity, and explicit technical cancellations are deferred. This remains a playable prototype, not an airworthiness simulator. See [maintenance rules](docs/aircraft-maintenance.md) and [code health review](docs/code-health-review.md) for assumptions and follow-up work.
+Maintenance can start immediately on the ground or after a selected flight lands and completes turnaround. Short-haul night demand is simplified; airport night planning rules are optional and default off. Workshop capacity, replacement aircraft and more detailed operating rules are deferred. This remains a playable prototype, not an airworthiness simulator. See [maintenance rules](docs/aircraft-maintenance.md) and [code health review](docs/code-health-review.md) for assumptions and follow-up work.
 
 ## Map Configuration
 

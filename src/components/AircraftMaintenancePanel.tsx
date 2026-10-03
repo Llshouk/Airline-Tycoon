@@ -2,29 +2,29 @@
 
 import { Wrench } from "lucide-react";
 import { useState } from "react";
+import { MaintenancePlanner } from "@/components/MaintenancePlanner";
 import { aircraftById } from "@/data/aircraft";
-import { useTranslation } from "@/i18n";
+import { useTranslation, type TranslationKey } from "@/i18n";
 import { aircraftAgeYears, aircraftReliability, getMaintenanceStatus, MAINTENANCE_RULES, normalizeAircraftLifecycle, quoteMaintenance } from "@/lib/aircraftMaintenance";
-import { canAfford } from "@/lib/cash";
 import { formatGBP } from "@/lib/format";
 import { useGameStore } from "@/store/gameStore";
 import type { AircraftInstance, GameState, MaintenanceKind } from "@/types/game";
 
 export function AircraftMaintenancePanel({ aircraft, game }: { aircraft: AircraftInstance; game: GameState }) {
   const { t, language } = useTranslation();
-  const startMaintenance = useGameStore((state) => state.startAircraftMaintenance);
+  const cancelReservation = useGameStore((state) => state.cancelMaintenanceReservation);
   const [kind, setKind] = useState<MaintenanceKind>("service");
-  const [error, setError] = useState<string | null>(null);
+  const [showPlanner, setShowPlanner] = useState(false);
   const lifecycle = normalizeAircraftLifecycle(aircraft, game.currentGameTimeMs);
   const status = getMaintenanceStatus(lifecycle, game.currentGameTimeMs);
   const quote = quoteMaintenance(aircraftById[aircraft.modelId], lifecycle, kind);
   const task = lifecycle.maintenance;
+  const reservation = lifecycle.reservation;
   const finishTime = task?.completesGameTimeMs ?? game.currentGameTimeMs + quote.durationMs;
   const affectedFlights = aircraft.schedule.filter((item) => item.status === "scheduled" &&
     (item.scheduledDepartureGameTime ?? item.departureGameTime) < finishTime).length;
-  const blocked = aircraft.status === "in-flight" ? "airborne" : task ? "busy" :
-    !canAfford(game, quote.cashCost) ? "cash" : game.gameStatus !== "active" ? "noGame" : null;
-  const operationalWarnings = aircraft.schedule.filter((item) => item.status !== "completed" &&
+  const blocked = game.gameStatus !== "active" ? "noGame" : null;
+  const operationalWarnings = aircraft.schedule.filter((item) => (item.status === "scheduled" || item.status === "in-flight") &&
     (item.operationalStatus === "grounded" || (item.technicalDelayMinutes ?? 0) > 0 || (item.maintenanceDelayMinutes ?? 0) > 0)).slice(0, 3);
   const formatTime = (time: number) => new Intl.DateTimeFormat(language === "zh" ? "zh-CN" : "en-GB", {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC"
@@ -54,6 +54,15 @@ export function AircraftMaintenancePanel({ aircraft, game }: { aircraft: Aircraf
           <progress className="mt-2 h-2 w-full accent-emerald-600" max={task.completesGameTimeMs - task.startedGameTimeMs}
             value={Math.max(0, game.currentGameTimeMs - task.startedGameTimeMs)} aria-label={t("maintenance.progress")} />
         </div>
+      ) : reservation ? (
+        <div className="mt-4 border-l-2 border-coral pl-3 text-sm">
+          <p className="font-bold text-ink">{reservation.state === "blocked" ? t("maintenance.blocked") : t("maintenance.reserved")}</p>
+          <p>{aircraft.schedule.find((flight) => flight.id === reservation.afterFlightId)?.flightNumber ?? reservation.afterFlightId}</p>
+          {reservation.error ? <p role="alert" className="text-coral">{t("maintenance.error." + reservation.error as TranslationKey)}</p> : null}
+          <button type="button" onClick={() => cancelReservation(aircraft.id)} className="mt-2 rounded-md border border-slate-300 px-3 py-2 font-bold">
+            {t("maintenance.cancelReservation")}
+          </button>
+        </div>
       ) : (
         <div className="mt-4 border-t border-slate-100 pt-3">
           <fieldset className="mb-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-bold text-ink">
@@ -61,7 +70,7 @@ export function AircraftMaintenancePanel({ aircraft, game }: { aircraft: Aircraf
             {(["inspection", "service"] as const).map((option) => (
               <label key={option} className="flex items-center gap-2">
                 <input type="radio" name={`maintenance-${aircraft.id}`} checked={kind === option}
-                  onChange={() => { setKind(option); setError(null); }} className="accent-emerald-600" />
+                  onChange={() => setKind(option)} className="accent-emerald-600" />
                 {t(`maintenance.${option}`)}
               </label>
             ))}
@@ -76,11 +85,9 @@ export function AircraftMaintenancePanel({ aircraft, game }: { aircraft: Aircraf
             <Metric label={t("maintenance.afterCondition")} value={`${quote.resultingCondition.toFixed(1)}%`} />
           </dl>
           <p className="mt-3 text-xs font-semibold text-slate-500">{t("maintenance.reserveNote")}</p>
-          <button type="button" disabled={Boolean(blocked)} onClick={() => {
-            const result = startMaintenance(aircraft.id, kind);
-            setError(result.ok ? null : t(`maintenance.error.${result.error ?? "missing"}`));
-          }} className="mt-3 flex min-h-10 items-center gap-2 rounded-md bg-jet px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
-            <Wrench size={16} />{t("maintenance.start")}
+          <button type="button" disabled={Boolean(blocked)} onClick={() => setShowPlanner(true)}
+            className="mt-3 flex min-h-10 items-center gap-2 rounded-md bg-jet px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
+            <Wrench size={16} />{t("maintenance.reserveAction")}
           </button>
           {blocked ? <p className="mt-2 text-sm text-slate-500">{t(`maintenance.error.${blocked}`)}</p> : null}
         </div>
@@ -94,7 +101,12 @@ export function AircraftMaintenancePanel({ aircraft, game }: { aircraft: Aircraf
           </li>)}
         </ul>
       ) : null}
-      {error ? <p role="alert" className="mt-2 text-sm font-bold text-coral">{error}</p> : null}
+      <ul className="mt-3 space-y-1 text-xs text-coral">
+        {aircraft.schedule.filter((flight) => flight.status === "cancelled").slice(-5).map((flight) => <li key={flight.id}>
+          {flight.flightNumber ?? flight.id}: {t("airport.cancelled")} - {t("maintenance.reason." + (flight.cancellationReason ?? "maintenance") as TranslationKey)}
+        </li>)}
+      </ul>
+      {showPlanner ? <MaintenancePlanner aircraft={[aircraft]} game={game} initialKind={kind} onClose={() => setShowPlanner(false)} /> : null}
     </section>
   );
 }

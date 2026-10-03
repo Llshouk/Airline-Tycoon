@@ -42,7 +42,7 @@ export function calculateScheduledCapacityForRoute(routeId: string, game: GameSt
       });
 
     aircraft.schedule
-      .filter((item) => item.routeId === routeId && !item.weeklyScheduleId && item.status !== "completed")
+      .filter((item) => item.routeId === routeId && !item.weeklyScheduleId && (item.status === "scheduled" || item.status === "in-flight"))
       .forEach(() => addLayoutCapacity(capacity, aircraft.cabinLayout, 1));
   });
 

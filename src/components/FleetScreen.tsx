@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Plane } from "lucide-react";
+import { ChevronDown, ChevronRight, Plane, Wrench } from "lucide-react";
+import { MaintenancePlanner } from "@/components/MaintenancePlanner";
 import { useEffect, useMemo, useState } from "react";
 import { AircraftDetailPanel } from "@/components/AircraftDetailPanel";
 import { aircraftById } from "@/data/aircraft";
@@ -16,9 +17,12 @@ export function FleetScreen() {
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [baseFilter, setBaseFilter] = useState("all");
+  const [needsService, setNeedsService] = useState(false);
+  const [showPlanner, setShowPlanner] = useState(false);
   const filteredFleet = useMemo(
-    () => (game ? (baseFilter === "all" ? game.fleet : game.fleet.filter((aircraft) => aircraft.homeBaseAirportId === baseFilter)) : []),
-    [baseFilter, game]
+    () => (game ? game.fleet.filter((aircraft) => (baseFilter === "all" || aircraft.homeBaseAirportId === baseFilter) &&
+      (!needsService || aircraft.lifecycle?.reservation || getMaintenanceStatus(normalizeAircraftLifecycle(aircraft, game.currentGameTimeMs), game.currentGameTimeMs) !== "healthy")) : []),
+    [baseFilter, game, needsService]
   );
   const groups = useMemo(() => groupFleetByModel(filteredFleet), [filteredFleet]);
   const selectedAircraft = game && selectedAircraftId ? game.fleet.find((aircraft) => aircraft.id === selectedAircraftId) : null;
@@ -60,6 +64,16 @@ export function FleetScreen() {
           </select>
         </label>
       </section>
+      <div className="flex flex-wrap items-center gap-3 border-y border-slate-200 py-3">
+        <label className="flex items-center gap-2 text-sm font-bold text-ink">
+          <input type="checkbox" checked={needsService} onChange={(event) => setNeedsService(event.target.checked)} />
+          {t("maintenance.needsService")}
+        </label>
+        <button type="button" disabled={!filteredFleet.length} onClick={() => setShowPlanner(true)}
+          className="flex min-h-10 items-center gap-2 rounded-md bg-jet px-3 py-2 text-sm font-bold text-white disabled:opacity-40">
+          <Wrench size={16} />{t("maintenance.batch")}
+        </button>
+      </div>
       {game.fleet.length === 0 ? (
         <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-soft">
           <Plane className="mx-auto text-coral" size={36} />
@@ -117,6 +131,9 @@ export function FleetScreen() {
                             <span className={`mt-1 block ${maintenanceStatus === "healthy" ? "text-slate-500" : "text-coral"}`}>
                               {lifecycle.condition.toFixed(1)}% · {t(`maintenance.status.${maintenanceStatus}`)}
                             </span>
+                            {lifecycle.reservation ? <span className="mt-1 block text-coral">
+                              {t(lifecycle.reservation.state === "blocked" ? "maintenance.blocked" : "maintenance.reserved")}
+                            </span> : null}
                           </span>
                         </button>
                       );
@@ -141,6 +158,7 @@ export function FleetScreen() {
         </div>
       )}
       {selectedAircraft ? <AircraftDetailPanel aircraft={selectedAircraft} game={game} onClose={() => setSelectedAircraftId(null)} /> : null}
+      {showPlanner ? <MaintenancePlanner aircraft={filteredFleet} game={game} onClose={() => setShowPlanner(false)} /> : null}
     </div>
   );
 }

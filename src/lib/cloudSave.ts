@@ -30,6 +30,9 @@ export type CompactAircraftSave = Pick<
   | "passengerCount"
   | "cargoTransportedTons"
   | "lifecycle"
+  | "totalProfit"
+  | "profitHistoryIncomplete"
+  | "operationsThroughGameTimeMs"
 >;
 
 export type CompactRouteSave = Pick<
@@ -63,6 +66,7 @@ export type CompactGameSave = Pick<
   | "passengerCount"
   | "cargoTransportedTons"
   | "lastTickRealMs"
+  | "airportRulesEnabled"
 > & {
   fleet: CompactAircraftSave[];
   routes: CompactRouteSave[];
@@ -190,6 +194,7 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
     currentGameTimeMs: gameState.currentGameTimeMs,
     timeMultiplier: gameState.timeMultiplier,
     isPaused: gameState.isPaused,
+    airportRulesEnabled: gameState.airportRulesEnabled === true,
     fleet: gameState.fleet.map((aircraft) => ({
       id: aircraft.id,
       modelId: aircraft.modelId,
@@ -202,6 +207,9 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
       cabinLayout: aircraft.cabinLayout,
       purchasePriceGBP: aircraft.purchasePriceGBP,
       totalRevenue: aircraft.totalRevenue,
+      totalProfit: aircraft.totalProfit,
+      profitHistoryIncomplete: aircraft.profitHistoryIncomplete,
+      operationsThroughGameTimeMs: aircraft.operationsThroughGameTimeMs,
       totalFlights: aircraft.totalFlights,
       passengerCount: aircraft.passengerCount,
       cargoTransportedTons: aircraft.cargoTransportedTons,
@@ -337,6 +345,7 @@ function restoreCompactGameState(compact: CompactGameSave): GameState {
     currentGameTimeMs: compact.currentGameTimeMs,
     timeMultiplier: compact.timeMultiplier,
     isPaused: compact.isPaused,
+    airportRulesEnabled: compact.airportRulesEnabled === true,
     fleet: compact.fleet.map((aircraft) => ({
       ...aircraft,
       lifecycle: normalizeAircraftLifecycle(aircraft, compact.currentGameTimeMs)
@@ -527,6 +536,7 @@ function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): Comp
     currentGameTimeMs: raw.currentGameTimeMs ?? Date.UTC(2026, 0, 1, 6, 0, 0),
     timeMultiplier,
     isPaused: raw.isPaused ?? false,
+    airportRulesEnabled: raw.airportRulesEnabled === true,
     fleet: (raw.fleet ?? []) as CompactAircraftSave[],
     routes: (raw.routes ?? []) as CompactRouteSave[],
     flightLogSummary: raw.flightLogSummary ?? raw.flightLog ?? [],
@@ -575,13 +585,15 @@ export function pruneOperationalFlights<T extends { status: string; actualArriva
   flights: T[],
   now: number
 ): T[] {
+  const referenceTime = (flight: T) => flight.actualArrivalGameTime ?? flight.scheduledArrivalGameTime ?? flight.arrivalGameTime ?? now;
+  const historical = (flight: T) => (flight.status === "completed" || flight.status === "cancelled") && referenceTime(flight) <= now;
   const retained = flights.filter((flight) => {
-    if (flight.status !== "completed") return true;
-    const referenceTime = flight.actualArrivalGameTime ?? flight.scheduledArrivalGameTime ?? flight.arrivalGameTime ?? now;
-    return now - referenceTime <= MAX_OPERATIONAL_HISTORY_MS;
+    if (!historical(flight)) return true;
+    return now - referenceTime(flight) <= MAX_OPERATIONAL_HISTORY_MS;
   });
-  const completed = retained.filter((flight) => flight.status === "completed").slice(-MAX_OPERATIONAL_FLIGHTS_PER_AIRCRAFT);
-  const active = retained.filter((flight) => flight.status !== "completed");
+  // Future cancellations are tombstones, not history: keep them until their date passes.
+  const completed = retained.filter(historical).slice(-MAX_OPERATIONAL_FLIGHTS_PER_AIRCRAFT);
+  const active = retained.filter((flight) => !historical(flight));
   return [...completed, ...active].sort((left, right) => {
     const leftTime = left.actualDepartureGameTime ?? 0;
     const rightTime = right.actualDepartureGameTime ?? 0;

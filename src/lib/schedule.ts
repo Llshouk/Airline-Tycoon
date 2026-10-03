@@ -1,5 +1,7 @@
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
+import { maintenancePreview } from "@/lib/maintenancePlanning";
+import { quoteMaintenance } from "@/lib/aircraftMaintenance";
 import { dayOfWeekForGameTime, flightWaitMs, timeOfDayMs } from "@/lib/time";
 import type { AircraftInstance, DayOfWeek, Route, ScheduleItem, WeeklySchedule } from "@/types/game";
 
@@ -17,7 +19,7 @@ export const weekDays = [
   { id: 6, label: "Sunday", short: "Sun" }
 ] satisfies { id: DayOfWeek; label: string; short: string }[];
 
-export type ScheduleBlockKind = "flight" | "delayed" | "turnaround" | "preview" | "conflict";
+export type ScheduleBlockKind = "flight" | "delayed" | "turnaround" | "preview" | "conflict" | "cancelled" | "maintenance";
 
 export interface ScheduleBlock {
   id: string;
@@ -220,7 +222,7 @@ export function weeklyEventBlocksFromSchedule(aircraft: AircraftInstance, routes
           id: `${item.id}-flight`,
           startMinuteOfWeek: start,
           endMinuteOfWeek: start + flightMinutes,
-          kind: delayMinutes > 0 ? "delayed" : "flight",
+          kind: item.status === "cancelled" ? "cancelled" : delayMinutes > 0 ? "delayed" : "flight",
           title,
           subtitle: `${minutesToTime(departureMinute)}-${minutesToTime(departureMinute + flightMinutes)}`,
           tooltip: `${title}\n${aircraft.registration}\n${statusLine}\nDuration ${flightMinutes}m`,
@@ -228,7 +230,7 @@ export function weeklyEventBlocksFromSchedule(aircraft: AircraftInstance, routes
           flightNumber: item.flightNumber
         })
       );
-      blocks.push(
+      if (item.status !== "cancelled") blocks.push(
         ...splitBlockAcrossDays({
           id: `${item.id}-turnaround`,
           startMinuteOfWeek: start + flightMinutes,
@@ -242,6 +244,21 @@ export function weeklyEventBlocksFromSchedule(aircraft: AircraftInstance, routes
       );
     });
 
+  const task = aircraft.lifecycle?.maintenance;
+  const plan = aircraft.lifecycle?.reservation;
+  const preview = plan?.state === "scheduled" ? maintenancePreview(aircraft, plan.kind, 0, plan.afterFlightId) : null;
+  const reservedStart = plan?.state === "scheduled" ? plan.startsAfterGameTimeMs ?? preview?.start : undefined;
+  const maintenanceStart = task?.startedGameTimeMs ?? reservedStart;
+  const maintenanceEnd = task?.completesGameTimeMs ?? (reservedStart !== undefined && plan && aircraft.lifecycle ?
+    reservedStart + quoteMaintenance(model, aircraft.lifecycle, plan.kind).durationMs : undefined);
+  if (maintenanceStart !== undefined && maintenanceEnd !== undefined) {
+    const start = dayOfWeekForGameTime(maintenanceStart) * DAY_MINUTES + timeToMinutes(formatUtcTime(maintenanceStart));
+    blocks.push(...splitBlockAcrossDays({
+      id: aircraft.id + "-maintenance", startMinuteOfWeek: start,
+      endMinuteOfWeek: start + (maintenanceEnd - maintenanceStart) / 60_000,
+      kind: "maintenance", title: "Maintenance", subtitle: "UTC", tooltip: aircraft.registration + " maintenance"
+    }));
+  }
   return blocks;
 }
 
@@ -349,6 +366,7 @@ export function validateWeeklySchedule(input: {
   }
   if (input.route.distanceKm > aircraftById[input.aircraft.modelId].rangeKm) return "Aircraft range is insufficient for this route.";
   const duplicate = input.existingSchedules.find((item) => {
+    if (item.status !== "scheduled" && item.status !== "in-flight") return false;
     const itemMinute = timeToMinutes(formatUtcTime(item.departureGameTime));
     const sameTime = item.operatingDay !== undefined && input.daysOfWeek.includes(item.operatingDay) && itemMinute === timeToMinutes(input.departureTimeLocal);
     return sameTime && (item.flightNumber === outbound.flightNumber || item.flightNumber === input.returnFlightNumber?.trim().toUpperCase());

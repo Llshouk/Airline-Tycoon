@@ -3,8 +3,8 @@ import type { DifficultyConfig, GameDifficulty } from "@/config/difficulty";
 export type AirportSizeTier = "regional" | "large" | "mega";
 export type CabinClass = "first" | "business" | "premiumEconomy" | "economy";
 export type AircraftStatus = "idle" | "scheduled" | "in-flight" | "maintenance" | "grounded";
-export type FlightStatus = "scheduled" | "in-flight" | "completed";
-export type FlightOperationalStatus = "onTime" | "delayed" | "departed" | "arrived" | "grounded";
+export type FlightStatus = "scheduled" | "in-flight" | "completed" | "cancelled";
+export type FlightOperationalStatus = "onTime" | "delayed" | "departed" | "arrived" | "grounded" | "cancelled";
 export type RouteBand = "short-haul" | "medium-haul" | "long-haul";
 export type AircraftVisualVariant = "narrow-body" | "wide-body" | "long-haul-wide-body";
 export type TimeMultiplier = 1 | 5 | 10 | 20 | 50 | 100;
@@ -23,6 +23,7 @@ export interface Airport {
   lng: number;
   sizeTier: AirportSizeTier;
   baseDemandScore: number;
+  timeZone?: string;
 }
 
 export interface AircraftModel {
@@ -121,6 +122,9 @@ export interface AircraftInstance {
   passengerCount: number;
   cargoTransportedTons: number;
   lifecycle?: AircraftLifecycle;
+  totalProfit?: number;
+  profitHistoryIncomplete?: boolean;
+  operationsThroughGameTimeMs?: number;
 }
 
 export type MaintenanceKind = "inspection" | "service";
@@ -132,6 +136,14 @@ export interface AircraftMaintenanceTask {
   totalCost: number;
   reserveUsed: number;
   cashCost: number;
+}
+
+export interface AircraftMaintenanceReservation {
+  kind: MaintenanceKind;
+  afterFlightId: string;
+  state: "scheduled" | "blocked";
+  startsAfterGameTimeMs?: number;
+  error?: "missing" | "cash" | "grounded";
 }
 
 export interface AircraftLifecycle {
@@ -146,6 +158,8 @@ export interface AircraftLifecycle {
   totalMaintenanceCost: number;
   totalMaintenanceCashCost: number;
   maintenance?: AircraftMaintenanceTask;
+  reservation?: AircraftMaintenanceReservation;
+  recovery?: { startsGameTimeMs: number; completesGameTimeMs: number; airportId: string };
 }
 
 export interface ScheduleItem {
@@ -178,6 +192,7 @@ export interface ScheduleItem {
   profit?: number;
   passengerCount?: number;
   cargoTons?: number;
+  cancellationReason?: "maintenance" | "position";
 }
 
 export interface WeeklySchedule {
@@ -238,6 +253,7 @@ export interface GameState {
   cargoTransportedTons: number;
   lastTickRealMs: number;
   updatedAt?: string;
+  airportRulesEnabled?: boolean;
 }
 
 export interface ActiveFlightInfo {

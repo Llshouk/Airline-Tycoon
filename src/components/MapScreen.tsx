@@ -1043,7 +1043,7 @@ function FlightBoardColumn({
               </span>
               {!compact ? <span className="truncate font-mono font-bold text-slate-300">{row.aircraft.registration}</span> : null}
               <span className={`justify-self-end rounded px-2 py-1 text-[10px] font-black uppercase tracking-normal ${row.isDelayed ? "bg-amber-300 text-slate-950" : "bg-white/10 text-slate-100"}`}>
-                {row.item.operationalStatus === "grounded" ? t("maintenance.status.grounded") : row.isDelayed ? `${t("airport.delayed")} ${formatBoardTime(row.actualTime)}` : airportStatusLabel(row.statusKey, t)}
+                {row.item.status === "cancelled" ? t("airport.cancelled") : row.item.operationalStatus === "grounded" ? t("maintenance.status.grounded") : row.isDelayed ? `${t("airport.delayed")} ${formatBoardTime(row.actualTime)}` : airportStatusLabel(row.statusKey, t)}
               </span>
             </div>
           ))}
@@ -1128,6 +1128,7 @@ function shouldShowDepartureOnAirportBoard({
   const scheduledTime = flight.scheduledDepartureGameTime ?? flight.departureGameTime;
   const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
   if (!scheduledToday) return false;
+  if (flight.status === "cancelled") return true;
   if (flight.operationalStatus === "grounded") return true;
 
   const departureTime = flight.actualDepartureGameTime ?? scheduledTime;
@@ -1149,6 +1150,7 @@ function shouldShowArrivalOnAirportBoard({
   const scheduledTime = flight.scheduledArrivalGameTime ?? flight.arrivalGameTime;
   const scheduledToday = scheduledTime >= windowStart && scheduledTime < windowEnd;
   if (!scheduledToday) return false;
+  if (flight.status === "cancelled") return true;
 
   const arrivalTime = flight.actualArrivalGameTime ?? scheduledTime;
   const minutesSinceArrival = (now - arrivalTime) / 60_000;

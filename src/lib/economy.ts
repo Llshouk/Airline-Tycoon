@@ -1,6 +1,8 @@
 import { GAME_BALANCE, GAME_REVENUE_MULTIPLIER, PRICE_ELASTICITY } from "@/config/gameBalance";
 import { getDifficultyConfig, type DifficultyConfig } from "@/config/difficulty";
 import { calculateRouteEconomics, calculateScheduleFrequency } from "@/lib/economics/routeEconomics";
+import { nightPassengerDemandMultiplier } from "@/lib/airportOperations";
+import { DAY_MS, WEEK_MS, timeOfDayMs, weekStartMs } from "@/lib/time";
 import type { AircraftInstance, AircraftModel, CabinDemand, CabinLayout, CabinPrices, Route, RoutePricing, WeeklySchedule } from "@/types/game";
 
 type PriceDemandClass = keyof RoutePricing;
@@ -35,11 +37,17 @@ export function estimateFlightFinancials(
   model: AircraftModel,
   aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout,
   seed: number,
-  difficultyConfig?: DifficultyConfig
+  difficultyConfig?: DifficultyConfig,
+  operations?: { departureGameTimeMs: number; originAirportId: string }
 ) {
   const difficulty = difficultyConfig ?? getDifficultyConfig("easy");
   const cabinLayout = "cabinLayout" in aircraft ? aircraft.cabinLayout : aircraft;
   const adjustedDemand = estimatePriceAdjustedDemand(route);
+  const nightMultiplier = nightPassengerDemandMultiplier(route.distanceKm, operations?.originAirportId ?? route.originAirportId, operations?.departureGameTimeMs);
+  const timedDemand = { ...adjustedDemand };
+  for (const cabin of ["first", "business", "premiumEconomy", "economy"] as const) {
+    timedDemand[cabin] = Math.round(timedDemand[cabin] * nightMultiplier);
+  }
   const prices = route.pricing ?? routePricingFromDefaults(route);
   const longHaulBonus = route.distanceKm >= 5500 ? GAME_BALANCE.longHaulRevenueBonus : 1;
   // Easy uses the existing gameplay-balanced revenue model. Simulation stacks an
@@ -55,7 +63,7 @@ export function estimateFlightFinancials(
     cruiseSpeedKmh: model.cruiseSpeedKmh,
     fuelCostPerKm: model.fuelCostPerKm,
     cabinLayout,
-    demand: adjustedDemand,
+    demand: timedDemand,
     pricing: prices,
     loadFactor: GAME_BALANCE.minLoadFactor + deterministicNoise(seed) * (GAME_BALANCE.maxLoadFactor - GAME_BALANCE.minLoadFactor),
     cargoLoadFactor: 0.78 + deterministicNoise(seed + 17) * 0.2,
@@ -64,13 +72,14 @@ export function estimateFlightFinancials(
 
   return {
     soldSeats: economics.soldSeats,
-    adjustedDemand,
+    adjustedDemand: timedDemand,
     passengerCount: economics.passengerCount,
     cargoTons: economics.cargoTons,
     revenue: Math.round(economics.estimatedRevenuePerFlight),
     cost: Math.round(economics.estimatedTotalCostPerFlight),
     profit: Math.round(economics.estimatedOperatingProfitPerFlight),
-    economics
+    economics,
+    nightDemandMultiplier: nightMultiplier
   };
 }
 
@@ -163,7 +172,8 @@ export function estimateWeeklyScheduleFinancials(
   route: Route,
   model: AircraftModel,
   aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout,
-  difficultyConfig?: DifficultyConfig
+  difficultyConfig?: DifficultyConfig,
+  referenceGameTimeMs?: number
 ) {
   return estimateScheduleFinancials({
     route,
@@ -171,7 +181,9 @@ export function estimateWeeklyScheduleFinancials(
     aircraft,
     daysOfWeek: schedule.daysOfWeek,
     isRoundTrip: schedule.isRoundTrip,
-    difficultyConfig
+    difficultyConfig,
+    departureTimeLocal: schedule.departureTimeLocal,
+    referenceGameTimeMs
   });
 }
 
@@ -182,9 +194,27 @@ export function estimateScheduleFinancials(input: {
   daysOfWeek: unknown[];
   isRoundTrip: boolean;
   difficultyConfig?: DifficultyConfig;
+  departureTimeLocal?: string;
+  referenceGameTimeMs?: number;
 }) {
   const cabinLayout = "cabinLayout" in input.aircraft ? input.aircraft.cabinLayout : input.aircraft;
-  const perFlight = estimateExpectedFlightProfit(input.route, input.model, cabinLayout, input.difficultyConfig);
+  const reference = input.referenceGameTimeMs ?? Date.UTC(2026, 0, 1);
+  const days = [...new Set(input.daysOfWeek.filter((day): day is number => Number.isInteger(day) && Number(day) >= 0 && Number(day) <= 6))];
+  const departures = days.map((day) => {
+    let time = weekStartMs(reference) + day * DAY_MS + timeOfDayMs(input.departureTimeLocal ?? "12:00");
+    if (time < reference) time += WEEK_MS;
+    return time;
+  });
+  const seed = stableSeed(input.route.id.length + input.model.id.length);
+  const estimateLeg = (departure: number, originAirportId: string) => estimateFlightFinancials(input.route, input.model, cabinLayout, seed,
+    input.difficultyConfig, input.departureTimeLocal ? { departureGameTimeMs: departure, originAirportId } : undefined);
+  const estimates = departures.flatMap((departure) => {
+    const outbound = estimateLeg(departure, input.route.originAirportId);
+    if (!input.isRoundTrip) return [outbound];
+    const returning = departure + input.route.distanceKm / input.model.cruiseSpeedKmh * 3_600_000 + input.model.turnaroundMinutes * 60_000;
+    return [outbound, estimateLeg(returning, input.route.destinationAirportId)];
+  });
+  const perFlight = estimates[0] ?? estimateExpectedFlightProfit(input.route, input.model, cabinLayout, input.difficultyConfig);
   const frequency = calculateScheduleFrequency(input.daysOfWeek, input.isRoundTrip);
   const weeklyFlights = frequency.flightsPerWeek;
   return {
@@ -192,11 +222,12 @@ export function estimateScheduleFinancials(input: {
     servicesPerWeek: frequency.servicesPerWeek,
     legsPerService: frequency.legsPerService,
     weeklyFlights,
-    weeklyRevenue: perFlight.revenue * weeklyFlights,
-    weeklyCost: perFlight.cost * weeklyFlights,
-    weeklyProfit: perFlight.profit * weeklyFlights,
-    weeklyPassengerCount: perFlight.passengerCount * weeklyFlights,
-    weeklyCargoTons: Math.round(perFlight.cargoTons * weeklyFlights * 10) / 10
+    weeklyRevenue: estimates.reduce((sum, leg) => sum + leg.revenue, 0),
+    weeklyCost: estimates.reduce((sum, leg) => sum + leg.cost, 0),
+    weeklyProfit: estimates.reduce((sum, leg) => sum + leg.profit, 0),
+    weeklyPassengerCount: estimates.reduce((sum, leg) => sum + leg.passengerCount, 0),
+    weeklyCargoTons: Math.round(estimates.reduce((sum, leg) => sum + leg.cargoTons, 0) * 10) / 10,
+    nightFlights: estimates.filter((leg) => leg.nightDemandMultiplier < 1).length
   };
 }
 

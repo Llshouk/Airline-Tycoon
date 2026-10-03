@@ -4,32 +4,45 @@
 
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
-- Current version: `1.5.0`
+- Current version: `1.5.1`
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
 - V1.4.0 release HEAD / V1.5.0 baseline: `8b696cd96e6bc5d53d2b95d6ae80f397a0140f01`
-- Current release checkpoint: the V1.5.0 release commit containing this document
+- Previous published checkpoint: V1.5.0 (`ae15963`)
+- Current release checkpoint: the V1.5.1 release commit containing this document
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
-- Working-tree status: green V1.5.0 release checkpoint
-- Latest focused review date: 2026-10-02
-- Latest successful production build: `pnpm run build` passed on 2026-10-02 with Next.js 15.5.24
+- Release status: verified V1.5.1 checkpoint; direct main-branch publication requested by the user
+- Latest focused review date: 2026-10-03
+- Latest successful production build: `pnpm run build` passed on 2026-10-03 with Next.js 15.5.24; disposable maintenance route removed
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
 - No earlier `ACTIVE.md` or WIP patch existed at audit start
 
 ## Roadmap Position
 
 - Current major version: V1
-- Current minor version: V1.5.0
-- Current release objective: Aircraft Maintenance and Reliability; stop before V1.6 work
+- Current minor version: V1.5.1
+- Current release objective: Maintenance Reservations and Stability; stop before V1.6 work
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
-- Simplified maintenance scope: immediate ground-based inspections/service and retained-flight holds work; future bookings, workshop capacity, model-specific verified limits, and explicit cancellation/rebooking remain TODOs
+- Simplified maintenance scope: immediate ground work, dated after-flight reservations, conflict cancellation/recovery, and batch booking work; workshop capacity, replacement aircraft and model-specific verified limits remain TODOs
 - Next planned release: V1.6.0 Reputation and Passenger Experience
 - Release-gate status: V1.5 automated tests, typecheck, lint, maintenance browser acceptance, responsive layout, save compatibility, dependency audit, updated-map smoke, production build, and production asset checks pass
 
 ## Current Objective
 
-Resume the user's requested next unfinished release from the clean V1.4.0 checkpoint, release V1.5.0 with independent aircraft lifecycle and maintenance, review confirmed redundant code, preserve authoritative cash/save behavior, and stop before V1.6.0.
+Publish the approved V1.5.1 maintenance reservation and stability changes to Llshouk/Airline-Tycoon on main, as requested by the user. Package, visible titles, PWA cache metadata and documentation are aligned. Preserve save compatibility and stop before V1.6.
+
+## Maintenance Follow-Up Evidence (2026-10-03)
+
+- Reserve after a specific dated flight; start follows actual landing and turnaround, including delays. Batch Fleet planning retains separate anchors and aircraft records.
+- Cancel maintenance-conflicting dated legs, then skip wrong-origin departures until position-compatible recovery. Weekly templates remain unchanged; old active tasks without recovery retain delay compatibility.
+- Failed starts show an actionable blocked reservation; booking has no fee. Maintenance deducts whole-GBP shortfalls only once. Per-aircraft cumulative profit preserves new history and labels incomplete legacy history.
+- New airport/night scope: short-haul local-night passenger demand 85%, unchanged cargo/long-haul; optional default-off FRA planning curfew and LHR advisory with DST-aware local time. UTC timetable semantics are unchanged.
+- 56 tests pass, including 100-aircraft catch-up, JSON reload, future cancellation retention beyond the history cap, pruned dated-event regeneration prevention, cross-day maintenance and DST.
+- Real Fleet/detail browser acceptance passes single/batch reservation, cancellation preview, once-only cash, reload, recovery and English/Chinese 390px layouts. No JavaScript runtime errors; unrelated baseline favicon 404 remains.
+- Disposable browser fixture removed after acceptance. No dependency, Supabase schema or aircraft asset change. Version metadata advanced to 1.5.1 at the user's request; save format and storage keys are unchanged. Authenticated live cloud requests remain untested.
+- See the maintenance and code-health documents for current limitations. The user has now authorized direct commit/push to main for V1.5.1.
+- Final lint, typecheck and clean production build passed. Production homepage, A220 asset and map worker return 200; removed maintenance fixture returns 404. Local development homepage returns 200 at http://localhost:3015.
 
 ## V1.5.0 Work and Evidence
 
@@ -510,12 +523,12 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 ## Next Exact Action
 
-Stop at the green V1.5.0 checkpoint after commit/push to `main`. V1.6.0 Reputation and Passenger Experience has not begun.
+Confirm the V1.5.1 main-branch commit and its Vercel deployment status after publication. The verified local version remains available at http://localhost:3015. V1.6.0 has not begun.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
-2. Confirm the V1.5.0 release checkpoint is on `main` and synchronized with `origin/main`.
+2. Confirm the V1.5.1 release checkpoint is on `main` and synchronized with `origin/main`; do not discard any later local changes.
 3. Treat `src/lib/economics/*` as the canonical calculation layer and `src/lib/economy.ts` as the compatibility and settlement boundary.
 4. Preserve preview purity, canonical `money`, save compatibility, and one-record-per-aircraft state in all future work.
 5. Treat `aircraftMaintenance.ts` as the lifecycle/compatibility owner and `aircraftOperations.ts` as the chronological flight-settlement owner; do not create a second cash or maintenance timeline.

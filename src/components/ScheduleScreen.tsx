@@ -11,6 +11,7 @@ import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
 import { estimateScheduleFinancials, estimateWeeklyScheduleFinancials } from "@/lib/economy";
+import { weeklyAirportIssues } from "@/lib/airportOperations";
 import { formatGBP, formatNumber } from "@/lib/format";
 import {
   ALLOWED_SCHEDULE_MINUTES,
@@ -153,14 +154,23 @@ export function ScheduleScreen() {
       aircraft: selectedAircraft,
       daysOfWeek: selectedDays,
       isRoundTrip,
-      difficultyConfig: game.difficultyConfig
+      difficultyConfig: game.difficultyConfig,
+      departureTimeLocal,
+      referenceGameTimeMs: game.currentGameTimeMs
     });
     return {
       oneWayMs,
       blockMs: isRoundTrip ? oneWayMs * 2 + turnaroundMs * 2 : oneWayMs + turnaroundMs,
       estimate
     };
-  }, [game, isRoundTrip, model, selectedAircraft, selectedDays, selectedRoute]);
+  }, [game, departureTimeLocal, isRoundTrip, model, selectedAircraft, selectedDays, selectedRoute]);
+
+  const airportIssues = game?.airportRulesEnabled && selectedRoute && model ? weeklyAirportIssues({
+    route: selectedRoute, model, daysOfWeek: selectedDays, departureTimeLocal,
+    isRoundTrip, referenceGameTimeMs: game.currentGameTimeMs
+  }) : [];
+  const curfewIssue = airportIssues.find((issue) => issue.blocking);
+  const curfewError = curfewIssue ? "Airport curfew: " + airportsById[curfewIssue.airportId].iata + " " + curfewIssue.localTime : null;
 
   const preview = useMemo(() => {
     if (!game || !selectedAircraft || !selectedRoute) return { blocks: [], conflict: false, error: null as string | null };
@@ -176,7 +186,7 @@ export function ScheduleScreen() {
       schedules: game.fleet.flatMap((aircraft) => aircraft.weeklySchedules),
       currentScheduleId: editingScheduleId ?? undefined
     });
-    const error = duplicateFlightNumber
+    const error = curfewError ?? (duplicateFlightNumber
       ? "Flight number already exists. Please use a unique flight number."
       : validateWeeklySchedule({
       aircraft: selectedAircraft,
@@ -187,7 +197,7 @@ export function ScheduleScreen() {
       returnFlightNumber,
       isRoundTrip,
       existingSchedules: baselineAircraft.schedule
-    });
+    }));
     const tentative = previewBlocksForWeeklySchedule({
       aircraft: selectedAircraft,
       route: selectedRoute,
@@ -210,7 +220,7 @@ export function ScheduleScreen() {
       conflict
     });
     return { blocks, conflict, error: error ?? (conflict ? "Schedule conflict: preview overlaps existing aircraft timetable." : null) };
-  }, [departureTimeLocal, editingScheduleId, game, isRoundTrip, outboundFlightNumber, returnFlightNumber, selectedAircraft, selectedDays, selectedRoute]);
+  }, [curfewError, departureTimeLocal, editingScheduleId, game, isRoundTrip, outboundFlightNumber, returnFlightNumber, selectedAircraft, selectedDays, selectedRoute]);
 
   const demandPreview = useMemo(() => {
     if (!game || !selectedAircraft || !selectedRoute) return null;
@@ -535,6 +545,12 @@ export function ScheduleScreen() {
               {t("schedule.roundTrip")}
             </button>
           </div>
+          {airportIssues.length > 0 ? <p role="status" className="border-l-2 border-amber-500 px-3 py-2 text-sm font-bold text-amber-800">
+            {t(curfewIssue ? "airport.curfew" : "airport.restricted")}: {airportsById[(curfewIssue ?? airportIssues[0]).airportId]?.iata} {(curfewIssue ?? airportIssues[0]).localTime} ({t("airport.localTime")})
+          </p> : null}
+          {projection && projection.estimate.nightFlights > 0 ? <p className="border-l-2 border-amber-500 px-3 py-2 text-sm font-bold text-amber-800">
+            {t("airport.nightDemand")}: 85% / {projection.estimate.nightFlights} {t("economics.weeklyFlights")}
+          </p> : null}
           {selectedAircraft && (selectedAircraft.status === "maintenance" || selectedAircraft.status === "grounded") ? (
             <p className="border-l-2 border-coral pl-3 text-sm font-semibold text-coral">
               {t(`maintenance.status.${selectedAircraft.status}`)}. {t("maintenance.scheduleRetained")}
@@ -602,7 +618,7 @@ export function ScheduleScreen() {
                   const route = game.routes.find((item) => item.id === service.routeId);
                   const serviceModel = aircraftById[selectedAircraft.modelId];
                   if (!route || !serviceModel) return null;
-                  const estimate = estimateWeeklyScheduleFinancials(service, route, serviceModel, selectedAircraft, game.difficultyConfig);
+                  const estimate = estimateWeeklyScheduleFinancials(service, route, serviceModel, selectedAircraft, game.difficultyConfig, game.currentGameTimeMs);
                   return (
                     <div key={service.id} className="rounded-md border border-slate-200 p-3">
                       <p className="font-bold text-ink">
@@ -895,6 +911,7 @@ function scheduleTimeParts(value: string) {
 }
 
 function localizeScheduleError(message: string, t: ReturnType<typeof useTranslation>["t"]) {
+  if (message.startsWith("Airport curfew: ")) return t("airport.curfew") + ": " + message.slice("Airport curfew: ".length) + " (" + t("airport.localTime") + ")";
   if (message === "Flight number already exists. Please use a unique flight number.") {
     return t("schedule.flightNumberDuplicateFull");
   }

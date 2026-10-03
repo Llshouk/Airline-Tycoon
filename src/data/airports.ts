@@ -1,6 +1,6 @@
 import type { Airport } from "@/types/game";
 
-export const airports: Airport[] = [
+const airportData: Airport[] = [
   { id: "lhr", iata: "LHR", icao: "EGLL", name: "Heathrow Airport", city: "London", country: "United Kingdom", lat: 51.47, lng: -0.4543, sizeTier: "mega", baseDemandScore: 98 },
   { id: "lgw", iata: "LGW", icao: "EGKK", name: "Gatwick Airport", city: "London", country: "United Kingdom", lat: 51.1537, lng: -0.1821, sizeTier: "large", baseDemandScore: 82 },
   { id: "man", iata: "MAN", icao: "EGCC", name: "Manchester Airport", city: "Manchester", country: "United Kingdom", lat: 53.365, lng: -2.2728, sizeTier: "large", baseDemandScore: 72 },
@@ -33,4 +33,16 @@ export const airports: Airport[] = [
   { id: "cpt", iata: "CPT", icao: "FACT", name: "Cape Town International Airport", city: "Cape Town", country: "South Africa", lat: -33.9715, lng: 18.6021, sizeTier: "large", baseDemandScore: 66 }
 ];
 
+const timeZones: Record<string, string> = {
+  lhr: "Europe/London", lgw: "Europe/London", man: "Europe/London", edi: "Europe/London",
+  cdg: "Europe/Paris", ams: "Europe/Amsterdam", fra: "Europe/Berlin", mad: "Europe/Madrid",
+  bcn: "Europe/Madrid", fco: "Europe/Rome", zrh: "Europe/Zurich", ist: "Europe/Istanbul",
+  dxb: "Asia/Dubai", doh: "Asia/Qatar", jfk: "America/New_York", lax: "America/Los_Angeles",
+  ord: "America/Chicago", atl: "America/New_York", sin: "Asia/Singapore", hkg: "Asia/Hong_Kong",
+  hnd: "Asia/Tokyo", nrt: "Asia/Tokyo", icn: "Asia/Seoul", bkk: "Asia/Bangkok",
+  syd: "Australia/Sydney", mel: "Australia/Melbourne", yyz: "America/Toronto",
+  gru: "America/Sao_Paulo", jnb: "Africa/Johannesburg", cpt: "Africa/Johannesburg"
+};
+
+export const airports = airportData.map((airport) => ({ ...airport, timeZone: timeZones[airport.id] }));
 export const airportsById = Object.fromEntries(airports.map((airport) => [airport.id, airport]));

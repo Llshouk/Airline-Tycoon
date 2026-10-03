@@ -2,6 +2,7 @@
 
 import { weekDays, weeklyEventBlocksFromSchedule, type ScheduleBlock } from "@/lib/schedule";
 import type { AircraftInstance, Route } from "@/types/game";
+import { useTranslation } from "@/i18n";
 
 const PIXELS_PER_HOUR = 36;
 
@@ -16,6 +17,7 @@ export function AircraftWeeklyTimetableGrid({
   previewBlocks?: ScheduleBlock[];
   compact?: boolean;
 }) {
+  const { t } = useTranslation();
   const persistedBlocks = aircraft ? weeklyEventBlocksFromSchedule(aircraft, routes) : [];
   const blocks = [...persistedBlocks, ...previewBlocks];
   const pixelsPerHour = compact ? 42 : PIXELS_PER_HOUR;
@@ -52,7 +54,7 @@ export function AircraftWeeklyTimetableGrid({
                   <div
                     key={block.id}
                     title={block.tooltip}
-                    className={`absolute left-1 right-1 overflow-hidden rounded-md border px-2 py-1 shadow-sm ${compact ? "text-[10px]" : "text-[11px]"} ${blockStyle(block.kind)}`}
+                    className={`absolute right-1 overflow-hidden rounded-md border px-2 py-1 shadow-sm ${block.kind === "maintenance" ? "left-1 z-0" : "left-3 z-10"} ${compact ? "text-[10px]" : "text-[11px]"} ${blockStyle(block.kind)}`}
                     style={{
                       top: (block.startMinute / 60) * pixelsPerHour,
                       height: Math.max(compact ? 20 : 18, ((block.endMinute - block.startMinute) / 60) * pixelsPerHour)
@@ -73,12 +75,16 @@ export function AircraftWeeklyTimetableGrid({
         <Legend color="bg-slate-100 bg-[repeating-linear-gradient(45deg,#f1f5f9_0,#f1f5f9_4px,#e2e8f0_4px,#e2e8f0_8px)]" label="Turnaround" />
         <Legend color="bg-sky/30" label="Preview" />
         <Legend color="bg-coral/30" label="Conflict" />
+        <Legend color="bg-red-100" label={t("airport.cancelled")} />
+        <Legend color="bg-emerald-100" label={t("maintenance.title")} />
       </div>
     </div>
   );
 }
 
 function blockStyle(kind: ScheduleBlock["kind"]) {
+  if (kind === "cancelled") return "border-red-300 bg-red-100 text-red-800 line-through";
+  if (kind === "maintenance") return "border-emerald-500 bg-emerald-100 text-emerald-900";
   if (kind === "conflict") return "border-coral bg-coral/25 text-ink";
   if (kind === "preview") return "border-sky bg-sky/30 text-ink";
   if (kind === "delayed") return "border-amber-400 bg-amber-200 text-ink";
