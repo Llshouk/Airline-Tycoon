@@ -1,22 +1,17 @@
-import { COST_BALANCE_MULTIPLIER } from "@/config/gameBalance";
+import { AIRPORT_MOVEMENT_COST, CARGO_HANDLING_COST_PER_TON, OPERATING_COST_PROFILES } from "@/config/operatingCosts";
 import type { OperatingCostBreakdown } from "@/lib/economics/economicsTypes";
+import type { AirportSizeTier, AircraftModel } from "@/types/game";
 
 // These retain the existing V1 gameplay balance. Aircraft fuelCostPerKm is a
 // gameplay coefficient, not a claim about real-world litres or kilograms.
-export const OPERATING_COST_ASSUMPTIONS = {
-  airportBaseCost: 10_000,
-  airportCostPerKm: 5,
-  crewCostPerFlightHour: 3_000,
-  maintenanceReservePerKm: 20,
-  cargoHandlingCostPerTon: 35,
-  balanceMultiplier: COST_BALANCE_MULTIPLIER
-} as const;
-
 export function calculateOperatingCosts(input: {
   distanceKm: number;
   cruiseSpeedKmh: number;
   fuelCostPerKm: number;
   cargoTons: number;
+  aircraftType?: AircraftModel["type"];
+  originAirportTier?: AirportSizeTier;
+  destinationAirportTier?: AirportSizeTier;
 }): OperatingCostBreakdown & { durationHours: number } {
   const distanceKm = finiteNonNegative(input.distanceKm);
   const cruiseSpeedKmh = finiteNonNegative(input.cruiseSpeedKmh);
@@ -33,15 +28,14 @@ export function calculateOperatingCosts(input: {
     };
   }
   const durationHours = cruiseSpeedKmh > 0 ? distanceKm / cruiseSpeedKmh : 0;
-  const multiplier = OPERATING_COST_ASSUMPTIONS.balanceMultiplier;
-  const fuelCost = distanceKm * fuelCostPerKm * multiplier;
-  const crewCost = durationHours * OPERATING_COST_ASSUMPTIONS.crewCostPerFlightHour * multiplier;
-  const airportCost =
-    (OPERATING_COST_ASSUMPTIONS.airportBaseCost +
-      distanceKm * OPERATING_COST_ASSUMPTIONS.airportCostPerKm +
-      cargoTons * OPERATING_COST_ASSUMPTIONS.cargoHandlingCostPerTon) *
-    multiplier;
-  const maintenanceReserve = distanceKm * OPERATING_COST_ASSUMPTIONS.maintenanceReservePerKm * multiplier;
+  const profile = OPERATING_COST_PROFILES[input.aircraftType ?? "narrowbody"];
+  const cruiseFuelPerHour = fuelCostPerKm * cruiseSpeedKmh * profile.cruiseFuelScale;
+  const fuelCost = cruiseFuelPerHour * durationHours + fuelCostPerKm * profile.departureFuelScale;
+  const crewCost = Math.max(profile.minimumCrewHours, durationHours) * profile.crewPerHour;
+  const airportCost = ((AIRPORT_MOVEMENT_COST[input.originAirportTier ?? "large"] ?? AIRPORT_MOVEMENT_COST.large) +
+    (AIRPORT_MOVEMENT_COST[input.destinationAirportTier ?? "large"] ?? AIRPORT_MOVEMENT_COST.large)) * profile.airportFactor +
+    cargoTons * CARGO_HANDLING_COST_PER_TON;
+  const maintenanceReserve = durationHours * profile.maintenancePerHour + profile.maintenancePerCycle;
   const totalOperatingCost = fuelCost + crewCost + airportCost + maintenanceReserve;
 
   return {

@@ -43,7 +43,7 @@ export function spendCash<T extends CashState>(game: T, cost: number): T {
 function firstValidCashValue(...values: unknown[]) {
   for (const value of values) {
     const numberValue = toFiniteNumber(value);
-    if (numberValue !== null) return normalizeCashAmount(numberValue);
+    if (numberValue !== null) return Math.round(numberValue);
   }
   return 0;
 }

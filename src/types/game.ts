@@ -1,4 +1,5 @@
 import type { DifficultyConfig, GameDifficulty } from "@/config/difficulty";
+import type { FinancialHistory } from "@/types/finance";
 
 export type AirportSizeTier = "regional" | "large" | "mega";
 export type CabinClass = "first" | "business" | "premiumEconomy" | "economy";
@@ -125,6 +126,7 @@ export interface AircraftInstance {
   totalProfit?: number;
   profitHistoryIncomplete?: boolean;
   operationsThroughGameTimeMs?: number;
+  lastCompletedFlightGameTimeMs?: number;
 }
 
 export type MaintenanceKind = "inspection" | "service";
@@ -254,6 +256,7 @@ export interface GameState {
   lastTickRealMs: number;
   updatedAt?: string;
   airportRulesEnabled?: boolean;
+  financialHistory?: FinancialHistory;
 }
 
 export interface ActiveFlightInfo {

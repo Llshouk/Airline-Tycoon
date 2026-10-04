@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { DIFFICULTY_ORDER, getDifficultyConfig, type GameDifficulty } from "@/config/difficulty";
 import { airportsById } from "@/data/airports";
 import { getCurrentCash, type CashReadableState } from "@/lib/cash";
+import { normalizeFinancialHistory } from "@/lib/financialReports";
 import { estimateDemand } from "@/lib/demand";
 import { estimateCargoRatePerTon, estimateTicketPrices, routePricingFromDefaults } from "@/lib/economy";
 import { distanceKm } from "@/lib/geo";
@@ -33,6 +34,7 @@ export type CompactAircraftSave = Pick<
   | "totalProfit"
   | "profitHistoryIncomplete"
   | "operationsThroughGameTimeMs"
+  | "lastCompletedFlightGameTimeMs"
 >;
 
 export type CompactRouteSave = Pick<
@@ -67,6 +69,7 @@ export type CompactGameSave = Pick<
   | "cargoTransportedTons"
   | "lastTickRealMs"
   | "airportRulesEnabled"
+  | "financialHistory"
 > & {
   fleet: CompactAircraftSave[];
   routes: CompactRouteSave[];
@@ -195,6 +198,7 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
     timeMultiplier: gameState.timeMultiplier,
     isPaused: gameState.isPaused,
     airportRulesEnabled: gameState.airportRulesEnabled === true,
+    financialHistory: normalizeFinancialHistory(gameState.financialHistory, gameState.currentGameTimeMs, gameState.money),
     fleet: gameState.fleet.map((aircraft) => ({
       id: aircraft.id,
       modelId: aircraft.modelId,
@@ -210,6 +214,7 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
       totalProfit: aircraft.totalProfit,
       profitHistoryIncomplete: aircraft.profitHistoryIncomplete,
       operationsThroughGameTimeMs: aircraft.operationsThroughGameTimeMs,
+      lastCompletedFlightGameTimeMs: aircraft.lastCompletedFlightGameTimeMs,
       totalFlights: aircraft.totalFlights,
       passengerCount: aircraft.passengerCount,
       cargoTransportedTons: aircraft.cargoTransportedTons,
@@ -346,6 +351,7 @@ function restoreCompactGameState(compact: CompactGameSave): GameState {
     timeMultiplier: compact.timeMultiplier,
     isPaused: compact.isPaused,
     airportRulesEnabled: compact.airportRulesEnabled === true,
+    financialHistory: compact.financialHistory,
     fleet: compact.fleet.map((aircraft) => ({
       ...aircraft,
       lifecycle: normalizeAircraftLifecycle(aircraft, compact.currentGameTimeMs)
@@ -537,6 +543,7 @@ function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): Comp
     timeMultiplier,
     isPaused: raw.isPaused ?? false,
     airportRulesEnabled: raw.airportRulesEnabled === true,
+    financialHistory: normalizeFinancialHistory(raw.financialHistory, raw.currentGameTimeMs ?? Date.UTC(2026, 0, 1, 6), getCurrentCash(raw)),
     fleet: (raw.fleet ?? []) as CompactAircraftSave[],
     routes: (raw.routes ?? []) as CompactRouteSave[],
     flightLogSummary: raw.flightLogSummary ?? raw.flightLog ?? [],

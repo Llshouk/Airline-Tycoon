@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { IDBFactory } from "fake-indexeddb";
-import { restoreGameStateFromCloudSave } from "../src/lib/cloudSave";
+import { createCompactSaveState, restoreGameStateFromCloudSave } from "../src/lib/cloudSave";
+import { applyFinanceEvents, createFinancialHistory } from "../src/lib/financialReports";
 import { gameSaveStorage } from "../src/lib/gameSaveStorage";
 import { normalizeGame } from "../src/store/gameStore";
 
@@ -43,6 +44,39 @@ Object.defineProperty(globalThis, "window", {
     localStorage,
     setTimeout: (callback: () => void) => setTimeout(callback, 0)
   }
+});
+
+test("financial summaries survive IndexedDB persistence without storing another cash field", async () => {
+  const now = Date.UTC(2026, 0, 1, 12);
+  const game = restoreGameStateFromCloudSave({ saveFormatVersion: 2, baseAirportId: "lhr", money: 600, currentGameTimeMs: now, fleet: [], routes: [] });
+  game.financialHistory = applyFinanceEvents(createFinancialHistory(now, 500),
+    [{ kind: "cash", gameTimeMs: now, category: "adjustments", delta: 100 }], now);
+  const compact = createCompactSaveState(game);
+  const json = JSON.stringify({ state: { game: compact }, version: 2 });
+  await gameSaveStorage.setItem("report-idb-test", json);
+  const saved = await gameSaveStorage.getItem("report-idb-test");
+  assert.equal(saved, json);
+  assert.equal(localStorage.getItem("report-idb-test"), null);
+  const restored = normalizeGame(restoreGameStateFromCloudSave(JSON.parse(saved!).state.game))!;
+  assert.deepEqual(restored.financialHistory, game.financialHistory);
+  assert.equal(restored.money, 600);
+  assert.equal("cash" in compact, false);
+});
+
+test("financial summaries retain a localStorage fallback when IndexedDB is unavailable", async () => {
+  const indexedDB = window.indexedDB;
+  Object.defineProperty(window, "indexedDB", { configurable: true, value: undefined });
+  try {
+    const now = Date.UTC(2026, 0, 1, 12);
+    const game = restoreGameStateFromCloudSave({ saveFormatVersion: 2, baseAirportId: "lhr", money: -25, currentGameTimeMs: now, fleet: [], routes: [] });
+    const json = JSON.stringify({ state: { game: createCompactSaveState(game) }, version: 2 });
+    await gameSaveStorage.setItem("report-fallback-test", json);
+    assert.equal(localStorage.getItem("report-fallback-test"), json);
+    const restored = normalizeGame(restoreGameStateFromCloudSave(JSON.parse((await gameSaveStorage.getItem("report-fallback-test"))!).state.game))!;
+    assert.equal(restored.money, -25);
+    assert.equal(restored.financialHistory!.openingCash, -25);
+    localStorage.removeItem("report-fallback-test");
+  } finally { Object.defineProperty(window, "indexedDB", { configurable: true, value: indexedDB }); }
 });
 
 test("loads a pre-V1.3 save through the IndexedDB storage adapter", async () => {

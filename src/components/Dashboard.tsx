@@ -4,6 +4,7 @@ import { Activity, Banknote, CheckCircle2, Gauge, Package, Plane, TrendingUp, Us
 import { useMemo } from "react";
 import { AircraftImage } from "@/components/AircraftImage";
 import { CompanyAge } from "@/components/CompanyAge";
+import { FleetAlerts } from "@/components/FleetAlerts";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -14,7 +15,7 @@ import { formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
 import type { GameState } from "@/types/game";
 
-export function Dashboard() {
+export function Dashboard({ onOpenAircraft }: { onOpenAircraft: (id: string) => void }) {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
   const recommendedRoutes = useMemo(() => (game ? getRecommendedRouteOpportunities(game, 4) : []), [game]);
@@ -46,8 +47,9 @@ export function Dashboard() {
         <Stat icon={Gauge} label={t("dashboard.speed")} value={game.isPaused ? "Paused" : `${game.timeMultiplier}x`} />
         <Stat icon={CheckCircle2} label={t("dashboard.flights")} value={String(stats.completedFlights)} />
       </div>
+      <FleetAlerts game={game} onOpenAircraft={onOpenAircraft} />
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+        <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
           <div className="mb-3 flex items-center gap-2">
             <CheckCircle2 size={20} className="text-mint" />
             <h3 className="font-bold text-ink">Operations snapshot</h3>
@@ -66,7 +68,7 @@ export function Dashboard() {
             <Small label="Estimated weekly cost" value={formatGBP.format(stats.estimatedWeeklyCost)} />
             <Small label="Estimated weekly profit" value={formatGBP.format(stats.estimatedWeeklyProfit)} />
           </div>
-          <div className="mt-4 overflow-hidden rounded-md border border-slate-200">
+          <div className="mt-4 overflow-x-auto rounded-md border border-slate-200">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-normal text-slate-500">
                 <tr>

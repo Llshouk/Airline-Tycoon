@@ -1,5 +1,6 @@
 import { GAME_BALANCE, GAME_REVENUE_MULTIPLIER, PRICE_ELASTICITY } from "@/config/gameBalance";
 import { getDifficultyConfig, type DifficultyConfig } from "@/config/difficulty";
+import { airportsById } from "@/data/airports";
 import { calculateRouteEconomics, calculateScheduleFrequency } from "@/lib/economics/routeEconomics";
 import { nightPassengerDemandMultiplier } from "@/lib/airportOperations";
 import { DAY_MS, WEEK_MS, timeOfDayMs, weekStartMs } from "@/lib/time";
@@ -64,6 +65,9 @@ export function estimateFlightFinancials(
     aircraftRangeKm: model.rangeKm,
     cruiseSpeedKmh: model.cruiseSpeedKmh,
     fuelCostPerKm: model.fuelCostPerKm,
+    aircraftType: model.type,
+    originAirportTier: airportsById[operations?.originAirportId ?? route.originAirportId]?.sizeTier,
+    destinationAirportTier: airportsById[operations?.originAirportId === route.destinationAirportId ? route.originAirportId : route.destinationAirportId]?.sizeTier,
     cabinLayout,
     demand: timedDemand,
     pricing: prices,

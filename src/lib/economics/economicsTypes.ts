@@ -1,4 +1,4 @@
-import type { CabinDemand, CabinLayout, RoutePricing } from "@/types/game";
+import type { AirportSizeTier, AircraftModel, CabinDemand, CabinLayout, RoutePricing } from "@/types/game";
 
 export type RouteSuitability = "ineligible" | "loss-making" | "marginal" | "strong";
 
@@ -27,6 +27,9 @@ export type RouteEconomicsInput = {
   cruiseSpeedKmh: number;
   // Existing aircraft data stores this gameplay fuel-cost coefficient per kilometre.
   fuelCostPerKm: number;
+  aircraftType?: AircraftModel["type"];
+  originAirportTier?: AirportSizeTier;
+  destinationAirportTier?: AirportSizeTier;
   cabinLayout: CabinLayout;
   demand: CabinDemand;
   pricing: RoutePricing;

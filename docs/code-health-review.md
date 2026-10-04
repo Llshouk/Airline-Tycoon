@@ -4,6 +4,20 @@ Date: 2026-10-02. Baseline: V1.4.0, `8b696cd` on `main`.
 
 The project has some dead scaffolding and duplicated work, but the working game does not warrant a rewrite. Size alone is not evidence of redundancy.
 
+## V1.5.3 Follow-Up (2026-10-04)
+
+- Removed the unused global cost multiplier after category calibration; there
+  remains one shared economics owner and no new dependency.
+- Reports persist bounded daily aggregates (90 company / 7 aircraft-route days),
+  not an unbounded ledger or duplicate weekly history.
+- Fleet exception classification is pure derived UI data; aircraft remain
+  independent and batch maintenance uses the existing planner.
+- Negative canonical cash now survives reload; missing legacy revenue/flight
+  counters default safely without reconstructing unrecorded earnings.
+- Fixed Dashboard's existing mobile table overflow during browser acceptance.
+- Long-lived large modules remain intact; no speculative rewrite or broad
+  cleanup. See docs/financial-reports.md for remaining finance limitations.
+
 ## V1.5.2 Follow-Up (2026-10-04)
 
 - Company age reuses the existing game clocks instead of storing another timer.

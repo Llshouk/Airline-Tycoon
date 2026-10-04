@@ -9,20 +9,24 @@ import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
 import { useGameStore } from "@/store/gameStore";
 import { getMaintenanceStatus, normalizeAircraftLifecycle } from "@/lib/aircraftMaintenance";
+import { FLEET_ALERT_FILTERS, fleetAlerts, type FleetAlertFilter } from "@/lib/fleetAlerts";
 import type { AircraftInstance } from "@/types/game";
 
-export function FleetScreen() {
+export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelectedAircraftId?: string | null }) {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
-  const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null);
+  const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(initialSelectedAircraftId);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [baseFilter, setBaseFilter] = useState("all");
   const [needsService, setNeedsService] = useState(false);
+  const [conditionFilter, setConditionFilter] = useState<FleetAlertFilter>("all");
+  const alerts = useMemo(() => game ? new Map(fleetAlerts(game).map((alert) => [alert.aircraftId, alert])) : new Map(), [game]);
   const [showPlanner, setShowPlanner] = useState(false);
   const filteredFleet = useMemo(
     () => (game ? game.fleet.filter((aircraft) => (baseFilter === "all" || aircraft.homeBaseAirportId === baseFilter) &&
+      (conditionFilter === "all" || alerts.get(aircraft.id)?.kinds.includes(conditionFilter)) &&
       (!needsService || aircraft.lifecycle?.reservation || getMaintenanceStatus(normalizeAircraftLifecycle(aircraft, game.currentGameTimeMs), game.currentGameTimeMs) !== "healthy")) : []),
-    [baseFilter, game, needsService]
+    [baseFilter, game, needsService, conditionFilter, alerts]
   );
   const groups = useMemo(() => groupFleetByModel(filteredFleet), [filteredFleet]);
   const selectedAircraft = game && selectedAircraftId ? game.fleet.find((aircraft) => aircraft.id === selectedAircraftId) : null;
@@ -66,6 +70,13 @@ export function FleetScreen() {
       </section>
       <div className="flex flex-wrap items-center gap-3 border-y border-slate-200 py-3">
         <label className="flex items-center gap-2 text-sm font-bold text-ink">
+          {t("alerts.filter")}
+          <select value={conditionFilter} onChange={(event) => setConditionFilter(event.target.value as FleetAlertFilter)}
+            className="h-10 max-w-[220px] rounded-md border border-slate-300 bg-white px-2">
+            {FLEET_ALERT_FILTERS.map((key) => <option key={key} value={key}>{t(`alerts.${key}`)}</option>)}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm font-bold text-ink">
           <input type="checkbox" checked={needsService} onChange={(event) => setNeedsService(event.target.checked)} />
           {t("maintenance.needsService")}
         </label>
@@ -83,6 +94,7 @@ export function FleetScreen() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
+          {!filteredFleet.length ? <p className="py-5 text-sm text-slate-500">{t("alerts.empty")}</p> : null}
           {groups.map((group) => {
             const isExpanded = expandedGroups[group.modelId] ?? false;
             const Icon = isExpanded ? ChevronDown : ChevronRight;

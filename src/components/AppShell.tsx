@@ -46,6 +46,7 @@ export function AppShell() {
   const { language, setLanguage, t } = useTranslation();
   const { user, isAdmin, isSwitchingAirline, switchAirline } = useAuthSession();
   const [screen, setScreen] = useState<Screen>("map");
+  const [fleetSelection, setFleetSelection] = useState<string | null>(null);
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const game = useGameStore((state) => state.game);
   const notice = useGameStore((state) => state.notice);
@@ -64,7 +65,7 @@ export function AppShell() {
       <header className="sticky top-0 z-[900] border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto grid max-w-[1500px] gap-3 px-3 py-3 xl:grid-cols-[minmax(180px,1fr)_auto] xl:items-center">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1.5.2</p>
+            <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1.5.3</p>
             <h1 className="truncate text-xl font-black text-ink">{game.airlineName}</h1>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm xl:justify-end">
@@ -122,7 +123,7 @@ export function AppShell() {
                   key={item.id}
                   type="button"
                   title={label}
-                  onClick={() => setScreen(item.id)}
+                  onClick={() => { setFleetSelection(null); setScreen(item.id); }}
                   className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-2 text-xs font-black transition lg:justify-start ${
                     active ? "bg-jet text-white" : "text-slate-700 hover:bg-slate-100"
                   }`}
@@ -145,9 +146,9 @@ export function AppShell() {
             </div>
           ) : null}
           {game.gameStatus !== "active" ? <GameOverPanel gameStatus={game.gameStatus} resetGame={resetGame} /> : null}
-          {screen === "dashboard" && <Dashboard />}
+          {screen === "dashboard" && <Dashboard onOpenAircraft={(id) => { setFleetSelection(id || null); setScreen("fleet"); }} />}
           {screen === "map" && <MapScreen />}
-          {screen === "fleet" && <FleetScreen />}
+          {screen === "fleet" && <FleetScreen initialSelectedAircraftId={fleetSelection} />}
           {screen === "market" && <AircraftMarketScreen />}
           {screen === "routes" && <RoutesScreen />}
           {screen === "schedule" && <ScheduleScreen />}

@@ -8,20 +8,18 @@ export const GAME_BALANCE = {
   passengerDemandMultiplier: 1.6,
   premiumDemandMultiplier: 1.35,
   cargoDemandMultiplier: 1.5,
-  revenueMultiplier: 2.8,
-  longHaulRevenueBonus: 1.1,
+  revenueMultiplier: 1.5,
+  longHaulRevenueBonus: 1,
   // Preserve the deliberate sandbox income boost separately from Easy balance.
   simulationRevenueMultiplier: 3.15,
   simulationLongHaulRevenueBonus: 1.2,
   majorHubDemandBonus: 1.25,
   longHaulDemandBonus: 1.25,
-  costMultiplier: 0.03,
   minLoadFactor: 0.58,
   maxLoadFactor: 0.96
 } as const;
 
 export const GAME_REVENUE_MULTIPLIER = GAME_BALANCE.revenueMultiplier;
-export const COST_BALANCE_MULTIPLIER = GAME_BALANCE.costMultiplier;
 
 export const PRICE_ELASTICITY = {
   first: 2.2,

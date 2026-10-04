@@ -170,6 +170,9 @@ test("delayed anchor moves the maintenance start without cancelling the airborne
 test("reservation shortfall is charged once across compact reload and terminal cancellations never earn income", () => {
   const game = reservedFixture();
   const first = advanceAircraftOperations(game.fleet[0], game.routes, now + 4 * hour, game.difficultyConfig);
+  const maintenanceEvents = first.financeEvents.filter((event) => event.kind === "cash");
+  assert.equal(maintenanceEvents.length, 1);
+  assert.equal(maintenanceEvents[0].delta, -first.maintenanceCashCost);
   game.fleet[0] = first.aircraft;
   game.currentGameTimeMs = now + 4 * hour;
   game.money += first.entries.reduce((sum, entry) => sum + entry.profit, 0) - first.maintenanceCashCost;
@@ -181,6 +184,7 @@ test("reservation shortfall is charged once across compact reload and terminal c
   const repeated = advanceAircraftOperations(advanced.aircraft, restored.routes, now + 30 * hour, restored.difficultyConfig);
   assert.equal(repeated.entries.length, 0);
   assert.equal(repeated.maintenanceCashCost, 0);
+  assert.equal(repeated.financeEvents.length, 0);
   assert.equal(repeated.aircraft.totalProfit, advanced.aircraft.totalProfit);
 });
 

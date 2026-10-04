@@ -1,8 +1,8 @@
-# Airline Tycoon V1.5.2
+# Airline Tycoon V1.5.3
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.5.2 - Company Age, Finance Sorting and Economy Balance
+Release: V1.5.3 - Financial Reports and Fleet Attention
 
 ## Features
 
@@ -13,6 +13,9 @@ Release: V1.5.2 - Company Age, Finance Sorting and Economy Balance
 - Estimate demand, revenue, cost and profit
 - Track company age using the simulation clock and original founding date
 - Sort recent Finance flights by profit, flight number, passengers, cargo, revenue, cost or time
+- Review daily/weekly operating reports and 7/30/90-day financial trends
+- Separate investment spending, subsidies and cash adjustments from operating profit
+- Find grounded, maintenance-due, loss-making or idle aircraft from fleet attention filters
 - Review per-flight fuel, crew, airport, handling, and maintenance-reserve costs
 - Compare aircraft operating profit, margin, break-even load factor, and route suitability
 - Track aircraft age, flight hours, cycles, condition, and reliability
@@ -70,9 +73,9 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.5.2 adds simulated company age, bilingual Finance sorting and a measured Easy-mode earnings reduction. Passenger and cargo utilization now remain effective even on high-demand routes. Simulation retains its sandbox income bonus; Realistic remains unboosted. Changes affect future estimates and settlements, not historical cash or completed-flight accounting. Existing saves remain compatible, with no database migration.
+Airline Tycoon V1.5.3 calibrates fuel, crew, airport and maintenance-reserve costs by aircraft category and flight duration. Easy revenue now uses a smaller 1.5 gameplay bonus; Simulation retains its sandbox income bonus and Realistic remains unboosted. Daily/weekly reports and fleet attention filters use actual new settlements. Changes affect future estimates and settlements, not historical cash or completed-flight accounting. Existing saves remain compatible, with no database migration or new dependency.
 
-The Finance log is the existing bounded recent history, not a complete lifetime archive. Flight profit is simplified operating contribution, not audited airline net profit: acquisition, depreciation, tax and head-office costs are not fully represented. See [economy balance](docs/economy-balance.md) for assumptions and before/after examples.
+The Finance flight log remains capped at 60 records. Reports retain up to 90 simulated UTC days; aircraft/route diagnostics retain seven calendar days including today. Old saves begin reporting when upgraded, without fabricating earlier history; incomplete periods are marked. Flight profit is simplified operating contribution, not audited airline net profit: acquisition is separate investment spending, while depreciation, tax and head-office costs remain deferred. See [financial reports](docs/financial-reports.md) for rules and V1.5.3 balance samples, and [earlier economy balance](docs/economy-balance.md) for V1.5.2 history.
 
 Maintenance can start immediately on the ground or after a selected flight lands and completes turnaround. Short-haul night demand is simplified; airport night planning rules are optional and default off. Workshop capacity, replacement aircraft and more detailed operating rules are deferred. This remains a playable prototype, not an airworthiness simulator. See [maintenance rules](docs/aircraft-maintenance.md) and [code health review](docs/code-health-review.md) for assumptions and follow-up work.
 

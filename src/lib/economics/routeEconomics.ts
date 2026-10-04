@@ -28,6 +28,9 @@ export function calculateRouteEconomics(input: RouteEconomicsInput): RouteEconom
           distanceKm,
           cruiseSpeedKmh: input.cruiseSpeedKmh,
           fuelCostPerKm: input.fuelCostPerKm,
+          aircraftType: input.aircraftType,
+          originAirportTier: input.originAirportTier,
+          destinationAirportTier: input.destinationAirportTier,
           cargoTons: rawCargoTons
         }
       : { distanceKm: 0, cruiseSpeedKmh: 0, fuelCostPerKm: 0, cargoTons: 0 }

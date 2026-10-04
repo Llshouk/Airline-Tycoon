@@ -3,6 +3,7 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CompanyAge } from "@/components/CompanyAge";
+import { FinancialReports } from "@/components/FinancialReports";
 import { airportsById } from "@/data/airports";
 import { useTranslation, type TranslationKey } from "@/i18n";
 import { getCurrentCash } from "@/lib/cash";
@@ -24,6 +25,7 @@ export function FinanceScreen() {
   const { language, t } = useTranslation();
   const game = useGameStore((state) => state.game);
   const [sortKey, setSortKey] = useState<FlightLogSortKey>("completedGameTime");
+  const [view, setView] = useState<"log" | "daily" | "weekly">("log");
   const [direction, setDirection] = useState<SortDirection>("desc");
   const entries = useMemo(() => sortFlightLog(game?.flightLog ?? [], sortKey, direction), [game?.flightLog, sortKey, direction]);
   const dateFormat = useMemo(() => new Intl.DateTimeFormat(language === "zh" ? "zh-CN" : "en-GB", {
@@ -60,6 +62,13 @@ export function FinanceScreen() {
         <Panel label={t("dashboard.passengers")} value={game.passengerCount.toLocaleString("en-GB")} />
         <Panel label={t("dashboard.cargoMoved")} value={`${game.cargoTransportedTons.toFixed(1)} t`} />
       </div>
+      <div role="tablist" aria-label={t("finance.title")} className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+        {(["log", "daily", "weekly"] as const).map((key) => <button key={key} type="button" role="tab" aria-selected={view === key}
+          onClick={() => setView(key)} className={`min-h-10 rounded-md px-3 text-sm font-bold ${view === key ? "bg-jet text-white" : "text-slate-600 hover:bg-white"}`}>
+          {t(key === "log" ? "finance.flightLog" : key === "daily" ? "reports.daily" : "reports.weekly")}
+        </button>)}
+      </div>
+      {view !== "log" ? <FinancialReports key={view} game={game} period={view} /> : (
       <section className="border-y border-slate-200 bg-white py-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-bold text-ink">{t("finance.flightLog")}</h3>
@@ -125,6 +134,7 @@ export function FinanceScreen() {
           </table>
         </div>
       </section>
+      )}
     </div>
   );
 }

@@ -4,25 +4,25 @@
 
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
-- Current version: `1.5.2`
+- Current version: `1.5.3`
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
 - V1.4.0 release HEAD / V1.5.0 baseline: `8b696cd96e6bc5d53d2b95d6ae80f397a0140f01`
-- Previous published checkpoint / V1.5.2 baseline: V1.5.1 (`66a4ad8`)
-- Current release checkpoint: the V1.5.2 release commit containing this document
+- Previous published checkpoint / V1.5.3 baseline: V1.5.2 (`2109bb65278beedbf08fc5b22b9c716222f1c4eb`)
+- Current release checkpoint: the V1.5.3 release commit containing this document
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
-- Release status: verified V1.5.2 implementation; direct main-branch publication requested by the user
+- Release status: V1.5.3 implemented and locally verified; user authorized direct main-branch commit/push
 - Latest focused review date: 2026-10-04
-- Latest successful production build: `pnpm run build` passed on 2026-10-04 with Next.js 15.5.24; disposable Finance route removed
+- Latest successful production build: `pnpm run build` passed on 2026-10-04 with Next.js 15.5.24; disposable V1.5.3 route removed
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
 - No earlier `ACTIVE.md` or WIP patch existed at audit start
 
 ## Roadmap Position
 
 - Current major version: V1
-- Current minor version: V1.5.2
-- Current release objective: Company Age, Finance Sorting and Economy Balance; stop before V1.6 work
+- Current minor version: V1.5.3
+- Current release objective: cost calibration, bounded Finance reports and fleet attention; stop before V1.6 work
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Simplified maintenance scope: immediate ground work, dated after-flight reservations, conflict cancellation/recovery, and batch booking work; workshop capacity, replacement aircraft and model-specific verified limits remain TODOs
 - Next planned release: V1.6.0 Reputation and Passenger Experience
@@ -30,7 +30,49 @@
 
 ## Current Objective
 
-Publish the approved V1.5.2 company operating age, Finance flight sorting and measured earnings adjustment to Llshouk/Airline-Tycoon on main, as requested by the user. Preserve existing gameplay and saves; no new database migration or dependency. Confirm the remote commit after pushing; do not claim the website is updated until deployment succeeds.
+Publish the verified V1.5.3 changes directly to Llshouk/Airline-Tycoon main, as authorized by the user's PUSH request. No new dependency, gameplay change or Supabase migration during publication. Confirm the remote commit after pushing; never claim Vercel deployment from local verification.
+
+## V1.5.3 Evidence (2026-10-04)
+
+- Centralized category-calibrated departure/cruise fuel, minimum hourly crew,
+  airport-tier movement/cargo fees and hourly/cycle maintenance reserve. Easy
+  revenue bonus is 1.5 without an extra long-haul bonus; Simulation retains its
+  sandbox bonus and Realistic remains unboosted. Past accounting/pricing is
+  untouched. Coefficients are gameplay calibration, not verified real tariffs.
+- Financial reports observe actual settlement/cash mutation events. Daily
+  company data is capped at 90 UTC days and per-aircraft/route diagnostics at
+  seven UTC days including today. Weeks, charts and filters are derived.
+  Acquisition/route/base spend, subsidies, cash adjustments and pre-tracking
+  settlements remain separate from operating profit. Reserve is not charged
+  again at service; only the shortfall is extra maintenance cash.
+- Old saves start reporting at upgrade, not from the truncated flight log.
+  First/trimmed periods are marked partial, current periods in progress.
+  Optional compact JSON fields keep format 2 and existing storage keys; no
+  schema migration or full historical reconstruction.
+- Dashboard exceptions open actual aircraft details. Fleet supports urgent,
+  soon/due service, arranged maintenance, loss-making (>=5 recent flights), and
+  24-hour idle filters. Batch maintenance still uses the existing planner.
+  Records, registrations and weekly templates remain independent.
+- Stability: negative canonical cash survives reload; absent legacy aircraft
+  cumulative revenue/flight fields default safely. Dashboard's mobile table
+  overflow is contained. Removed the unused global cost multiplier; no broad
+  refactor, dependency, gameplay asset or authentication change.
+- 82 tests pass, including 100-aircraft reporting, once-only reservations,
+  pause/speed/multi-day settlement, exact cost splits/cash reconciliation,
+  retained opening balances, legacy saves, compact reload, and IndexedDB/local
+  storage fallback. Typecheck and lint pass without warnings.
+- Real Finance/Dashboard/Fleet/detail browser acceptance passes 90-day rows,
+  7/30/90 trend controls, daily/weekly views, partial periods, compact reload,
+  exception detail navigation, filters, empty reports and 390px English/Chinese
+  layouts, with no JavaScript runtime errors or document overflow. Existing
+  unrelated legacy Chinese mojibake labels and favicon 404 remain outside scope.
+- Final production build passes; production title/homepage, original A220 photo,
+  side image, map module worker and V1.5.3 PWA marker pass. Temporary fixture is
+  deleted and returns 404 on both development and production. Test outputs are
+  ignored. Development remains available at http://localhost:3015.
+- Authenticated live Supabase and physical-device touch are not newly verified.
+  See docs/financial-reports.md for actual rules, measured balance samples and
+  deferred overhead/depreciation/shared-market/global catch-up limitations.
 
 ## V1.5.2 Evidence (2026-10-04)
 
@@ -534,13 +576,15 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 ## Next Exact Action
 
-Confirm the V1.5.2 main-branch commit and its Vercel deployment status after publication. Playtest at http://localhost:3015, particularly Easy-mode route profitability. V1.6.0 has not begun.
+Confirm the V1.5.3 release commit is synchronized with GitHub main, then verify
+Vercel deployment separately. Playtest at http://localhost:3015. V1.6.0 has not begun.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
-2. Confirm the V1.5.2 release checkpoint is on `main` and synchronized with `origin/main`; do not discard any later local changes.
+2. V1.5.2 (`2109bb6`) is the previous published baseline; verify the V1.5.3 release commit against origin/main and preserve subsequent user edits.
 3. Treat `src/lib/economics/*` as the canonical calculation layer and `src/lib/economy.ts` as the compatibility and settlement boundary.
 4. Preserve preview purity, canonical `money`, save compatibility, and one-record-per-aircraft state in all future work.
 5. Treat `aircraftMaintenance.ts` as the lifecycle/compatibility owner and `aircraftOperations.ts` as the chronological flight-settlement owner; do not create a second cash or maintenance timeline.
-6. Stop before V1.6.0 until it is explicitly requested; authenticated Supabase, physical touch/pinch, and complete browser-wide isolation remain deferred external verification.
+6. Treat `financialReports.ts` as bounded reporting only, not another cash/settlement owner; `fleetAlerts.ts` derives UI exceptions without changing aircraft.
+7. Stop before V1.6.0 until it is explicitly requested; authenticated Supabase, physical touch/pinch, and complete browser-wide isolation remain deferred external verification.

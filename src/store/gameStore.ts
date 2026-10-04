@@ -7,6 +7,8 @@ import { validateCabinLayout } from "@/lib/cabin";
 import { advanceAircraftOperations, generateOperationalDelayMinutes } from "@/lib/aircraftOperations";
 import { beginAircraftMaintenance, getMaintenanceStatus, normalizeAircraftLifecycle, quoteMaintenance } from "@/lib/aircraftMaintenance";
 import { addCash, canAfford, getCurrentCash, spendCash, updateCash } from "@/lib/cash";
+import { applyFinanceEvents, normalizeFinancialHistory, withCashReport } from "@/lib/financialReports";
+import type { FinanceEvent } from "@/types/finance";
 import { estimateDemand } from "@/lib/demand";
 import {
   estimateCargoRatePerTon,
@@ -133,8 +135,9 @@ export const useGameStore = create<GameStore>()(
           lastTickRealMs: now,
           updatedAt: new Date(now).toISOString()
         };
-        updateLeaderboard(game);
-        set({ game, notice: "Base airport purchased. Your airline is cleared for startup." });
+        const startedGame = withCashReport(game, startingCapital, "basePurchases");
+        updateLeaderboard(startedGame);
+        set({ game: startedGame, notice: "Base airport purchased. Your airline is cleared for startup." });
       },
       resetGame: () => set({ game: null, notice: null }),
       setAdminUser: (isAdminUser) => set({ isAdminUser }),
@@ -198,7 +201,7 @@ export const useGameStore = create<GameStore>()(
           return { ok: false, message };
         }
 
-        const gameAfterPurchase = spendCash(game, validation.purchasePriceGBP);
+        const gameAfterPurchase = withCashReport(spendCash(game, validation.purchasePriceGBP), game.money, "aircraftPurchases");
         const aircraft: AircraftInstance = {
           id: createId("aircraft"),
           modelId,
@@ -243,7 +246,7 @@ export const useGameStore = create<GameStore>()(
         const quote = quoteMaintenance(model, lifecycle, kind);
         if (!canAfford(game, quote.cashCost)) return { ok: false, error: "cash" };
         const nextGame = {
-          ...spendCash(game, quote.cashCost),
+          ...withCashReport(spendCash(game, quote.cashCost), game.money, "extraMaintenance"),
           totalProfit: game.totalProfit - quote.cashCost,
           fleet: game.fleet.map((item) => item.id === aircraft.id ? {
             ...item,
@@ -347,7 +350,7 @@ export const useGameStore = create<GameStore>()(
           isOpen: true
         };
         const nextGame = {
-          ...spendCash(game, cost),
+          ...withCashReport(spendCash(game, cost), game.money, "routeOpening"),
           expandedAirportIds: unique([...game.expandedAirportIds, origin.id, destination.id]),
           routes: [...game.routes, route]
         };
@@ -371,7 +374,7 @@ export const useGameStore = create<GameStore>()(
           return { ok: false, message };
         }
         const nextGame = {
-          ...spendCash(game, BASE_AIRPORT_COST),
+          ...withCashReport(spendCash(game, BASE_AIRPORT_COST), game.money, "basePurchases"),
           baseAirports: unique([...game.baseAirports, airportId]),
           expandedAirportIds: unique([...game.expandedAirportIds, airportId]),
           updatedAt: new Date().toISOString()
@@ -447,7 +450,7 @@ export const useGameStore = create<GameStore>()(
         }
         const game = normalizeGame(get().game);
         if (!game) return;
-        const nextGame = addCash(game, amount);
+        const nextGame = withCashReport(addCash(game, amount), game.money, "adjustments");
         updateLeaderboard(nextGame);
         set({ game: nextGame, notice: "Cash updated." });
       },
@@ -458,7 +461,7 @@ export const useGameStore = create<GameStore>()(
         }
         const game = normalizeGame(get().game);
         if (!game) return;
-        const nextGame = updateCash(game, amount);
+        const nextGame = withCashReport(updateCash(game, amount), game.money, "adjustments");
         updateLeaderboard(nextGame);
         set({ game: nextGame, notice: "Cash updated." });
       },
@@ -779,9 +782,11 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
   let cargoTransportedTons = nextGame.cargoTransportedTons;
   const flightLog = [...nextGame.flightLog];
   const expandedAirportIds = [...nextGame.expandedAirportIds];
+  const financeEvents: FinanceEvent[] = [];
 
   const fleet = nextGame.fleet.map((aircraft) => {
     const operation = advanceAircraftOperations(aircraft, nextGame.routes, currentGameTimeMs, nextGame.difficultyConfig, money);
+    financeEvents.push(...operation.financeEvents);
     operation.entries.forEach((entry) => {
       money += entry.profit;
       totalProfit += entry.profit;
@@ -806,7 +811,8 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
     cargoTransportedTons: Math.round(cargoTransportedTons * 10) / 10,
     flightLog: flightLog.slice(0, 60),
     expandedAirportIds: unique(expandedAirportIds),
-    fleet
+    fleet,
+    financialHistory: applyFinanceEvents(game.financialHistory ?? normalizeFinancialHistory(undefined, game.currentGameTimeMs, game.money), financeEvents, currentGameTimeMs)
   };
   const finalGame = applyBankruptcyRules(beforeBankruptcyGame);
   const bankruptcyNotice = bankruptcyMessage(beforeBankruptcyGame, finalGame);
@@ -1018,6 +1024,7 @@ export function normalizeGame(game: GameState | null | undefined): GameState | n
     timeMultiplier,
     isPaused: game.isPaused ?? false,
     airportRulesEnabled: game.airportRulesEnabled === true,
+    financialHistory: normalizeFinancialHistory(game.financialHistory, game.currentGameTimeMs, money),
     routes: game.routes.map((route) => {
       const estimatedTicketPrices = route.estimatedTicketPrices ?? estimateTicketPrices(route.distanceKm);
       const estimatedCargoRatePerTon = route.estimatedCargoRatePerTon ?? estimateCargoRatePerTon(route.distanceKm);
@@ -1074,10 +1081,15 @@ export function normalizeGame(game: GameState | null | undefined): GameState | n
       const hasProfit = typeof aircraft.totalProfit === "number" && Number.isFinite(aircraft.totalProfit);
       return {
         ...aircraft,
+        totalRevenue: typeof aircraft.totalRevenue === "number" && Number.isFinite(aircraft.totalRevenue) ? Math.max(0, aircraft.totalRevenue) : 0,
+        totalFlights: typeof aircraft.totalFlights === "number" && Number.isFinite(aircraft.totalFlights) ? Math.max(0, Math.floor(aircraft.totalFlights)) : 0,
         totalProfit: hasProfit ? aircraft.totalProfit : recordedFlights.reduce((sum, entry) => sum + entry.profit, 0) - lifecycle.totalMaintenanceCashCost,
         profitHistoryIncomplete: hasProfit ? aircraft.profitHistoryIncomplete === true : aircraft.totalFlights > recordedFlights.length,
         operationsThroughGameTimeMs: Number.isFinite(aircraft.operationsThroughGameTimeMs)
           ? Math.min(aircraft.operationsThroughGameTimeMs!, game.currentGameTimeMs) : undefined,
+        lastCompletedFlightGameTimeMs: Number.isFinite(aircraft.lastCompletedFlightGameTimeMs)
+          ? Math.min(aircraft.lastCompletedFlightGameTimeMs!, game.currentGameTimeMs)
+          : recordedFlights.reduce((latest, entry) => Math.max(latest, entry.completedGameTime), 0) || undefined,
         lifecycle,
         status: aircraft.status !== "in-flight" && (maintenanceStatus === "grounded" || maintenanceStatus === "maintenance") ? maintenanceStatus : aircraft.status,
         homeBaseAirportId:
@@ -1114,20 +1126,20 @@ function applyBankruptcyRules(game: GameState): GameState {
   if (game.money >= 0 || game.gameStatus === "gameOver") return game;
   const config = game.difficultyConfig;
   if (config.difficulty === "simulation") {
-    return {
+    return withCashReport({
       ...game,
       money: game.money + config.bankruptcyBailoutAmount,
       bailoutsUsed: game.bailoutsUsed + 1,
       gameStatus: "active"
-    };
+    }, game.money, "subsidies");
   }
   if (config.difficulty === "easy" && (config.bankruptcyBailoutLimit === "unlimited" || game.bailoutsUsed < config.bankruptcyBailoutLimit)) {
-    return {
+    return withCashReport({
       ...game,
       money: game.money + config.bankruptcyBailoutAmount,
       bailoutsUsed: game.bailoutsUsed + 1,
       gameStatus: "active"
-    };
+    }, game.money, "subsidies");
   }
   return {
     ...game,
