@@ -1,9 +1,35 @@
-import type { DayOfWeek } from "@/types/game";
+import type { DayOfWeek, GameState } from "@/types/game";
 
 export const DEFAULT_GAME_SPEED = 10;
 export const GAME_SPEED_OPTIONS = [1, 5, 10, 20, 50, 100] as const;
 export const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 export const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function companyAge(game: Pick<GameState, "baseGameTimeMs" | "currentGameTimeMs">) {
+  const elapsed = game.currentGameTimeMs - game.baseGameTimeMs;
+  const minutes = Number.isFinite(elapsed) ? Math.floor(Math.max(0, elapsed) / 60_000) : 0;
+  return {
+    days: Math.floor(minutes / 1440),
+    hours: Math.floor(minutes / 60) % 24,
+    minutes: minutes % 60
+  };
+}
+
+export function formatCompanyAge(game: Pick<GameState, "baseGameTimeMs" | "currentGameTimeMs">, language: "en" | "zh") {
+  const age = companyAge(game);
+  const locale = language === "zh" ? "zh-CN" : "en-GB";
+  return (["day", "hour", "minute"] as const).map((unit, index) =>
+    new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "short" })
+      .format([age.days, age.hours, age.minutes][index])
+  ).join(" ");
+}
+
+export function formatCompanyFoundedAt(gameTimeMs: number, language: "en" | "zh") {
+  if (!Number.isFinite(gameTimeMs) || Number.isNaN(new Date(gameTimeMs).getTime())) return "-";
+  return new Intl.DateTimeFormat(language === "zh" ? "zh-CN" : "en-GB", {
+    year: "numeric", month: "short", day: "numeric", timeZone: "UTC"
+  }).format(gameTimeMs);
+}
 
 export function flightWaitMs(distanceKm: number, cruiseSpeedKmh: number) {
   const flightTimeHours = distanceKm / cruiseSpeedKmh;

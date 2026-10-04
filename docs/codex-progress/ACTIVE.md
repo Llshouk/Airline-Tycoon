@@ -4,25 +4,25 @@
 
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
-- Current version: `1.5.1`
+- Current version: `1.5.2`
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
 - V1.4.0 release HEAD / V1.5.0 baseline: `8b696cd96e6bc5d53d2b95d6ae80f397a0140f01`
-- Previous published checkpoint: V1.5.0 (`ae15963`)
-- Current release checkpoint: the V1.5.1 release commit containing this document
+- Previous published checkpoint / V1.5.2 baseline: V1.5.1 (`66a4ad8`)
+- Current release checkpoint: the V1.5.2 release commit containing this document
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
-- Release status: verified V1.5.1 checkpoint; direct main-branch publication requested by the user
-- Latest focused review date: 2026-10-03
-- Latest successful production build: `pnpm run build` passed on 2026-10-03 with Next.js 15.5.24; disposable maintenance route removed
+- Release status: verified V1.5.2 implementation; direct main-branch publication requested by the user
+- Latest focused review date: 2026-10-04
+- Latest successful production build: `pnpm run build` passed on 2026-10-04 with Next.js 15.5.24; disposable Finance route removed
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
 - No earlier `ACTIVE.md` or WIP patch existed at audit start
 
 ## Roadmap Position
 
 - Current major version: V1
-- Current minor version: V1.5.1
-- Current release objective: Maintenance Reservations and Stability; stop before V1.6 work
+- Current minor version: V1.5.2
+- Current release objective: Company Age, Finance Sorting and Economy Balance; stop before V1.6 work
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Simplified maintenance scope: immediate ground work, dated after-flight reservations, conflict cancellation/recovery, and batch booking work; workshop capacity, replacement aircraft and model-specific verified limits remain TODOs
 - Next planned release: V1.6.0 Reputation and Passenger Experience
@@ -30,7 +30,18 @@
 
 ## Current Objective
 
-Publish the approved V1.5.1 maintenance reservation and stability changes to Llshouk/Airline-Tycoon on main, as requested by the user. Package, visible titles, PWA cache metadata and documentation are aligned. Preserve save compatibility and stop before V1.6.
+Publish the approved V1.5.2 company operating age, Finance flight sorting and measured earnings adjustment to Llshouk/Airline-Tycoon on main, as requested by the user. Preserve existing gameplay and saves; no new database migration or dependency. Confirm the remote commit after pushing; do not claim the website is updated until deployment succeeds.
+
+## V1.5.2 Evidence (2026-10-04)
+
+- Company age derives from existing current/base game clocks; Dashboard and Finance show elapsed days/hours/minutes and UTC founding date in English/Chinese. No duplicated persisted age or new save field.
+- Finance sorts recent history by profit, natural flight number, pax, fractional cargo, revenue, cost or UTC completion, in either direction. Missing legacy numbers stay last; ties use most recent completion. Sorting does not mutate the source log, money or profit.
+- Easy income multiplier changes from 3.15 to 2.8 and long-haul bonus from 1.2 to 1.1. Simulation retains its sandbox bonus, Realistic remains unboosted, and excess demand no longer erases passenger/cargo load factors. Rounded new settlement profit equals revenue minus cost. Historical records remain untouched.
+- 65 automated tests pass, including clock/pause/speed/reload, sorting and aliases, utilization, difficulty bonuses, matching preview/weekly/actual economics, negative profit, and legacy accounting preservation.
+- Real Finance/Dashboard component browser acceptance passes desktop and 390px mobile en/zh, header/select sorting, unchanged cash/history, company-clock reload and empty log with no JavaScript runtime errors or document overflow. Disposable fixture removed and returns 404.
+- Lint, typecheck and final production build pass. Initial build raced cleanup of an ignored generated fixture type; removing that stale type and rebuilding resolved it. No production test route remains.
+- Production smoke passes homepage/title, A220 asset, V1.5.2 PWA cache marker and removed fixture 404, with no JavaScript runtime errors. Temporary production server stopped; development homepage remains available at http://localhost:3015.
+- See `docs/economy-balance.md` for measured route comparisons and TODOs: category-calibrated costs, overhead/depreciation, shared route demand and longer bounded history. No claim of fully realistic airline net margins; authenticated live cloud requests remain untested.
 
 ## Maintenance Follow-Up Evidence (2026-10-03)
 
@@ -523,12 +534,12 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 ## Next Exact Action
 
-Confirm the V1.5.1 main-branch commit and its Vercel deployment status after publication. The verified local version remains available at http://localhost:3015. V1.6.0 has not begun.
+Confirm the V1.5.2 main-branch commit and its Vercel deployment status after publication. Playtest at http://localhost:3015, particularly Easy-mode route profitability. V1.6.0 has not begun.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
-2. Confirm the V1.5.1 release checkpoint is on `main` and synchronized with `origin/main`; do not discard any later local changes.
+2. Confirm the V1.5.2 release checkpoint is on `main` and synchronized with `origin/main`; do not discard any later local changes.
 3. Treat `src/lib/economics/*` as the canonical calculation layer and `src/lib/economy.ts` as the compatibility and settlement boundary.
 4. Preserve preview purity, canonical `money`, save compatibility, and one-record-per-aircraft state in all future work.
 5. Treat `aircraftMaintenance.ts` as the lifecycle/compatibility owner and `aircraftOperations.ts` as the chronological flight-settlement owner; do not create a second cash or maintenance timeline.

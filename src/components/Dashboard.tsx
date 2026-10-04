@@ -3,6 +3,7 @@
 import { Activity, Banknote, CheckCircle2, Gauge, Package, Plane, TrendingUp, Users } from "lucide-react";
 import { useMemo } from "react";
 import { AircraftImage } from "@/components/AircraftImage";
+import { CompanyAge } from "@/components/CompanyAge";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -33,6 +34,7 @@ export function Dashboard() {
         <p className="text-slate-600">
           {t("dashboard.base")}: {base.iata} {base.name}, {base.city}
         </p>
+        <CompanyAge game={game} />
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Stat icon={Banknote} label={t("top.cash")} value={formatGBP.format(stats.cash)} />

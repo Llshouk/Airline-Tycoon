@@ -115,6 +115,10 @@ test("restores a V1.2.2 compact save without losing authoritative game fields", 
   assert.equal(restored.airlineName, "Legacy Airways");
   assert.equal(restored.difficulty, "realistic");
   assert.equal(restored.money, 765_432_109);
+  assert.equal(restored.baseGameTimeMs, v122CompactSave.baseGameTimeMs);
+  assert.equal(restored.currentGameTimeMs, v122CompactSave.currentGameTimeMs);
+  assert.equal(restored.totalProfit, v122CompactSave.totalProfit);
+  assert.deepEqual(restored.flightLog, v122CompactSave.flightLogSummary);
   assert.deepEqual(restored.baseAirports, ["lhr", "cdg"]);
   assert.equal(restored.primaryBaseAirport, "lhr");
   assert.deepEqual(restored.expandedAirportIds, ["lhr", "cdg", "jfk"]);

@@ -49,14 +49,16 @@ export function estimateFlightFinancials(
     timedDemand[cabin] = Math.round(timedDemand[cabin] * nightMultiplier);
   }
   const prices = route.pricing ?? routePricingFromDefaults(route);
-  const longHaulBonus = route.distanceKm >= 5500 ? GAME_BALANCE.longHaulRevenueBonus : 1;
-  // Easy uses the existing gameplay-balanced revenue model. Simulation stacks an
-  // arcade bonus on top. Realistic removes artificial revenue inflation so
-  // unprofitable routes can genuinely lose money.
+  const simulation = difficulty.difficulty === "simulation";
+  const longHaulBonus = route.distanceKm >= 5500
+    ? (simulation ? GAME_BALANCE.simulationLongHaulRevenueBonus : GAME_BALANCE.longHaulRevenueBonus)
+    : 1;
+  // Easy has a smaller gameplay bonus; Simulation retains its sandbox bonus.
+  // Realistic remains unboosted. Historical settlements are never recalculated.
   const revenueMultiplier =
     difficulty.difficulty === "realistic"
       ? 1
-      : GAME_REVENUE_MULTIPLIER * longHaulBonus * difficulty.revenueMultiplier;
+      : (simulation ? GAME_BALANCE.simulationRevenueMultiplier : GAME_REVENUE_MULTIPLIER) * longHaulBonus * difficulty.revenueMultiplier;
   const economics = calculateRouteEconomics({
     distanceKm: route.distanceKm,
     aircraftRangeKm: model.rangeKm,
@@ -70,14 +72,16 @@ export function estimateFlightFinancials(
     revenueMultiplier
   });
 
+  const revenue = Math.round(economics.estimatedRevenuePerFlight);
+  const cost = Math.round(economics.estimatedTotalCostPerFlight);
   return {
     soldSeats: economics.soldSeats,
     adjustedDemand: timedDemand,
     passengerCount: economics.passengerCount,
     cargoTons: economics.cargoTons,
-    revenue: Math.round(economics.estimatedRevenuePerFlight),
-    cost: Math.round(economics.estimatedTotalCostPerFlight),
-    profit: Math.round(economics.estimatedOperatingProfitPerFlight),
+    revenue,
+    cost,
+    profit: revenue - cost,
     economics,
     nightDemandMultiplier: nightMultiplier
   };

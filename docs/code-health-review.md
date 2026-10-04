@@ -4,6 +4,16 @@ Date: 2026-10-02. Baseline: V1.4.0, `8b696cd` on `main`.
 
 The project has some dead scaffolding and duplicated work, but the working game does not warrant a rewrite. Size alone is not evidence of redundancy.
 
+## V1.5.2 Follow-Up (2026-10-04)
+
+- Company age reuses the existing game clocks instead of storing another timer.
+- Finance sorting is a small pure helper and local UI state; it adds no persisted
+  sort fields and never clones or merges aircraft records.
+- The shared economics owner handles the earnings change for previews and
+  settlements; no duplicate calculator or new dependency was introduced.
+- Cost-unit calibration, fixed overhead and shared route-market allocation
+  remain explicit TODOs in `docs/economy-balance.md`, not partial new engines.
+
 ## Removed or Reduced
 
 - Removed the unused Windows-only `scripts/run-node-bin.ps1`; package scripts remain cross-platform.

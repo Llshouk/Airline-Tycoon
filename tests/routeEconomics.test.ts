@@ -3,6 +3,11 @@ import test from "node:test";
 import { calculateOperatingCosts } from "../src/lib/economics/operatingCosts";
 import { calculateRouteEconomics, calculateScheduleFrequency, calculateWeeklyEconomics } from "../src/lib/economics/routeEconomics";
 import type { RouteEconomicsInput } from "../src/lib/economics/economicsTypes";
+import { aircraftById } from "../src/data/aircraft";
+import { getDifficultyConfig } from "../src/config/difficulty";
+import { estimateFlightFinancials, estimateExpectedFlightProfit, estimateScheduleFinancials, calculatePriceAdjustedDemand } from "../src/lib/economy";
+import { restoreGameStateFromCloudSave } from "../src/lib/cloudSave";
+import { advanceAircraftOperations } from "../src/lib/aircraftOperations";
 
 const baseInput: RouteEconomicsInput = {
   distanceKm: 1_000,
@@ -107,6 +112,82 @@ test("bounds low, full, and invalid load factors", () => {
   assert.equal(tooHigh.passengerCount, full.passengerCount);
   assert.equal(invalid.passengerCount, 0);
 });
+
+test("excess market demand cannot erase passenger and cargo load factors", () => {
+  const result = calculateRouteEconomics({
+    ...baseInput, demand: { first: 10_000, business: 10_000, premiumEconomy: 10_000, economy: 10_000, cargoTons: 10_000 }
+  });
+  assert.equal(result.passengerCount, 50);
+  assert.equal(result.capacityUtilization, 0.5);
+  assert.equal(result.cargoTons, 5);
+  assert.equal(result.estimatedRevenuePerFlight, 9_500);
+  const lowDemand = calculateRouteEconomics({ ...baseInput, demand: { first: 0, business: 0, premiumEconomy: 0, economy: 10, cargoTons: 2 } });
+  assert.equal(lowDemand.passengerCount, 5);
+  assert.equal(lowDemand.cargoTons, 1);
+});
+
+test("Easy reduces income while Simulation preserves its bonus and Realistic stays unboosted", () => {
+  const route = economicsFixture().routes[0];
+  const model = aircraftById["a350-900"];
+  for (const distanceKm of [1000, 5500]) {
+    const candidate = { ...route, distanceKm };
+    const easy = estimateFlightFinancials(candidate, model, model.suggestedLayout, 42, getDifficultyConfig("easy"));
+    const realistic = estimateFlightFinancials(candidate, model, model.suggestedLayout, 42, getDifficultyConfig("realistic"));
+    const simulation = estimateFlightFinancials(candidate, model, model.suggestedLayout, 42, getDifficultyConfig("simulation"));
+    const easyBonus = distanceKm >= 5500 ? 2.8 * 1.1 : 2.8;
+    const sandboxBonus = distanceKm >= 5500 ? 3.15 * 1.2 * 5 : 3.15 * 5;
+    assert.ok(Math.abs(easy.economics.estimatedRevenuePerFlight / realistic.economics.estimatedRevenuePerFlight - easyBonus) < 1e-10);
+    assert.ok(Math.abs(simulation.economics.estimatedRevenuePerFlight / realistic.economics.estimatedRevenuePerFlight - sandboxBonus) < 1e-10);
+    assert.equal(easy.cost, realistic.cost);
+    assert.equal(easy.profit, easy.revenue - easy.cost);
+    assert.equal(easy.passengerCount, realistic.passengerCount);
+    assert.ok(easy.profit < simulation.profit);
+  }
+});
+
+test("previews, weekly estimates and actual settlements share economics and do not force profit", () => {
+  const game = economicsFixture();
+  const model = aircraftById["a350-900"];
+  const route = game.routes[0];
+  const preview = estimateExpectedFlightProfit(route, model, model.suggestedLayout, game.difficultyConfig);
+  const weekly = estimateScheduleFinancials({ route, model, aircraft: model.suggestedLayout, daysOfWeek: [1, 3, 5], isRoundTrip: true, difficultyConfig: game.difficultyConfig });
+  assert.equal(weekly.weeklyRevenue, preview.revenue * 6);
+  assert.equal(weekly.weeklyCost, preview.cost * 6);
+  assert.equal(weekly.weeklyProfit, preview.profit * 6);
+  const aircraft = game.fleet[0];
+  const flight = aircraft.schedule[0];
+  const settled = advanceAircraftOperations(aircraft, game.routes, flight.readyGameTime, game.difficultyConfig);
+  assert.equal(settled.entries.length, 1);
+  const actual = settled.aircraft.schedule[0];
+  const financials = estimateFlightFinancials(route, model, aircraft, actual.departureGameTime + actual.arrivalGameTime, game.difficultyConfig,
+    { departureGameTimeMs: actual.departureGameTime, originAirportId: actual.originAirportId });
+  assert.equal(settled.entries[0].revenue, financials.revenue);
+  assert.equal(settled.entries[0].cost, financials.cost);
+  assert.equal(settled.entries[0].profit, financials.profit);
+  const noRevenue = estimateFlightFinancials({ ...route, pricing: { first: 0, business: 0, premiumEconomy: 0, economy: 0, cargo: 0 } }, model,
+    model.suggestedLayout, 42, game.difficultyConfig);
+  assert.ok(noRevenue.profit < 0);
+  assert.equal(calculatePriceAdjustedDemand(10_000, 100, 1_000_000, "economy"), 0);
+});
+
+function economicsFixture() {
+  const now = Date.UTC(2026, 0, 1, 12);
+  return restoreGameStateFromCloudSave({
+    saveFormatVersion: 2, airlineName: "Economics Airways", difficulty: "easy", baseAirportId: "lhr",
+    money: 1_000_000, baseGameTimeMs: now, currentGameTimeMs: now,
+    routes: [{ id: "lhr-jfk", originAirportId: "lhr", destinationAirportId: "jfk", isOpen: true }],
+    fleet: [{
+      id: "plane", modelId: "a350-900", registration: "G-TEST", currentAirportId: "lhr",
+      cabinLayout: aircraftById["a350-900"].suggestedLayout, weeklySchedules: [],
+      schedule: [{
+        id: "leg", aircraftId: "plane", routeId: "lhr-jfk", flightNumber: "EA2",
+        originAirportId: "lhr", destinationAirportId: "jfk", status: "in-flight",
+        departureGameTime: now, arrivalGameTime: now + 8 * 3_600_000, readyGameTime: now + 10 * 3_600_000,
+        baseDelayMinutes: 0, technicalChecked: true
+      }]
+    }]
+  });
+}
 
 test("counts one-way and round-trip frequency exactly once", () => {
   assert.deepEqual(calculateScheduleFrequency([1], false), {

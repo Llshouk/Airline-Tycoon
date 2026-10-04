@@ -21,7 +21,7 @@ export function calculateRouteEconomics(input: RouteEconomicsInput): RouteEconom
   const soldSeats = calculateSoldSeats(demand, cabinLayout, loadFactor);
   const passengerCapacity = passengerSeats(cabinLayout);
   const passengerCount = passengerSeats(soldSeats);
-  const rawCargoTons = Math.min(cabinLayout.cargoTons, demand.cargoTons * cargoLoadFactor);
+  const rawCargoTons = Math.min(cabinLayout.cargoTons, demand.cargoTons) * cargoLoadFactor;
   const costs = calculateOperatingCosts(
     validInput
       ? {
@@ -174,11 +174,13 @@ function normalizePricing(pricing: RoutePricing): RoutePricing {
 }
 
 function calculateSoldSeats(demand: CabinDemand, layout: CabinLayout, loadFactor: number): CabinDemand {
+  // Cap demand at capacity before applying load: a busy market must not erase
+  // the utilization limit and make every departure full.
   return {
-    first: Math.min(layout.first, Math.round(demand.first * loadFactor)),
-    business: Math.min(layout.business, Math.round(demand.business * loadFactor)),
-    premiumEconomy: Math.min(layout.premiumEconomy, Math.round(demand.premiumEconomy * loadFactor)),
-    economy: Math.min(layout.economy, Math.round(demand.economy * loadFactor)),
+    first: Math.min(layout.first, Math.round(Math.min(layout.first, demand.first) * loadFactor)),
+    business: Math.min(layout.business, Math.round(Math.min(layout.business, demand.business) * loadFactor)),
+    premiumEconomy: Math.min(layout.premiumEconomy, Math.round(Math.min(layout.premiumEconomy, demand.premiumEconomy) * loadFactor)),
+    economy: Math.min(layout.economy, Math.round(Math.min(layout.economy, demand.economy) * loadFactor)),
     cargoTons: 0
   };
 }

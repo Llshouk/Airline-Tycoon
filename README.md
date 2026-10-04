@@ -1,8 +1,8 @@
-# Airline Tycoon V1.5.1
+# Airline Tycoon V1.5.2
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.5.1 - Maintenance Reservations and Stability
+Release: V1.5.2 - Company Age, Finance Sorting and Economy Balance
 
 ## Features
 
@@ -11,6 +11,8 @@ Release: V1.5.1 - Maintenance Reservations and Stability
 - Open routes between real airports
 - Adjust ticket prices by cabin class
 - Estimate demand, revenue, cost and profit
+- Track company age using the simulation clock and original founding date
+- Sort recent Finance flights by profit, flight number, passengers, cargo, revenue, cost or time
 - Review per-flight fuel, crew, airport, handling, and maintenance-reserve costs
 - Compare aircraft operating profit, margin, break-even load factor, and route suitability
 - Track aircraft age, flight hours, cycles, condition, and reliability
@@ -68,7 +70,9 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.5.1 builds on the aircraft maintenance and reliability system with after-flight reservations, batch booking, automatic cancellation of conflicting dated flights, and recovery from the aircraft's actual location. Each aircraft keeps its own registration, schedule, lifecycle and cumulative profit. Stability fixes prevent duplicate charges, cash rounding drift and cancelled-flight regeneration after reload. Existing saves remain compatible.
+Airline Tycoon V1.5.2 adds simulated company age, bilingual Finance sorting and a measured Easy-mode earnings reduction. Passenger and cargo utilization now remain effective even on high-demand routes. Simulation retains its sandbox income bonus; Realistic remains unboosted. Changes affect future estimates and settlements, not historical cash or completed-flight accounting. Existing saves remain compatible, with no database migration.
+
+The Finance log is the existing bounded recent history, not a complete lifetime archive. Flight profit is simplified operating contribution, not audited airline net profit: acquisition, depreciation, tax and head-office costs are not fully represented. See [economy balance](docs/economy-balance.md) for assumptions and before/after examples.
 
 Maintenance can start immediately on the ground or after a selected flight lands and completes turnaround. Short-haul night demand is simplified; airport night planning rules are optional and default off. Workshop capacity, replacement aircraft and more detailed operating rules are deferred. This remains a playable prototype, not an airworthiness simulator. See [maintenance rules](docs/aircraft-maintenance.md) and [code health review](docs/code-health-review.md) for assumptions and follow-up work.
 
