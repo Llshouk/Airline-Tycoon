@@ -5,6 +5,7 @@ import { createCompactSaveState, restoreGameStateFromCloudSave } from "../src/li
 import { applyFinanceEvents, createFinancialHistory } from "../src/lib/financialReports";
 import { gameSaveStorage } from "../src/lib/gameSaveStorage";
 import { normalizeGame } from "../src/store/gameStore";
+import { createCompanyGrowth } from "../src/lib/companyGrowth";
 
 const SAVE_KEY = "airline-tycoon-v1";
 
@@ -51,6 +52,9 @@ test("financial summaries survive IndexedDB persistence without storing another 
   const game = restoreGameStateFromCloudSave({ saveFormatVersion: 2, baseAirportId: "lhr", money: 600, currentGameTimeMs: now, fleet: [], routes: [] });
   game.financialHistory = applyFinanceEvents(createFinancialHistory(now, 500),
     [{ kind: "cash", gameTimeMs: now, category: "adjustments", delta: 100 }], now);
+  game.companyGrowth = createCompanyGrowth(game);
+  game.companyGrowth.points.contracts = 350;
+  game.companyGrowth.milestones.firstFlight = "earned";
   const compact = createCompactSaveState(game);
   const json = JSON.stringify({ state: { game: compact }, version: 2 });
   await gameSaveStorage.setItem("report-idb-test", json);
@@ -59,6 +63,7 @@ test("financial summaries survive IndexedDB persistence without storing another 
   assert.equal(localStorage.getItem("report-idb-test"), null);
   const restored = normalizeGame(restoreGameStateFromCloudSave(JSON.parse(saved!).state.game))!;
   assert.deepEqual(restored.financialHistory, game.financialHistory);
+  assert.deepEqual(restored.companyGrowth, game.companyGrowth);
   assert.equal(restored.money, 600);
   assert.equal("cash" in compact, false);
 });
@@ -69,11 +74,14 @@ test("financial summaries retain a localStorage fallback when IndexedDB is unava
   try {
     const now = Date.UTC(2026, 0, 1, 12);
     const game = restoreGameStateFromCloudSave({ saveFormatVersion: 2, baseAirportId: "lhr", money: -25, currentGameTimeMs: now, fleet: [], routes: [] });
+    game.companyGrowth = createCompanyGrowth(game);
+    game.companyGrowth.points.milestones = 100;
     const json = JSON.stringify({ state: { game: createCompactSaveState(game) }, version: 2 });
     await gameSaveStorage.setItem("report-fallback-test", json);
     assert.equal(localStorage.getItem("report-fallback-test"), json);
     const restored = normalizeGame(restoreGameStateFromCloudSave(JSON.parse((await gameSaveStorage.getItem("report-fallback-test"))!).state.game))!;
     assert.equal(restored.money, -25);
+    assert.deepEqual(restored.companyGrowth, game.companyGrowth);
     assert.equal(restored.financialHistory!.openingCash, -25);
     localStorage.removeItem("report-fallback-test");
   } finally { Object.defineProperty(window, "indexedDB", { configurable: true, value: indexedDB }); }

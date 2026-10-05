@@ -14,6 +14,7 @@ const breakdown: [keyof FinanceValues, TranslationKey][] = [
   ["maintenanceReserve", "reports.reserve"], ["extraMaintenance", "reports.maintenance"],
   ["aircraftPurchases", "reports.aircraftPurchases"], ["routeOpening", "reports.routeOpening"],
   ["basePurchases", "reports.basePurchases"], ["subsidies", "reports.subsidies"],
+  ["contractRewards", "growth.rewards"],
   ["adjustments", "reports.adjustments"], ["earlierSettlements", "reports.earlier"]
 ];
 

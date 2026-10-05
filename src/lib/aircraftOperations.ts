@@ -154,7 +154,7 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
         financials.economics.estimatedAirportCostPerFlight, financials.economics.estimatedMaintenanceReservePerFlight
       ]);
       const passengerRevenue = Math.min(accounting.revenue, Math.round(financials.economics.revenue.passengerRevenue));
-      financeEvents.push({ kind: "flight", gameTimeMs: item.arrivalGameTime, entry,
+      financeEvents.push({ kind: "flight", gameTimeMs: item.arrivalGameTime, departureGameTimeMs: item.actualDepartureGameTime ?? item.departureGameTime, entry,
         values: { passengerRevenue, cargoRevenue: accounting.revenue - passengerRevenue, fuelCost, crewCost, airportCost, maintenanceReserve,
           passengerCapacity: financials.economics.passengerCapacity, cargoCapacity: aircraft.cabinLayout.cargoTons } });
       cash += accounting.profit;

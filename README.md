@@ -1,8 +1,8 @@
-# Airline Tycoon V1.5.3
+# Airline Tycoon V1.6.0
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.5.3 - Financial Reports and Fleet Attention
+Release: V1.6.0 - Contracts and Company Growth
 
 ## Features
 
@@ -12,6 +12,9 @@ Release: V1.5.3 - Financial Reports and Fleet Attention
 - Adjust ticket prices by cabin class
 - Estimate demand, revenue, cost and profit
 - Track company age using the simulation clock and original founding date
+- Accept optional commuter, cargo and network-expansion contracts with simulated deadlines
+- Earn permanent development points, progress through five company levels and complete one-time milestones
+- Track contract progress, bounded history and separate company cash rewards
 - Sort recent Finance flights by profit, flight number, passengers, cargo, revenue, cost or time
 - Review daily/weekly operating reports and 7/30/90-day financial trends
 - Separate investment spending, subsidies and cash adjustments from operating profit
@@ -39,7 +42,7 @@ Release: V1.5.3 - Financial Reports and Fleet Attention
 - React
 - TypeScript
 - Tailwind CSS
-- LocalStorage for save data
+- IndexedDB for local saves, with a LocalStorage fallback
 - Supabase for optional cloud save
 - MapLibre GL JS for the optional globe map
 - Map-based airline network display
@@ -73,7 +76,9 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.5.3 calibrates fuel, crew, airport and maintenance-reserve costs by aircraft category and flight duration. Easy revenue now uses a smaller 1.5 gameplay bonus; Simulation retains its sandbox income bonus and Realistic remains unboosted. Daily/weekly reports and fleet attention filters use actual new settlements. Changes affect future estimates and settlements, not historical cash or completed-flight accounting. Existing saves remain compatible, with no database migration or new dependency.
+Airline Tycoon V1.6.0 adds optional operating contracts and permanent company growth. Contracts count actual new flight settlements, award points and modest cash once, and retain simulated deadlines across local/cloud saves. Historical companies receive a one-time points-only migration, without retroactive cash. Five company levels unlock contract types and expand preferred mission ranges, without locking aircraft, airports or basic gameplay. See [company growth](docs/company-growth.md) for targets, exact points, migration and reward rules.
+
+The V1.5.3 fuel, crew, airport, maintenance-reserve and fare models are unchanged in this release. Easy uses a 1.5 gameplay income bonus; Simulation retains its sandbox income bonus and Realistic remains unboosted. Company rewards use the canonical cash field, but are not flight revenue or operating profit. Existing saves remain compatible, with no database migration or new dependency.
 
 The Finance flight log remains capped at 60 records. Reports retain up to 90 simulated UTC days; aircraft/route diagnostics retain seven calendar days including today. Old saves begin reporting when upgraded, without fabricating earlier history; incomplete periods are marked. Flight profit is simplified operating contribution, not audited airline net profit: acquisition is separate investment spending, while depreciation, tax and head-office costs remain deferred. See [financial reports](docs/financial-reports.md) for rules and V1.5.3 balance samples, and [earlier economy balance](docs/economy-balance.md) for V1.5.2 history.
 

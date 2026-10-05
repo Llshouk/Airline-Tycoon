@@ -21,6 +21,7 @@
     "tests/gameSaveStorage.test.ts",
     "tests/finance.test.ts",
     "tests/financialReports.test.ts",
+    "tests/companyGrowth.test.ts",
     "tests/aircraftMaintenance.test.ts",
     "tests/leafletLayerLifecycle.test.ts",
     "tests/leafletTileReadiness.test.ts",

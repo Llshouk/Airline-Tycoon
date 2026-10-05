@@ -9,6 +9,7 @@ import { createCompactSaveState, restoreGameStateFromCloudSave } from "../src/li
 import { fleetAlerts } from "../src/lib/fleetAlerts";
 import { applyFinanceEvents, createFinancialHistory, financialDays, financialWeeks, normalizeFinancialHistory, recentOperatingTotals, splitRoundedCost } from "../src/lib/financialReports";
 import { DAY_MS } from "../src/lib/time";
+import { MILESTONES } from "../src/lib/companyGrowth";
 import { normalizeGame, useGameStore } from "../src/store/gameStore";
 import type { FinanceEvent } from "../src/types/finance";
 import type { GameState, ScheduleItem } from "../src/types/game";
@@ -181,6 +182,8 @@ test("pause, faster multi-day settlement, subsidy and repeated reload preserve o
   let wall = 1800000000000;
   t.mock.method(Date, "now", () => wall);
   const game = fixture();
+  // Isolate bailout accounting from the new first-flight milestone reward.
+  game.companyGrowth!.milestones = Object.fromEntries(MILESTONES.map((milestone) => [milestone.id, "earned"]));
   game.routes[0].pricing = { first: 0, business: 0, premiumEconomy: 0, economy: 0, cargo: 0 };
   game.money = 1;
   game.financialHistory = createFinancialHistory(now, 1);

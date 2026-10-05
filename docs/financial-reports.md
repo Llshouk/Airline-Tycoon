@@ -1,5 +1,14 @@
 # V1.5.3 Financial Reports and Fleet Attention
 
+## V1.6.0 Company Rewards
+
+Contracts and milestones add a separate `contractRewards` cash category.
+Rewards increase canonical `game.money` and closing cash, not passenger/cargo
+revenue, per-flight profit or operating profit. They are recorded at the actual
+completion/crossing game time, including offline catch-up, and persist in
+compact-save format 2. Old report rows default the new category to zero.
+Historical company migration grants points only. See [company growth](company-growth.md).
+
 ## Costs and Difficulty
 
 The shared economics calculator serves forecasts, weekly estimates and actual

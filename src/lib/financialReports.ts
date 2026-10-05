@@ -28,7 +28,7 @@ export function costOf(values: FinanceValues) { return values.fuelCost + values.
 export function profitOf(values: FinanceValues) { return revenueOf(values) - costOf(values) - values.extraMaintenance; }
 export function cashChangeOf(values: FinanceValues) {
   return profitOf(values) - values.aircraftPurchases - values.routeOpening - values.basePurchases +
-    values.subsidies + values.adjustments + values.earlierSettlements;
+    values.subsidies + values.contractRewards + values.adjustments + values.earlierSettlements;
 }
 
 export function createFinancialHistory(now: number, openingCash: number): FinancialHistory {
@@ -98,7 +98,7 @@ export function applyFinanceEvents(history: FinancialHistory, events: readonly F
       day.earlierSettlements += delta;
     } else if (event.kind === "cash") {
       if (event.category === "adjustments") day.adjustments += delta;
-      else if (event.category === "subsidies") day.subsidies += Math.max(0, delta);
+      else if (event.category === "subsidies" || event.category === "contractRewards") day[event.category] += Math.max(0, delta);
       else day[event.category] += Math.max(0, -delta);
     } else {
       for (const key of Object.keys(event.values) as (keyof typeof event.values)[]) day[key] += event.values[key];

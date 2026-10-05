@@ -4,6 +4,7 @@ import { Activity, Banknote, CheckCircle2, Gauge, Package, Plane, TrendingUp, Us
 import { useMemo } from "react";
 import { AircraftImage } from "@/components/AircraftImage";
 import { CompanyAge } from "@/components/CompanyAge";
+import { CompanyGrowthSummary } from "@/components/CompanyGoalsScreen";
 import { FleetAlerts } from "@/components/FleetAlerts";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
@@ -15,7 +16,7 @@ import { formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
 import type { GameState } from "@/types/game";
 
-export function Dashboard({ onOpenAircraft }: { onOpenAircraft: (id: string) => void }) {
+export function Dashboard({ onOpenAircraft, onOpenGoals }: { onOpenAircraft: (id: string) => void; onOpenGoals?: () => void }) {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
   const recommendedRoutes = useMemo(() => (game ? getRecommendedRouteOpportunities(game, 4) : []), [game]);
@@ -48,6 +49,7 @@ export function Dashboard({ onOpenAircraft }: { onOpenAircraft: (id: string) => 
         <Stat icon={CheckCircle2} label={t("dashboard.flights")} value={String(stats.completedFlights)} />
       </div>
       <FleetAlerts game={game} onOpenAircraft={onOpenAircraft} />
+      <CompanyGrowthSummary game={game} onOpen={onOpenGoals} />
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
           <div className="mb-3 flex items-center gap-2">

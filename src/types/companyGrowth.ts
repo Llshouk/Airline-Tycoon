@@ -1,0 +1,30 @@
+export type ContractKind = "commuter" | "cargo" | "network";
+export type MilestoneId = "firstFlight" | "flights100" | "passengers1000" | "cargo100" | "fleet5";
+export type ContractTarget = { originId: string; destinationId: string; required: number; progress: number; needsNewRoute: boolean };
+export type CompanyContract = {
+  id: string;
+  key: string;
+  kind: ContractKind;
+  targets: ContractTarget[];
+  durationDays: number;
+  points: number;
+  cashReward: number;
+  quotedCost: number;
+  acceptedGameTimeMs?: number;
+  deadlineGameTimeMs?: number;
+};
+export type ContractRecord = CompanyContract & { outcome: "completed" | "expired" | "abandoned"; endedGameTimeMs: number };
+export type CompanyGrowth = {
+  schemaVersion: 1;
+  points: { contracts: number; milestones: number; legacy: number };
+  progress: { flights: number; passengers: number; cargoTons: number; fleet: number };
+  milestones: Partial<Record<MilestoneId, "earned" | "legacy">>;
+  settledThroughGameTimeMs: number;
+  boardCycle: number;
+  boardSignature: string;
+  offers: CompanyContract[];
+  consumedOfferIds: string[];
+  active: CompanyContract[];
+  history: ContractRecord[];
+  cooldowns: { key: string; untilGameTimeMs: number }[];
+};

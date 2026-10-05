@@ -1,5 +1,6 @@
 import type { DifficultyConfig, GameDifficulty } from "@/config/difficulty";
 import type { FinancialHistory } from "@/types/finance";
+import type { CompanyGrowth } from "@/types/companyGrowth";
 
 export type AirportSizeTier = "regional" | "large" | "mega";
 export type CabinClass = "first" | "business" | "premiumEconomy" | "economy";
@@ -257,6 +258,7 @@ export interface GameState {
   updatedAt?: string;
   airportRulesEnabled?: boolean;
   financialHistory?: FinancialHistory;
+  companyGrowth?: CompanyGrowth;
 }
 
 export interface ActiveFlightInfo {

@@ -9,6 +9,7 @@ import { beginAircraftMaintenance, getMaintenanceStatus, normalizeAircraftLifecy
 import { addCash, canAfford, getCurrentCash, spendCash, updateCash } from "@/lib/cash";
 import { applyFinanceEvents, normalizeFinancialHistory, withCashReport } from "@/lib/financialReports";
 import type { FinanceEvent } from "@/types/finance";
+import { abandonCompanyContract, acceptCompanyContract, applyCompanyGrowth, createCompanyGrowth, normalizeCompanyGrowth, refreshContractBoard, type ContractError } from "@/lib/companyGrowth";
 import { estimateDemand } from "@/lib/demand";
 import {
   estimateCargoRatePerTon,
@@ -68,6 +69,9 @@ type GameStore = {
   resetGame: () => void;
   setAdminUser: (isAdminUser: boolean) => void;
   clearNotice: () => void;
+  acceptContract: (id: string) => { ok: boolean; error?: ContractError };
+  abandonContract: (id: string) => void;
+  refreshGoals: () => void;
   hydrateGameTime: () => void;
   setTimeMultiplier: (speed: TimeMultiplier) => void;
   togglePause: () => void;
@@ -135,6 +139,7 @@ export const useGameStore = create<GameStore>()(
           lastTickRealMs: now,
           updatedAt: new Date(now).toISOString()
         };
+        game.companyGrowth = createCompanyGrowth(game);
         const startedGame = withCashReport(game, startingCapital, "basePurchases");
         updateLeaderboard(startedGame);
         set({ game: startedGame, notice: "Base airport purchased. Your airline is cleared for startup." });
@@ -142,6 +147,24 @@ export const useGameStore = create<GameStore>()(
       resetGame: () => set({ game: null, notice: null }),
       setAdminUser: (isAdminUser) => set({ isAdminUser }),
       clearNotice: () => set({ notice: null }),
+      refreshGoals: () => {
+        advanceSimulation(set, normalizeGame(get().game), Date.now());
+        const game = normalizeGame(get().game);
+        if (game) set({ game: { ...game, companyGrowth: refreshContractBoard(game) } });
+      },
+      acceptContract: (id) => {
+        advanceSimulation(set, normalizeGame(get().game), Date.now());
+        const game = normalizeGame(get().game);
+        if (!game) return { ok: false, error: "noGame" };
+        const result = acceptCompanyContract(game, id);
+        set({ game: withUpdatedAt(result.game), notice: null });
+        return { ok: !result.error, error: result.error };
+      },
+      abandonContract: (id) => {
+        advanceSimulation(set, normalizeGame(get().game), Date.now());
+        const game = normalizeGame(get().game);
+        if (game) set({ game: withUpdatedAt(abandonCompanyContract(game, id)), notice: null });
+      },
       hydrateGameTime: () => {
         const game = get().game;
         if (!game) return;
@@ -221,10 +244,10 @@ export const useGameStore = create<GameStore>()(
           cargoTransportedTons: 0
         };
         aircraft.lifecycle = normalizeAircraftLifecycle(aircraft, game.currentGameTimeMs);
-        const nextGame = {
+        const nextGame = applyCompanyGrowth({
           ...gameAfterPurchase,
           fleet: [...game.fleet, aircraft]
-        };
+        }, [], true);
         updateLeaderboard(nextGame);
         const message = `${aircraft.registration} ${model.manufacturer} ${model.model} joined the fleet with a custom cabin.`;
         set({
@@ -814,7 +837,7 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
     fleet,
     financialHistory: applyFinanceEvents(game.financialHistory ?? normalizeFinancialHistory(undefined, game.currentGameTimeMs, game.money), financeEvents, currentGameTimeMs)
   };
-  const finalGame = applyBankruptcyRules(beforeBankruptcyGame);
+  const finalGame = applyBankruptcyRules(applyCompanyGrowth(beforeBankruptcyGame, financeEvents));
   const bankruptcyNotice = bankruptcyMessage(beforeBankruptcyGame, finalGame);
   updateLeaderboard(finalGame);
   set({ game: finalGame, notice: bankruptcyNotice ?? completedNotice });
@@ -1025,6 +1048,7 @@ export function normalizeGame(game: GameState | null | undefined): GameState | n
     isPaused: game.isPaused ?? false,
     airportRulesEnabled: game.airportRulesEnabled === true,
     financialHistory: normalizeFinancialHistory(game.financialHistory, game.currentGameTimeMs, money),
+    companyGrowth: normalizeCompanyGrowth(game.companyGrowth, game),
     routes: game.routes.map((route) => {
       const estimatedTicketPrices = route.estimatedTicketPrices ?? estimateTicketPrices(route.distanceKm);
       const estimatedCargoRatePerTon = route.estimatedCargoRatePerTon ?? estimateCargoRatePerTon(route.distanceKm);

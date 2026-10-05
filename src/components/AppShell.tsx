@@ -3,6 +3,7 @@
 import { BarChart3, CalendarClock, CircleDollarSign, Gauge, Map, Pause, Plane, Play, Route, Settings, Store, Trophy, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { Dashboard } from "@/components/Dashboard";
+import { CompanyGoalsScreen } from "@/components/CompanyGoalsScreen";
 import { AircraftMarketScreen } from "@/components/AircraftMarketScreen";
 import { useAuthSession } from "@/components/AuthGate";
 import { CloudSavePanel } from "@/components/CloudSavePanel";
@@ -22,7 +23,7 @@ import { useTranslation } from "@/i18n";
 import { useGameStore } from "@/store/gameStore";
 import type { GameState, TimeMultiplier } from "@/types/game";
 
-type Screen = "dashboard" | "map" | "fleet" | "market" | "routes" | "schedule" | "finance" | "leaderboard" | "settings";
+type Screen = "dashboard" | "map" | "fleet" | "market" | "routes" | "schedule" | "finance" | "growth" | "leaderboard" | "settings";
 type NavItem = {
   id: Screen;
   labelKey?: Parameters<ReturnType<typeof useTranslation>["t"]>[0];
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
   { id: "routes", labelKey: "nav.routes", icon: Route },
   { id: "schedule", labelKey: "nav.schedule", icon: CalendarClock },
   { id: "finance", labelKey: "nav.finance", icon: CircleDollarSign },
+  { id: "growth", labelKey: "nav.growth", icon: Trophy },
   { id: "leaderboard", labelKey: "nav.leaderboard", icon: Trophy },
   { id: "settings", labelKey: "nav.settings", icon: Settings }
 ];
@@ -65,7 +67,7 @@ export function AppShell() {
       <header className="sticky top-0 z-[900] border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto grid max-w-[1500px] gap-3 px-3 py-3 xl:grid-cols-[minmax(180px,1fr)_auto] xl:items-center">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1.5.3</p>
+            <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1.6.0</p>
             <h1 className="truncate text-xl font-black text-ink">{game.airlineName}</h1>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm xl:justify-end">
@@ -146,7 +148,8 @@ export function AppShell() {
             </div>
           ) : null}
           {game.gameStatus !== "active" ? <GameOverPanel gameStatus={game.gameStatus} resetGame={resetGame} /> : null}
-          {screen === "dashboard" && <Dashboard onOpenAircraft={(id) => { setFleetSelection(id || null); setScreen("fleet"); }} />}
+          {screen === "dashboard" && <Dashboard onOpenAircraft={(id) => { setFleetSelection(id || null); setScreen("fleet"); }} onOpenGoals={() => setScreen("growth")} />}
+          {screen === "growth" && <CompanyGoalsScreen onNavigate={setScreen} />}
           {screen === "map" && <MapScreen />}
           {screen === "fleet" && <FleetScreen initialSelectedAircraftId={fleetSelection} />}
           {screen === "market" && <AircraftMarketScreen />}

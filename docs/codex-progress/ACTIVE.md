@@ -4,33 +4,60 @@
 
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
-- Current version: `1.5.3`
+- Current version: `1.6.0`
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
 - V1.4.0 release HEAD / V1.5.0 baseline: `8b696cd96e6bc5d53d2b95d6ae80f397a0140f01`
 - Previous published checkpoint / V1.5.3 baseline: V1.5.2 (`2109bb65278beedbf08fc5b22b9c716222f1c4eb`)
-- Current release checkpoint: the V1.5.3 release commit containing this document
+- Previous published release: V1.5.3 (`ccc9268bd703129e2dee20c0e148b455e7946796`)
+- Current release checkpoint: the V1.6.0 release commit containing this document
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
-- Release status: V1.5.3 implemented and locally verified; user authorized direct main-branch commit/push
-- Latest focused review date: 2026-10-04
-- Latest successful production build: `pnpm run build` passed on 2026-10-04 with Next.js 15.5.24; disposable V1.5.3 route removed
+- Release status: V1.6.0 implemented and locally verified; user authorized direct main-branch commit/push
+- Latest focused review date: 2026-10-06
+- Latest successful production build: `pnpm run build` passed on 2026-10-06 with Next.js 15.5.24; disposable V1.6.0 route and its stale generated type removed
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
 - No earlier `ACTIVE.md` or WIP patch existed at audit start
 
 ## Roadmap Position
 
 - Current major version: V1
-- Current minor version: V1.5.3
-- Current release objective: cost calibration, bounded Finance reports and fleet attention; stop before V1.6 work
+- Current minor version: V1.6.0
+- Current release objective: optional contracts, permanent development points and company milestones
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Simplified maintenance scope: immediate ground work, dated after-flight reservations, conflict cancellation/recovery, and batch booking work; workshop capacity, replacement aircraft and model-specific verified limits remain TODOs
-- Next planned release: V1.6.0 Reputation and Passenger Experience
-- Release-gate status: V1.5 automated tests, typecheck, lint, maintenance browser acceptance, responsive layout, save compatibility, dependency audit, updated-map smoke, production build, and production asset checks pass
+- The user replaced the earlier V1.6.0 reputation plan with Contracts and Company Growth. Reputation and Passenger Experience remain deferred.
+- Release-gate status: V1.6 automated tests, typecheck, lint, browser acceptance, responsive layout, save compatibility, production build and production asset checks pass; dependencies unchanged
 
 ## Current Objective
 
-Publish the verified V1.5.3 changes directly to Llshouk/Airline-Tycoon main, as authorized by the user's PUSH request. No new dependency, gameplay change or Supabase migration during publication. Confirm the remote commit after pushing; never claim Vercel deployment from local verification.
+Finish verifying V1.6.0 Contracts and Company Growth, then commit and push directly to Llshouk/Airline-Tycoon main as authorized. Preserve V1.5.3 economics, maintenance, schedules and independent aircraft. No dependency or Supabase schema migration. Confirm the remote commit after pushing; never claim Vercel deployment from local verification.
+
+## V1.6.0 Evidence (2026-10-06)
+
+- Added optional commuter/cargo/network contracts, a three-offer board, two
+  active slots, game-time deadlines, seven-day target cooldowns and 20-record
+  history. Accepted targets/rewards freeze and abandoned contracts incur no fine.
+- New arrival events carry actual departure time. Growth consumes new events in
+  arrival order before expiry, without replaying the capped flight log or
+  duplicating the original operating settlement engine.
+- Permanent DP source totals, five levels, one-time milestones and points-only
+  legacy migration. Console stat adjustments do not award new milestones.
+- Company rewards credit canonical money and are a separate Finance cash
+  category, never flight revenue/operating profit. Compact-save format 2 and
+  IndexedDB/LocalStorage retain growth without a database migration.
+- Automated suite passes 102 tests, including boundary deadlines,
+  long-haul startups, slots, cooldowns, replay, offline settlement, maintenance
+  cancellation, legacy migration, large event batches and storage adapters.
+- Typecheck, lint and optimized production build pass. Development browser
+  acceptance covers actual completion/reload, reward reports, navigation, slot
+  limits, native abandonment confirmation/Escape, empty states, English/Chinese
+  and 390px/1440px layouts. Only the pre-existing favicon.ico 404 was excluded.
+- Production smoke checks branding, manifest/cache version, uploaded aircraft
+  assets and MapLibre module worker assets. Removed /v160-check returns 404 in
+  both dev and production; generated output, browser fixtures and logs are ignored.
+- Authenticated Supabase and live Vercel deployment remain unverified; local
+  Supabase environment variables are absent. See docs/company-growth.md.
 
 ## V1.5.3 Evidence (2026-10-04)
 
@@ -576,15 +603,15 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 ## Next Exact Action
 
-Confirm the V1.5.3 release commit is synchronized with GitHub main, then verify
-Vercel deployment separately. Playtest at http://localhost:3015. V1.6.0 has not begun.
+Confirm the V1.6.0 release commit is synchronized with GitHub main, then verify
+Vercel deployment separately. Local dev server: http://localhost:3015.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
-2. V1.5.2 (`2109bb6`) is the previous published baseline; verify the V1.5.3 release commit against origin/main and preserve subsequent user edits.
+2. V1.5.3 (`ccc9268`) is the previous published baseline; verify the V1.6.0 release commit against origin/main and preserve subsequent user edits.
 3. Treat `src/lib/economics/*` as the canonical calculation layer and `src/lib/economy.ts` as the compatibility and settlement boundary.
 4. Preserve preview purity, canonical `money`, save compatibility, and one-record-per-aircraft state in all future work.
 5. Treat `aircraftMaintenance.ts` as the lifecycle/compatibility owner and `aircraftOperations.ts` as the chronological flight-settlement owner; do not create a second cash or maintenance timeline.
 6. Treat `financialReports.ts` as bounded reporting only, not another cash/settlement owner; `fleetAlerts.ts` derives UI exceptions without changing aircraft.
-7. Stop before V1.6.0 until it is explicitly requested; authenticated Supabase, physical touch/pinch, and complete browser-wide isolation remain deferred external verification.
+7. `companyGrowth.ts` consumes newly settled events only and derives levels from permanent points. Keep rewards separate from operating profit, bounded contract state, and one-time migration flags. Reputation, authenticated Supabase, physical touch/pinch, and complete browser-wide isolation remain deferred external verification.

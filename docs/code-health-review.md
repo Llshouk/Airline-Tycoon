@@ -4,6 +4,19 @@ Date: 2026-10-02. Baseline: V1.4.0, `8b696cd` on `main`.
 
 The project has some dead scaffolding and duplicated work, but the working game does not warrant a rewrite. Size alone is not evidence of redundancy.
 
+## V1.6.0 Follow-Up (2026-10-06)
+
+- Growth policy is a separate pure module and bounded save object, not another
+  flight engine, per-aircraft record merge, cash owner or Supabase table.
+- Contract progress consumes only existing newly settled flight events. The
+  departure timestamp is added to ephemeral events rather than duplicating a
+  persisted unbounded flight history.
+- Company levels and progress percentages are derived; only source DP totals,
+  milestone flags, finite progress counters and bounded contracts are persisted.
+- Offer generation runs on cycle/capability changes, not on every UI render.
+- No dependency changes or unrelated gameplay refactoring. The existing large
+  store/screen modules remain a gradual extraction opportunity, not a rewrite.
+
 ## V1.5.3 Follow-Up (2026-10-04)
 
 - Removed the unused global cost multiplier after category calibration; there
