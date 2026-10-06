@@ -1,5 +1,14 @@
 # V1.5.3 Financial Reports and Fleet Attention
 
+## V1.7.0 Shared Markets
+
+Seven-day per-route and per-aircraft aggregates now retain observed passengers,
+cargo tons, payload capacity and passenger/cargo revenue splits. Older rows
+default missing metrics safely; they do not reconstruct historical sales or
+change past cash/profit. Flight accounting locks at departure and is observed
+once on arrival. Route analysis separates actual seven-day results from explicit
+isolated forward forecasts. See [shared route market](route-market.md).
+
 ## V1.6.0 Company Rewards
 
 Contracts and milestones add a separate `contractRewards` cash category.

@@ -71,6 +71,7 @@ export type CompactGameSave = Pick<
   | "airportRulesEnabled"
   | "financialHistory"
   | "companyGrowth"
+  | "routeMarket"
 > & {
   fleet: CompactAircraftSave[];
   routes: CompactRouteSave[];
@@ -201,6 +202,7 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
     airportRulesEnabled: gameState.airportRulesEnabled === true,
     financialHistory: normalizeFinancialHistory(gameState.financialHistory, gameState.currentGameTimeMs, gameState.money),
     companyGrowth: gameState.companyGrowth,
+    routeMarket: gameState.routeMarket,
     fleet: gameState.fleet.map((aircraft) => ({
       id: aircraft.id,
       modelId: aircraft.modelId,
@@ -355,6 +357,7 @@ function restoreCompactGameState(compact: CompactGameSave): GameState {
     airportRulesEnabled: compact.airportRulesEnabled === true,
     financialHistory: compact.financialHistory,
     companyGrowth: compact.companyGrowth,
+    routeMarket: compact.routeMarket,
     fleet: compact.fleet.map((aircraft) => ({
       ...aircraft,
       lifecycle: normalizeAircraftLifecycle(aircraft, compact.currentGameTimeMs)
@@ -548,6 +551,7 @@ function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): Comp
     airportRulesEnabled: raw.airportRulesEnabled === true,
     financialHistory: normalizeFinancialHistory(raw.financialHistory, raw.currentGameTimeMs ?? Date.UTC(2026, 0, 1, 6), getCurrentCash(raw)),
     companyGrowth: raw.companyGrowth,
+    routeMarket: raw.routeMarket,
     fleet: (raw.fleet ?? []) as CompactAircraftSave[],
     routes: (raw.routes ?? []) as CompactRouteSave[],
     flightLogSummary: raw.flightLogSummary ?? raw.flightLog ?? [],

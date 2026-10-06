@@ -3,6 +3,8 @@
 import { CalendarPlus, Pencil, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AircraftDetailPanel } from "@/components/AircraftDetailPanel";
+import { BatchTimetableCopy } from "@/components/BatchTimetableCopy";
+import { ScheduleMarketForecast } from "@/components/ScheduleMarketForecast";
 import { AircraftImage } from "@/components/AircraftImage";
 import { AircraftWeeklyTimetableGrid } from "@/components/AircraftWeeklyTimetableGrid";
 import { OperatingEconomicsPanel } from "@/components/OperatingEconomicsPanel";
@@ -377,8 +379,9 @@ export function ScheduleScreen() {
         {baseAirportIds.length === 0 ? <p className="mt-3 rounded-md bg-runway px-3 py-3 text-sm font-semibold text-slate-500">{t("schedule.noBaseAvailable")}</p> : null}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
-        <form onSubmit={onSubmit} className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+      <BatchTimetableCopy game={game} />
+      <section className="grid min-w-0 gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
+        <form onSubmit={onSubmit} className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
           <div className="flex items-center gap-2">
             <CalendarPlus size={20} className="text-coral" />
             <h3 className="font-bold text-ink">{editingScheduleId ? "Edit timetable" : t("schedule.create")}</h3>
@@ -549,7 +552,7 @@ export function ScheduleScreen() {
             {t(curfewIssue ? "airport.curfew" : "airport.restricted")}: {airportsById[(curfewIssue ?? airportIssues[0]).airportId]?.iata} {(curfewIssue ?? airportIssues[0]).localTime} ({t("airport.localTime")})
           </p> : null}
           {projection && projection.estimate.nightFlights > 0 ? <p className="border-l-2 border-amber-500 px-3 py-2 text-sm font-bold text-amber-800">
-            {t("airport.nightDemand")}: 85% / {projection.estimate.nightFlights} {t("economics.weeklyFlights")}
+            {t("airport.nightDemand")} / {projection.estimate.nightFlights} {t("economics.weeklyFlights")}
           </p> : null}
           {selectedAircraft && (selectedAircraft.status === "maintenance" || selectedAircraft.status === "grounded") ? (
             <p className="border-l-2 border-coral pl-3 text-sm font-semibold text-coral">
@@ -568,6 +571,10 @@ export function ScheduleScreen() {
               estimate={projection.estimate}
             />
           ) : null}
+          {selectedAircraft && selectedRoute && <ScheduleMarketForecast
+            key={JSON.stringify([selectedAircraft.id, selectedRoute.id, selectedDays, departureTimeLocal, outboundFlightNumber, returnFlightNumber, isRoundTrip, editingScheduleId])}
+            game={game} input={{ aircraftId: selectedAircraft.id, routeId: selectedRoute.id, daysOfWeek: selectedDays, departureTimeLocal,
+              outboundFlightNumber, returnFlightNumber, isRoundTrip, replaceWeeklyScheduleId: editingScheduleId ?? undefined }} />}
           {demandPreview ? <RemainingDemandPreview summary={demandPreview} /> : null}
           {localError ? (
             <p className="mt-4 whitespace-pre-line rounded-md bg-coral/10 px-3 py-2 text-sm font-bold text-coral">{localError}</p>
@@ -581,7 +588,7 @@ export function ScheduleScreen() {
           </button>
         </form>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="space-y-4 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:pr-1">
             {selectedAircraft ? (
               <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
@@ -631,6 +638,7 @@ export function ScheduleScreen() {
                         {normalizeScheduleTime(service.departureTimeLocal)}
                       </p>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <p className="col-span-2 font-bold text-slate-500">{t("market.isolated")}</p>
                         <Info label="Weekly revenue" value={formatGBP.format(estimate.weeklyRevenue)} />
                         <Info label="Weekly profit" value={formatGBP.format(estimate.weeklyProfit)} />
                       </div>
@@ -822,8 +830,10 @@ function ScheduleFinancialSummary({
   blockTime: string;
   estimate: ReturnType<typeof estimateScheduleFinancials>;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="mt-4 rounded-md border border-slate-200 bg-runway p-3 text-sm">
+      <h4 className="mb-2 font-bold text-slate-600">{t("market.isolated")}</h4>
       <div className="grid grid-cols-2 gap-2">
         <Info label="Route" value={routeLabel} />
         <Info label="Aircraft" value={aircraftLabel} />
@@ -864,8 +874,8 @@ function RemainingDemandPreview({ summary }: { summary: ScheduleDemandPreview })
         <p className="font-black text-ink">Remaining Weekly Demand</p>
         <p className="text-xs font-semibold text-slate-500">Updates from the selected route and draft timetable</p>
       </div>
-      <div className="mt-3 overflow-hidden rounded-md border border-slate-100">
-        <div className="grid grid-cols-[1fr_repeat(4,78px)] gap-2 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-normal text-slate-500">
+      <div className="mt-3 overflow-x-auto rounded-md border border-slate-100">
+        <div className="grid min-w-[460px] grid-cols-[1fr_repeat(4,78px)] gap-2 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-normal text-slate-500">
           <span>Cabin</span>
           <span>Total</span>
           <span>Used</span>
@@ -876,7 +886,7 @@ function RemainingDemandPreview({ summary }: { summary: ScheduleDemandPreview })
           const remaining = summary.remainingAfterPreview[row.key];
           const oversupply = summary.oversupplyAfterPreview[row.key];
           return (
-            <div key={row.key} className="grid grid-cols-[1fr_repeat(4,78px)] gap-2 border-t border-slate-100 px-3 py-2 text-xs">
+            <div key={row.key} className="grid min-w-[460px] grid-cols-[1fr_repeat(4,78px)] gap-2 border-t border-slate-100 px-3 py-2 text-xs">
               <span className="font-bold text-ink">{row.label}</span>
               <span>{formatScheduleDemand(summary.totalDemand[row.key], row.suffix)}</span>
               <span>{formatScheduleDemand(summary.usedDemand[row.key], row.suffix)}</span>

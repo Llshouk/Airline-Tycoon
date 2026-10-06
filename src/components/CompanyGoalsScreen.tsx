@@ -4,7 +4,8 @@ import { ArrowRight, Check, CheckCircle2, Flag, Package, Plane, Route, Target, T
 import { useEffect, useRef, useState } from "react";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
-import { COMPANY_LEVELS, MILESTONES, companyLevel, contractEligibility, normalizeCompanyGrowth, totalDevelopmentPoints, type ContractError } from "@/lib/companyGrowth";
+import { COMPANY_LEVELS, MILESTONES, companyLevel, contractEligibility, contractTargetAmount, isCargoContract, normalizeCompanyGrowth, totalDevelopmentPoints, type ContractError } from "@/lib/companyGrowth";
+import { forecastOperations } from "@/lib/operationForecast";
 import { formatGBP } from "@/lib/format";
 import { DAY_MS, formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
@@ -12,7 +13,7 @@ import type { CompanyContract, CompanyGrowth } from "@/types/companyGrowth";
 import type { GameState } from "@/types/game";
 
 type Destination = "map" | "routes" | "schedule" | "market";
-const icons = { commuter: Plane, cargo: Package, network: Route };
+const icons = { commuter: Plane, cargo: Package, network: Route, charter: Plane, longTerm: Package };
 
 export function CompanyGoalsScreen({ onNavigate }: { onNavigate: (screen: Destination) => void }) {
   const { t } = useTranslation();
@@ -115,10 +116,11 @@ function ContractCard({ contract, game, active = false, children }: { contract: 
   const Icon = icons[contract.kind];
   return <article className="min-w-0 rounded-lg border border-slate-200 bg-white p-4">
     <h3 className="flex items-center gap-2 text-base font-bold text-ink"><Icon className="shrink-0 text-jet" size={20} />{t(`growth.${contract.kind}`)}</h3>
-    <div className="mt-3 space-y-3">{contract.targets.map((target) => <div key={target.destinationId}>
+    <div className="mt-3 space-y-3">{contract.targets.map((target, index) => <div key={`${target.destinationId}-${index}`}>
       <div className="flex flex-wrap justify-between gap-2 text-sm font-bold"><span>{airportsById[target.originId]?.iata} → {airportsById[target.destinationId]?.iata}</span>
-        <span>{active ? `${contract.kind === "cargo" ? target.progress.toFixed(1) : target.progress} / ` : ""}{target.required} {contract.kind === "cargo" ? "t" : t(contract.kind === "network" ? "growth.arrivals" : "growth.flights")}</span></div>
+        <span>{active ? `${isCargoContract(contract.kind) ? target.progress.toFixed(1) : target.progress} / ` : ""}{target.required} {isCargoContract(contract.kind) ? "t" : t(contract.kind === "charter" ? "growth.people" : contract.kind === "network" ? "growth.arrivals" : "growth.flights")}</span></div>
       <p className="text-xs text-slate-500">{airportsById[target.destinationId]?.city}{target.needsNewRoute ? ` · ${t("growth.newRoute")}` : ""}</p>
+      {target.deliveryWeek !== undefined && <p className="text-xs font-bold text-jet">{t("growth.week")} {target.deliveryWeek + 1}</p>}
       {active && <progress aria-label={`${airportsById[target.destinationId]?.iata} ${t("growth.active")}`} max={target.required} value={target.progress} className="mt-1 block h-2 w-full accent-teal-700" />}
     </div>)}</div>
     <dl className="mt-4 space-y-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
@@ -128,11 +130,33 @@ function ContractCard({ contract, game, active = false, children }: { contract: 
       <Row label={t("growth.reward")} value={`+${contract.points} DP · ${formatGBP.format(contract.cashReward)}`} />
       <Row label={t("growth.quote")} value={formatGBP.format(contract.quotedCost)} />
     </dl>
+    <ContractForecast contract={contract} game={game} />
     {children}
   </article>;
 }
 function Row({ label, value }: { label: string; value: string }) {
   return <div className="flex flex-wrap justify-between gap-x-3 gap-y-1"><dt>{label}</dt><dd className="font-bold text-ink">{value}</dd></div>;
+}
+function ContractForecast({ contract, game }: { contract: CompanyContract; game: GameState }) {
+  const { t } = useTranslation();
+  const [preview, setPreview] = useState<{ time: number; amounts: number[] } | null>(null);
+  function calculate() {
+    const accepted = contract.acceptedGameTimeMs ?? game.currentGameTimeMs;
+    const deadline = contract.deadlineGameTimeMs ?? accepted + contract.durationDays * DAY_MS;
+    const forecast = forecastOperations(game, Math.max(0, (deadline - game.currentGameTimeMs) / DAY_MS));
+    setPreview({ time: game.currentGameTimeMs, amounts: contract.targets.map((target) => Math.min(target.required,
+      target.progress + forecast.flights.filter((event) => event.gameTimeMs <= deadline)
+        .reduce((sum, event) => sum + contractTargetAmount(contract, target, event, accepted), 0))) });
+  }
+  return <div className="mt-3 border-t border-slate-100 pt-3">
+    <button type="button" onClick={calculate} className="flex min-h-10 items-center gap-2 rounded-md bg-slate-100 px-3 text-xs font-bold text-jet"><Target size={15} />{t("market.forecastContract")}</button>
+    {preview && <div className="mt-2 space-y-1 text-xs"><p className="text-slate-500">{t("market.asOf")}: {formatGameDate(preview.time)}</p>
+      {contract.targets.map((target, index) => <p key={index} className={preview.amounts[index] >= target.required ? "text-mint" : "text-coral"}>
+        {airportsById[target.destinationId]?.iata}{target.deliveryWeek !== undefined ? ` / ${t("growth.week")} ${target.deliveryWeek + 1}` : ""}: {preview.amounts[index].toFixed(isCargoContract(contract.kind) ? 1 : 0)} / {target.required}
+        {" · "}{t(preview.amounts[index] >= target.required ? "market.forecastEnough" : "market.forecastShort")}
+      </p>)}
+    </div>}
+  </div>;
 }
 function CompanyGrowthDetails({ growth }: { growth: CompanyGrowth }) {
   const { t } = useTranslation();
@@ -142,8 +166,8 @@ function CompanyGrowthDetails({ growth }: { growth: CompanyGrowth }) {
       <dt className="text-slate-500">{t(`growth.${source}Source`)}</dt><dd className="font-bold">{growth.points[source].toLocaleString()} DP</dd>
     </div>)}</dl>
     <dl className="flex flex-wrap gap-x-6 gap-y-2 border-y border-slate-200 py-3 text-sm">
-      {(["commuter", "cargo", "network"] as const).map((kind, index) => <div key={kind} className="flex gap-2">
-        <dt className="text-slate-500">{t(`growth.${kind}`)}</dt><dd className="font-bold">+{[100, 150, 200][index]} DP</dd>
+      {(["commuter", "cargo", "network", "charter", "longTerm"] as const).map((kind, index) => <div key={kind} className="flex gap-2">
+        <dt className="text-slate-500">{t(`growth.${kind}`)}</dt><dd className="font-bold">+{[100, 150, 200, 250, 350][index]} DP</dd>
       </div>)}
     </dl>
     <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm"><thead className="border-b border-slate-200 text-xs text-slate-500"><tr>
@@ -151,7 +175,7 @@ function CompanyGrowthDetails({ growth }: { growth: CompanyGrowth }) {
     </tr></thead><tbody>{COMPANY_LEVELS.map((value, index) => <tr key={value.id} className={`border-b border-slate-100 ${index === level ? "bg-teal-50" : ""}`}>
       <td className="py-3 pr-3 font-bold">{t(`growth.${value.id}`)}{index <= level && <CheckCircle2 className="ml-2 inline text-mint" size={14} />}</td>
       <td className="pr-3">{value.threshold.toLocaleString()} DP</td><td className="pr-3">{Number.isFinite(value.maxDistanceKm) ? `${value.maxDistanceKm.toLocaleString()} km` : t("growth.unlimited")}</td>
-      <td>{[t("growth.commuter"), index >= 1 ? t("growth.cargo") : "", index >= 2 ? t("growth.network") : ""].filter(Boolean).join(" / ")}</td>
+      <td>{[t("growth.commuter"), index >= 1 ? t("growth.cargo") : "", index >= 2 ? t("growth.network") : "", index >= 3 ? t("growth.charter") : "", index >= 4 ? t("growth.longTerm") : ""].filter(Boolean).join(" / ")}</td>
     </tr>)}</tbody></table></div>
     <h3 className="flex items-center gap-2 font-bold text-ink"><Flag size={18} className="text-coral" />{t("growth.milestones")}</h3>
     <div className="divide-y divide-slate-200">{MILESTONES.map((milestone) => <div key={milestone.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">

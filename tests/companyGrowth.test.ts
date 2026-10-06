@@ -46,6 +46,50 @@ test("new companies start at zero; thresholds are permanent non-spendable experi
     assert.equal(companyLevel(growth), level);
   }
 });
+
+test("higher company levels unlock volume charters and three-week cargo deliveries without revenue bonuses", () => {
+  const game = fixture();
+  game.companyGrowth!.points.contracts = 2500;
+  const level3 = refreshContractBoard(game);
+  assert.ok(level3.offers.some((offer) => offer.kind === "charter" && offer.points === 250));
+  assert.ok(!level3.offers.some((offer) => offer.kind === "longTerm"));
+  game.companyGrowth = { ...level3, points: { ...level3.points, contracts: 6000 }, boardCycle: -1, offers: [] };
+  const level4 = refreshContractBoard(game);
+  const supply = level4.offers.find((offer) => offer.kind === "longTerm")!;
+  assert.ok(supply);
+  assert.equal(supply.durationDays, 21);
+  assert.deepEqual(supply.targets.map((target) => target.deliveryWeek), [0, 1, 2]);
+  assert.equal(supply.points, 350);
+  assert.equal(game.money, fixture().money);
+});
+
+test("charters count actual arrivals' passengers, not flight counts or the return direction", () => {
+  const game = fixture();
+  const charter = { ...contract("charter", 100), points: 250 };
+  game.companyGrowth!.active = [charter];
+  const returning = event("return", now + 2 * hour, now, 100);
+  returning.entry.originAirportId = "cdg"; returning.entry.destinationAirportId = "lhr";
+  const result = advanceCompanyGrowth({ ...game, currentGameTimeMs: now + 4 * hour }, [event("one", now + hour, now, 40), returning, event("two", now + 3 * hour, now, 60)]);
+  assert.equal(result.growth.history[0].outcome, "completed");
+  assert.equal(result.growth.history[0].targets[0].progress, 100);
+  assert.equal(result.growth.points.contracts, 250);
+});
+
+test("long-term cargo requires deliveries in each acceptance-relative week and pays only once", () => {
+  const game = fixture();
+  const supply = { ...contract("longTerm", 10), durationDays: 21, deadlineGameTimeMs: now + 21 * DAY_MS, points: 350,
+    targets: [0, 1, 2].map((deliveryWeek) => ({ ...contract().targets[0], required: 10, deliveryWeek })) };
+  game.companyGrowth!.active = [supply];
+  const tooEarly = advanceCompanyGrowth({ ...game, currentGameTimeMs: now + 2 * DAY_MS }, [event("bulk", now + DAY_MS, now, 0, 30)]);
+  assert.deepEqual(tooEarly.growth.active[0].targets.map((target) => target.progress), [10, 0, 0]);
+  const result = advanceCompanyGrowth({ ...game, currentGameTimeMs: now + 22 * DAY_MS }, [event("week1", now + DAY_MS, now, 0, 10),
+    event("week2", now + 8 * DAY_MS, now + 7 * DAY_MS, 0, 10), event("week3", now + 15 * DAY_MS, now + 14 * DAY_MS, 0, 10)]);
+  assert.equal(result.growth.history[0].outcome, "completed");
+  assert.equal(result.growth.points.contracts, 350);
+  const restored = restoreGameStateFromCloudSave(JSON.parse(JSON.stringify(createCompactSaveState({ ...game, currentGameTimeMs: now + 22 * DAY_MS, companyGrowth: result.growth }))));
+  assert.equal(advanceCompanyGrowth(restored, [event("week3", now + 15 * DAY_MS, now + 14 * DAY_MS, 0, 10)]).cashReward, 0);
+  assert.deepEqual(normalizeCompanyGrowth(result.growth, restored).history[0].targets.map((target) => target.progress), [10, 10, 10]);
+});
 test("legacy migration grants points once, no cash, and no fictional earlier flights", () => {
   const game = fixture();
   game.companyGrowth = undefined;

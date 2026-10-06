@@ -1,6 +1,6 @@
-export type ContractKind = "commuter" | "cargo" | "network";
+export type ContractKind = "commuter" | "cargo" | "network" | "charter" | "longTerm";
 export type MilestoneId = "firstFlight" | "flights100" | "passengers1000" | "cargo100" | "fleet5";
-export type ContractTarget = { originId: string; destinationId: string; required: number; progress: number; needsNewRoute: boolean };
+export type ContractTarget = { originId: string; destinationId: string; required: number; progress: number; needsNewRoute: boolean; deliveryWeek?: number };
 export type CompanyContract = {
   id: string;
   key: string;

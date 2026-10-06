@@ -4,6 +4,7 @@ import type { GameState } from "@/types/game";
 
 export const REPORT_DAYS = 90;
 export const DIAGNOSTIC_DAYS = 7;
+const OPERATING_METRICS = ["passengers", "cargoTons", "passengerCapacity", "cargoCapacity", "passengerRevenue", "cargoRevenue", "observedFlights"] as const;
 
 export function emptyFinanceValues(): FinanceValues {
   return Object.fromEntries(FINANCE_VALUE_KEYS.map((key) => [key, 0])) as FinanceValues;
@@ -39,7 +40,8 @@ export function createFinancialHistory(now: number, openingCash: number): Financ
 function normalizeSummaries(raw: Record<string, OperatingSummary> | undefined) {
   return Object.fromEntries(Object.entries(raw ?? {}).filter(([, value]) => value && typeof value === "object").map(([id, value]) =>
     [id, { flights: Math.floor(number(value.flights)), revenue: money(value.revenue), cost: money(value.cost),
-      profit: money(value.profit), lastFlightGameTimeMs: number(value.lastFlightGameTimeMs) }]
+      profit: money(value.profit), lastFlightGameTimeMs: number(value.lastFlightGameTimeMs),
+      ...Object.fromEntries(OPERATING_METRICS.map((key) => [key, number(value[key])])) }]
   ));
 }
 
@@ -111,7 +113,12 @@ export function applyFinanceEvents(history: FinancialHistory, events: readonly F
           const old = collection[id] ?? { flights: 0, revenue: 0, cost: 0, profit: 0, lastFlightGameTimeMs: 0 };
           collection[id] = { flights: old.flights + 1, revenue: old.revenue + event.entry.revenue,
             cost: old.cost + event.entry.cost, profit: old.profit + event.entry.profit,
-            lastFlightGameTimeMs: Math.max(old.lastFlightGameTimeMs, event.gameTimeMs) };
+            lastFlightGameTimeMs: Math.max(old.lastFlightGameTimeMs, event.gameTimeMs),
+            passengers: (old.passengers ?? 0) + event.entry.passengerCount, cargoTons: (old.cargoTons ?? 0) + event.entry.cargoTons,
+            passengerCapacity: (old.passengerCapacity ?? 0) + event.values.passengerCapacity,
+            cargoCapacity: (old.cargoCapacity ?? 0) + event.values.cargoCapacity,
+            passengerRevenue: (old.passengerRevenue ?? 0) + event.values.passengerRevenue,
+            cargoRevenue: (old.cargoRevenue ?? 0) + event.values.cargoRevenue, observedFlights: (old.observedFlights ?? 0) + 1 };
         }
         recent.set(dayTime, operation);
       }
@@ -181,7 +188,8 @@ export function recentOperatingTotals(history: FinancialHistory | undefined, now
     for (const [id, value] of Object.entries(day[group])) {
       const old = totals[id] ?? { flights: 0, revenue: 0, cost: 0, profit: 0, lastFlightGameTimeMs: 0 };
       totals[id] = { flights: old.flights + value.flights, revenue: old.revenue + value.revenue, cost: old.cost + value.cost,
-        profit: old.profit + value.profit, lastFlightGameTimeMs: Math.max(old.lastFlightGameTimeMs, value.lastFlightGameTimeMs) };
+        profit: old.profit + value.profit, lastFlightGameTimeMs: Math.max(old.lastFlightGameTimeMs, value.lastFlightGameTimeMs),
+        ...Object.fromEntries(OPERATING_METRICS.map((key) => [key, (old[key] ?? 0) + (value[key] ?? 0)])) };
     }
   }
   return totals;

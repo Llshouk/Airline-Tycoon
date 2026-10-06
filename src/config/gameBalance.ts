@@ -20,11 +20,3 @@ export const GAME_BALANCE = {
 } as const;
 
 export const GAME_REVENUE_MULTIPLIER = GAME_BALANCE.revenueMultiplier;
-
-export const PRICE_ELASTICITY = {
-  first: 2.2,
-  business: 1.8,
-  premiumEconomy: 1.4,
-  economy: 1.1,
-  cargo: 1.2
-} as const;

@@ -4,7 +4,8 @@ import { beginAircraftMaintenance, completeAircraftMaintenance, getMaintenanceSt
 import { estimateFlightFinancials } from "@/lib/economy";
 import { pruneOperationalFlights } from "@/lib/cloudSave";
 import { flightWaitMs, turnaroundWaitMs } from "@/lib/time";
-import { splitRoundedCost } from "@/lib/financialReports";
+import { bookingFromFinancials } from "@/lib/routeMarket";
+import type { FlightBooking } from "@/types/routeMarket";
 import type { FinanceEvent } from "@/types/finance";
 import type { AircraftInstance, FlightLogEntry, Route, ScheduleItem } from "@/types/game";
 
@@ -21,7 +22,8 @@ function deterministicNoise(seedText: string, salt: number) {
 }
 
 /** Advances one chronological aircraft timeline. Only newly completed flights produce accounting entries. */
-export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Route[], now: number, difficulty: DifficultyConfig, availableCash = Infinity) {
+export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Route[], now: number, difficulty: DifficultyConfig, availableCash = Infinity,
+  bookFlight?: (aircraft: AircraftInstance, item: ScheduleItem, route: Route) => FlightBooking) {
   const model = aircraftById[aircraft.modelId];
   let lifecycle = normalizeAircraftLifecycle(aircraft, now);
   let currentAirportId = aircraft.currentAirportId;
@@ -134,14 +136,19 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
     }
     readyGameTime = Math.max(readyGameTime, item.readyGameTime);
     timelineAirportId = item.destinationAirportId;
+    if (now >= item.departureGameTime && !item.booking) {
+      const booking = bookFlight ? bookFlight(aircraft, item, route) : bookingFromFinancials(
+        estimateFlightFinancials(route, model, aircraft, item.departureGameTime + item.arrivalGameTime, difficulty,
+          { departureGameTimeMs: item.departureGameTime, originAirportId: item.originAirportId }), aircraft);
+      item = { ...item, booking };
+    }
     if (now >= item.arrivalGameTime) {
-      const financials = estimateFlightFinancials(route, model, aircraft, item.departureGameTime + item.arrivalGameTime, difficulty,
-        { departureGameTimeMs: item.departureGameTime, originAirportId: item.originAirportId });
-      lifecycle = recordAircraftFlight(lifecycle, item.arrivalGameTime - item.departureGameTime, financials.economics.estimatedMaintenanceReservePerFlight);
+      const booking = item.booking!;
+      lifecycle = recordAircraftFlight(lifecycle, item.arrivalGameTime - item.departureGameTime, booking.costs[3]);
       currentAirportId = item.destinationAirportId;
       const accounting = {
-        revenue: financials.revenue, cost: financials.cost, profit: financials.profit,
-        passengerCount: financials.passengerCount, cargoTons: financials.cargoTons
+        revenue: booking.revenue, cost: booking.cost, profit: booking.profit,
+        passengerCount: booking.passengerCount, cargoTons: booking.cargoTons
       };
       const entry: FlightLogEntry = {
         id: item.id, aircraftId: aircraft.id, aircraftRegistration: aircraft.registration,
@@ -149,14 +156,11 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
         destinationAirportId: item.destinationAirportId, completedGameTime: item.arrivalGameTime, ...accounting
       };
       entries.push(entry);
-      const [fuelCost, crewCost, airportCost, maintenanceReserve] = splitRoundedCost(accounting.cost, [
-        financials.economics.estimatedFuelCostPerFlight, financials.economics.estimatedCrewCostPerFlight,
-        financials.economics.estimatedAirportCostPerFlight, financials.economics.estimatedMaintenanceReservePerFlight
-      ]);
-      const passengerRevenue = Math.min(accounting.revenue, Math.round(financials.economics.revenue.passengerRevenue));
+      const [fuelCost, crewCost, airportCost, maintenanceReserve] = booking.costs;
+      const passengerRevenue = booking.passengerRevenue;
       financeEvents.push({ kind: "flight", gameTimeMs: item.arrivalGameTime, departureGameTimeMs: item.actualDepartureGameTime ?? item.departureGameTime, entry,
         values: { passengerRevenue, cargoRevenue: accounting.revenue - passengerRevenue, fuelCost, crewCost, airportCost, maintenanceReserve,
-          passengerCapacity: financials.economics.passengerCapacity, cargoCapacity: aircraft.cabinLayout.cargoTons } });
+          passengerCapacity: booking.passengerCapacity, cargoCapacity: booking.cargoCapacity } });
       cash += accounting.profit;
       // Persist actual accounting, not the large derived economics/demand preview.
       schedule.push({ ...item, ...accounting, status: "completed", operationalStatus: "arrived" });

@@ -1,4 +1,4 @@
-# V1.6.0: Contracts and Company Growth
+# V1.7.0: Contracts and Company Growth
 
 Development points (DP) are permanent accumulated company experience. They cannot
 be spent, transferred or lost through failing contracts. They do not multiply
@@ -12,6 +12,8 @@ Aircraft and airport purchases remain unrestricted by company level.
 | Regional commuter contract | 100 | Once per completed accepted contract |
 | Cargo order | 150 | Once per completed accepted contract |
 | Network expansion | 200 | Once per completed accepted contract |
+| Passenger charter | 250 | Once per completed accepted contract |
+| Long-term cargo supply | 350 | Once per completed accepted contract |
 | First completed flight | 50 | Once per airline |
 | 100 completed flights | 150 | Once per airline |
 | 1,000 passengers carried | 100 | Once per airline |
@@ -26,9 +28,9 @@ Milestones use their own actual settlement counters, not Console Add Stats.
 | --- | ---: | --- | ---: |
 | Regional airline | 0 | Commuter | 1,500 km |
 | Growing airline | 300 | Commuter, cargo | 2,500 km |
-| Domestic airline | 1,000 | All three | 4,000 km |
-| International airline | 2,500 | All three | 8,000 km |
-| Global airline | 6,000 | All three | Unrestricted |
+| Domestic airline | 1,000 | Commuter, cargo, network | 4,000 km |
+| International airline | 2,500 | Previous types + passenger charter | 8,000 km |
+| Global airline | 6,000 | Previous types + long-term cargo | Unrestricted |
 
 The growth screen shows source totals, current/next level, remaining DP,
 milestone progress and each level's contract unlocks. Preferred distance is not
@@ -50,12 +52,18 @@ slots; accepting/completing/abandoning does not reroll existing offers.
 - Network: two passenger arrivals in each of three distinct cities within 14
   game days; two destinations use existing routes and one requires a route not
   open on acceptance. The new route must be affordable and within aircraft range.
+- V1.7.0: charters count actual passengers delivered to one destination
+  within five days; long-term cargo requires separate quotas in each of three
+  acceptance-relative weeks. See [shared route market](route-market.md).
 
 Capability is a conservative envelope using actual aircraft range, home base,
 cabin payload, expected demand and currently booked maintenance duration. It is
 not an automatic timetable guarantee: accepting creates no routes or schedules.
 Existing reservations, future maintenance and curfews still require player choice.
 Offers/acceptance recheck eligibility. Quoted cost and rewards freeze on acceptance.
+V1.7.0 adds an explicit current-timetable forecast using the actual
+shared-market/maintenance engine. It reports each target's projected progress
+and shortfalls, with a calculation timestamp, without modifying the live save.
 
 Only actual new settlements count. A flight must depart at/after acceptance and
 arrive no later than the deadline. Passenger contracts require passengers; cargo
@@ -111,12 +119,11 @@ historical finance and cash are preserved.
 ## TODO
 
 - Playtest target pacing and rewards before expanding mission types.
-- Add reputation, shared finite route markets and competing airlines separately.
-- Preview combined timetable/maintenance/curfew feasibility rather than capacity
-  envelopes; do not auto-modify schedules without player consent.
-- Globally chronological cash reservation across aircraft during a long catch-up
-  is still a pre-existing operating-engine limitation; rewards are applied after
-  that batch, before bankruptcy checks, not retroactively made available for an
-  earlier aircraft's maintenance booking.
+- Reputation, competitors and alliances remain separate future work.
+- Forecasts include current schedules and maintenance, but do not auto-plan new
+  routes. Recheck after changing fares, fleet or the timetable.
+- Cross-aircraft operations now use chronological boundaries. Simultaneous
+  cash-dependent operations still use stable aircraft-ID order; bankruptcy
+  policy remains a tick-end check, not an intratick forecast guarantee.
 - Local JSON/IndexedDB/fallback behavior is tested. Authenticated Supabase
   save/load needs a configured test account; no production account was used.

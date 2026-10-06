@@ -4,6 +4,19 @@ Date: 2026-10-02. Baseline: V1.4.0, `8b696cd` on `main`.
 
 The project has some dead scaffolding and duplicated work, but the working game does not warrant a rewrite. Size alone is not evidence of redundancy.
 
+## V1.7.0 Follow-Up (2026-10-06)
+
+- Removed the second distance/cabin-demand adjustment and the obsolete fare
+  elasticity constant. Night weights and price curves have one shared config.
+- Recurring flight generation and timetable validation were extracted from the
+  store so live actions, batch copy and forecasts reuse the same helpers.
+- Fleet chronological ordering delegates settlement to the existing aircraft
+  engine. Forecasts use isolated copies, not another accounting implementation.
+- Bookings and a two-day market ledger are bounded saved data; no duplicate
+  cash field, external dependency or Supabase schema was added.
+- Explicit forecast buttons keep multi-day work off the one-second render/tick
+  path. Large store/screens still merit gradual targeted extraction, not a rewrite.
+
 ## V1.6.0 Follow-Up (2026-10-06)
 
 - Growth policy is a separate pure module and bounded save object, not another

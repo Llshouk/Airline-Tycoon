@@ -44,18 +44,18 @@ test("airport local time handles DST and curfews distinguish blocked FRA from ad
   assert.deepEqual(flightAirportIssues("fra", "cdg", Date.UTC(2026, 0, 1, 4), Date.UTC(2026, 0, 1, 6)), []);
 });
 
-test("night reduction changes short-haul passenger demand only, not cargo or long-haul", () => {
+test("night demand is lower for passengers; cargo stays unchanged and long-haul penalty is gentler", () => {
   const game = fixture();
   const route = game.routes[0];
   const day = estimateFlightFinancials(route, model, game.fleet[0], 42, game.difficultyConfig,
     { departureGameTimeMs: Date.UTC(2026, 0, 1, 12), originAirportId: "lhr" });
   const night = estimateFlightFinancials(route, model, game.fleet[0], 42, game.difficultyConfig,
     { departureGameTimeMs: Date.UTC(2026, 0, 1, 23), originAirportId: "lhr" });
-  assert.equal(night.nightDemandMultiplier, 0.85);
-  assert.equal(night.adjustedDemand.economy, Math.round(day.adjustedDemand.economy * 0.85));
+  assert.ok(night.nightDemandMultiplier < 1);
+  assert.ok(night.adjustedDemand.economy < day.adjustedDemand.economy);
   assert.equal(night.cargoTons, day.cargoTons);
   assert.equal(night.adjustedDemand.cargoTons, day.adjustedDemand.cargoTons);
-  assert.equal(nightPassengerDemandMultiplier(1501, "lhr", Date.UTC(2026, 0, 1, 23)), 1);
+  assert.ok(nightPassengerDemandMultiplier(10000, "lhr", Date.UTC(2026, 0, 1, 23)) > night.nightDemandMultiplier);
   assert.equal(nightPassengerDemandMultiplier(1000, "lhr", NaN), 1);
 });
 

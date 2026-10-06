@@ -1,7 +1,7 @@
 import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
-import { calculateCabinDemandByDistance, estimateDemand } from "@/lib/demand";
-import { estimateCargoRatePerTon, estimateExpectedFlightProfit, estimateTicketPrices } from "@/lib/economy";
+import { estimateDemand } from "@/lib/demand";
+import { estimateCargoRatePerTon, estimateExpectedFlightProfit, estimatePriceAdjustedDemand, estimateTicketPrices } from "@/lib/economy";
 import type { RouteEconomicsResult } from "@/lib/economics/economicsTypes";
 import { distanceKm } from "@/lib/geo";
 import type { Airport, CabinDemand, CabinLayout, GameState, Route } from "@/types/game";
@@ -56,13 +56,8 @@ export type RouteEvaluation = {
 export function evaluateRoute({ route, gameState }: { route: Route; gameState: GameState }): RouteEvaluation {
   const origin = airportsById[route.originAirportId];
   const destination = airportsById[route.destinationAirportId];
-  const adjustedDemand = calculateCabinDemandByDistance({
-    routeDistanceKm: route.distanceKm,
-    originAirport: origin,
-    destinationAirport: destination,
-    baseDemand: route.estimatedDemand
-  });
-  const evaluationRoute = { ...route, estimatedDemand: adjustedDemand };
+  const adjustedDemand = estimatePriceAdjustedDemand(route);
+  const evaluationRoute = route;
   const aircraftScores = getAircraftFitScores(evaluationRoute, gameState, adjustedDemand);
   const recommendedAircraftIds = aircraftScores
     .filter((item) => item.canOperate && item.score >= 45)

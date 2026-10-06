@@ -27,6 +27,7 @@
     "tests/leafletTileReadiness.test.ts",
     "tests/mapLibreErrorPolicy.test.ts",
     "tests/routeEconomics.test.ts",
+    "tests/routeMarket.test.ts",
     "tests/saveCompatibility.test.ts"
   ]
 }

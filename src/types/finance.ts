@@ -10,7 +10,9 @@ export type FinanceValues = Record<FinanceValueKey, number>;
 export type CashCategory = "extraMaintenance" | "aircraftPurchases" | "routeOpening" | "basePurchases" | "subsidies" | "adjustments" | "contractRewards";
 
 export type FinancialDay = FinanceValues & { dayStartGameTimeMs: number };
-export type OperatingSummary = { flights: number; revenue: number; cost: number; profit: number; lastFlightGameTimeMs: number };
+export type OperatingSummary = { flights: number; revenue: number; cost: number; profit: number; lastFlightGameTimeMs: number;
+  passengers?: number; cargoTons?: number; passengerCapacity?: number; cargoCapacity?: number;
+  passengerRevenue?: number; cargoRevenue?: number; observedFlights?: number };
 export type RecentOperatingDay = {
   dayStartGameTimeMs: number;
   aircraft: Record<string, OperatingSummary>;

@@ -1,8 +1,8 @@
-# Airline Tycoon V1.6.0
+# Airline Tycoon V1.7.0
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.6.0 - Contracts and Company Growth
+Release: V1.7.0 - Shared Route Markets and Operations Tools
 
 ## Features
 
@@ -11,8 +11,13 @@ Release: V1.6.0 - Contracts and Company Growth
 - Open routes between real airports
 - Adjust ticket prices by cabin class
 - Estimate demand, revenue, cost and profit
+- Share finite route demand across aircraft by direction and local departure window
+- Model fare elasticity, red-eye demand and very short/long route effects
+- Review actual route results, price-demand curves and shared-market forecasts
+- Preview batch pricing and independent aircraft timetable copies
 - Track company age using the simulation clock and original founding date
-- Accept optional commuter, cargo and network-expansion contracts with simulated deadlines
+- Accept optional commuter, cargo, network-expansion, passenger-charter and three-week cargo contracts
+- Forecast contract timetable progress before accepting or changing schedules
 - Earn permanent development points, progress through five company levels and complete one-time milestones
 - Track contract progress, bounded history and separate company cash rewards
 - Sort recent Finance flights by profit, flight number, passengers, cargo, revenue, cost or time
@@ -76,13 +81,13 @@ npm run dev
 
 ## Current Status
 
-Airline Tycoon V1.6.0 adds optional operating contracts and permanent company growth. Contracts count actual new flight settlements, award points and modest cash once, and retain simulated deadlines across local/cloud saves. Historical companies receive a one-time points-only migration, without retroactive cash. Five company levels unlock contract types and expand preferred mission ranges, without locking aircraft, airports or basic gameplay. See [company growth](docs/company-growth.md) for targets, exact points, migration and reward rules.
+Airline Tycoon V1.7.0 adds finite shared route markets, bounded fare elasticity and local-time red-eye demand. Very short and very long routes receive continuous demand adjustments. Bookings lock at departure, and chronological fleet operations settle them once on arrival. Route analysis separates actual recent results from isolated forward forecasts; batch tools preserve independent aircraft and check timetable conflicts. See [shared route market](docs/route-market.md) for the model and its gameplay assumptions.
 
-The V1.5.3 fuel, crew, airport, maintenance-reserve and fare models are unchanged in this release. Easy uses a 1.5 gameplay income bonus; Simulation retains its sandbox income bonus and Realistic remains unboosted. Company rewards use the canonical cash field, but are not flight revenue or operating profit. Existing saves remain compatible, with no database migration or new dependency.
+Permanent company development points now unlock passenger charters at 2,500 DP and three-week cargo deliveries at 6,000 DP. Contracts count actual new deliveries, with separate weekly cargo quotas and timetable forecasts, not ordinary-flight income multipliers. See [company growth](docs/company-growth.md) for points, migration and reward rules. V1.5.3 fuel, crew, airport and maintenance-reserve calibration is retained. Existing saves remain compatible, with no database migration or new dependency.
 
 The Finance flight log remains capped at 60 records. Reports retain up to 90 simulated UTC days; aircraft/route diagnostics retain seven calendar days including today. Old saves begin reporting when upgraded, without fabricating earlier history; incomplete periods are marked. Flight profit is simplified operating contribution, not audited airline net profit: acquisition is separate investment spending, while depreciation, tax and head-office costs remain deferred. See [financial reports](docs/financial-reports.md) for rules and V1.5.3 balance samples, and [earlier economy balance](docs/economy-balance.md) for V1.5.2 history.
 
-Maintenance can start immediately on the ground or after a selected flight lands and completes turnaround. Short-haul night demand is simplified; airport night planning rules are optional and default off. Workshop capacity, replacement aircraft and more detailed operating rules are deferred. This remains a playable prototype, not an airworthiness simulator. See [maintenance rules](docs/aircraft-maintenance.md) and [code health review](docs/code-health-review.md) for assumptions and follow-up work.
+Maintenance can start immediately on the ground or after a selected flight lands and completes turnaround. Night demand is simplified for all passenger routes, with gentler long-haul effects and no cargo red-eye penalty. Airport night planning rules are optional and default off. Workshop capacity, replacement aircraft and more detailed operating rules are deferred. This remains a playable prototype, not an airworthiness simulator. See [maintenance rules](docs/aircraft-maintenance.md) and [code health review](docs/code-health-review.md) for assumptions and follow-up work.
 
 ## Map Configuration
 

@@ -1,8 +1,9 @@
-import { GAME_BALANCE, GAME_REVENUE_MULTIPLIER, PRICE_ELASTICITY } from "@/config/gameBalance";
+import { GAME_BALANCE, GAME_REVENUE_MULTIPLIER } from "@/config/gameBalance";
 import { getDifficultyConfig, type DifficultyConfig } from "@/config/difficulty";
 import { airportsById } from "@/data/airports";
 import { calculateRouteEconomics, calculateScheduleFrequency } from "@/lib/economics/routeEconomics";
 import { nightPassengerDemandMultiplier } from "@/lib/airportOperations";
+import { demandAtPrice, priceDemandMultiplier, referenceWindowDemand } from "@/lib/marketDemand";
 import { DAY_MS, WEEK_MS, timeOfDayMs, weekStartMs } from "@/lib/time";
 import type { AircraftInstance, AircraftModel, CabinDemand, CabinLayout, CabinPrices, Route, RoutePricing, WeeklySchedule } from "@/types/game";
 
@@ -39,16 +40,13 @@ export function estimateFlightFinancials(
   aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout,
   seed: number,
   difficultyConfig?: DifficultyConfig,
-  operations?: { departureGameTimeMs: number; originAirportId: string }
+  operations?: { departureGameTimeMs: number; originAirportId: string; allocatedDemand?: CabinDemand }
 ) {
   const difficulty = difficultyConfig ?? getDifficultyConfig("easy");
   const cabinLayout = "cabinLayout" in aircraft ? aircraft.cabinLayout : aircraft;
-  const adjustedDemand = estimatePriceAdjustedDemand(route);
   const nightMultiplier = nightPassengerDemandMultiplier(route.distanceKm, operations?.originAirportId ?? route.originAirportId, operations?.departureGameTimeMs);
-  const timedDemand = { ...adjustedDemand };
-  for (const cabin of ["first", "business", "premiumEconomy", "economy"] as const) {
-    timedDemand[cabin] = Math.round(timedDemand[cabin] * nightMultiplier);
-  }
+  const timedDemand = operations?.allocatedDemand ?? demandAtPrice(route,
+    referenceWindowDemand(route, operations?.originAirportId, operations?.departureGameTimeMs));
   const prices = route.pricing ?? routePricingFromDefaults(route);
   const simulation = difficulty.difficulty === "simulation";
   const longHaulBonus = route.distanceKm >= 5500
@@ -92,40 +90,11 @@ export function estimateFlightFinancials(
 }
 
 export function estimatePriceAdjustedDemand(route: Route): CabinDemand {
-  const recommended = route.recommendedPricing ?? routePricingFromDefaults(route);
-  const actual = route.pricing ?? recommended;
-  return {
-    first: calculatePriceAdjustedDemand(route.estimatedDemand.first, recommended.first, actual.first, "first"),
-    business: calculatePriceAdjustedDemand(route.estimatedDemand.business, recommended.business, actual.business, "business"),
-    premiumEconomy: calculatePriceAdjustedDemand(
-      route.estimatedDemand.premiumEconomy,
-      recommended.premiumEconomy,
-      actual.premiumEconomy,
-      "premiumEconomy"
-    ),
-    economy: calculatePriceAdjustedDemand(route.estimatedDemand.economy, recommended.economy, actual.economy, "economy"),
-    cargoTons: calculatePriceAdjustedDemand(route.estimatedDemand.cargoTons, recommended.cargo, actual.cargo, "cargo")
-  };
+  return demandAtPrice(route, route.estimatedDemand);
 }
 
 export function calculatePriceAdjustedDemand(baseDemand: number, recommendedPrice: number, actualPrice: number, cabin: PriceDemandClass) {
-  if (baseDemand <= 0 || recommendedPrice <= 0) return 0;
-  if (actualPrice <= 0) return Math.round(baseDemand * (cabin === "economy" ? 1.35 : 1.2));
-
-  const priceRatio = actualPrice / recommendedPrice;
-  const elasticity = PRICE_ELASTICITY[cabin];
-  let multiplier = Math.pow(priceRatio, -elasticity);
-
-  if (priceRatio > 2) {
-    multiplier *= Math.pow(2 / priceRatio, 1.5);
-  }
-  if (priceRatio > 4) {
-    multiplier *= Math.pow(4 / priceRatio, 2.5);
-  }
-
-  const maxDemandBoost = cabin === "economy" ? 1.35 : 1.2;
-  const minMultiplier = priceRatio > 4 ? 0 : 0.01;
-  return Math.max(0, Math.round(baseDemand * Math.min(Math.max(multiplier, minMultiplier), maxDemandBoost)));
+  return Number.isFinite(baseDemand) ? Math.max(0, Math.floor(baseDemand * priceDemandMultiplier(recommendedPrice, actualPrice, cabin))) : 0;
 }
 
 export function priceWarning(recommendedPrice: number, actualPrice: number) {

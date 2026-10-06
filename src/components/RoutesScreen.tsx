@@ -1,334 +1,114 @@
 "use client";
 
+import { Check, Eye } from "lucide-react";
 import { useMemo, useState } from "react";
+import { RouteBusinessPanel } from "@/components/RouteBusinessPanel";
 import { RouteEvaluationCard } from "@/components/RouteEvaluationCard";
-import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
-import { estimateExpectedFlightProfit, estimateWeeklyScheduleFinancials, routePricingFromDefaults } from "@/lib/economy";
+import { routePricingFromDefaults } from "@/lib/economy";
+import { recentOperatingTotals } from "@/lib/financialReports";
 import { formatGBP, formatNumber } from "@/lib/format";
-import { calculateRemainingDemand, type RemainingDemandSummary } from "@/lib/routeDemand";
+import { calculateRemainingDemand } from "@/lib/routeDemand";
 import { evaluateRoute } from "@/lib/routeEvaluation";
-import { formatRouteCode, formatScheduleFlightNumbers } from "@/lib/schedule";
+import { formatScheduleFlightNumbers } from "@/lib/schedule";
 import { useGameStore } from "@/store/gameStore";
 import type { CabinDemand, GameState, Route } from "@/types/game";
 
-type RouteSortMode = "distance-asc" | "distance-desc" | "revenue-desc" | "revenue-asc";
-
-export function RoutesScreen() {
+type Sort = "distance" | "profit" | "revenue";
+export function RoutesScreen({ onSchedule }: { onSchedule?: () => void }) {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
+  const batchPricing = useGameStore((state) => state.batchRoutePricing);
   const [baseFilter, setBaseFilter] = useState("all");
-  const [sortMode, setSortMode] = useState<RouteSortMode>("revenue-desc");
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
-  const visibleRoutes = useMemo(() => {
-    if (!game) return [];
-    return game.routes
-      .filter((route) => baseFilter === "all" || route.originAirportId === baseFilter || route.originBaseAirportId === baseFilter)
-      .map((route) => ({
-        route,
-        summary: calculateRemainingDemand(route.id, game),
-        totals: routeScheduleTotals(route, game),
-        best: bestRoutePreview(route, game)
-      }))
-      .sort((a, b) => {
-        if (sortMode === "distance-asc") return a.route.distanceKm - b.route.distanceKm;
-        if (sortMode === "distance-desc") return b.route.distanceKm - a.route.distanceKm;
-        const aRevenue = estimatedRouteRevenue(a.best?.revenue ?? 0, a.totals.weeklyRevenue);
-        const bRevenue = estimatedRouteRevenue(b.best?.revenue ?? 0, b.totals.weeklyRevenue);
-        return sortMode === "revenue-asc" ? aRevenue - bRevenue : bRevenue - aRevenue;
-      });
-  }, [baseFilter, game, sortMode]);
-  const selectedRoute = selectedRouteId ? visibleRoutes.find((item) => item.route.id === selectedRouteId) ?? null : null;
-
+  const [sort, setSort] = useState<Sort>("profit");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [checked, setChecked] = useState<string[]>([]);
+  const [percent, setPercent] = useState(100);
+  const [batchPreview, setBatchPreview] = useState(false);
+  const [applied, setApplied] = useState(false);
+  const actual = useMemo(() => game ? recentOperatingTotals(game.financialHistory, game.currentGameTimeMs, "routes") : {}, [game]);
+  const routes = game?.routes.filter((route) => baseFilter === "all" || route.originAirportId === baseFilter)
+    .sort((a, b) => sort === "distance" ? a.distanceKm - b.distanceKm : (actual[b.id]?.[sort] ?? 0) - (actual[a.id]?.[sort] ?? 0)) ?? [];
+  const route = game?.routes.find((item) => item.id === selectedId);
   if (!game) return null;
-
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-black text-ink">{t("routes.openedRoutes")}</h2>
-          <p className="text-slate-600">{t("routes.openRoutesFromMap")}</p>
-        </div>
-        <span className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-black uppercase tracking-normal text-slate-500">
-          {t("routes.readOnly")}
-        </span>
-      </div>
-
-      <section className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-soft md:grid-cols-2">
-        <label className="text-sm font-bold text-slate-600">
-          {t("routes.originBase")}
-          <select value={baseFilter} onChange={(event) => setBaseFilter(event.target.value)} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet">
-            <option value="all">{t("fleet.allBases")}</option>
-            {game.baseAirports.map((airportId) => {
-              const airport = airportsById[airportId];
-              return airport ? (
-                <option key={airportId} value={airportId}>
-                  {airport.iata} {airport.city}
-                </option>
-              ) : null;
-            })}
-          </select>
-        </label>
-        <label className="text-sm font-bold text-slate-600">
-          {sortMode.startsWith("distance") ? t("routes.sortByDistance") : t("routes.sortByRevenue")}
-          <select value={sortMode} onChange={(event) => setSortMode(event.target.value as RouteSortMode)} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet">
-            <option value="distance-asc">{t("routes.shortestFirst")}</option>
-            <option value="distance-desc">{t("routes.longestFirst")}</option>
-            <option value="revenue-desc">{t("routes.highestRevenueFirst")}</option>
-            <option value="revenue-asc">{t("routes.lowestRevenueFirst")}</option>
-          </select>
-        </label>
-      </section>
-
-      {game.routes.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm font-semibold text-slate-500 shadow-soft">
-          {t("routes.openRoutesFromMap")}
-        </div>
-      ) : (
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)]">
-          <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
-            {visibleRoutes.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm font-semibold text-slate-500">{t("routes.noRoutesForFilter")}</p>
-            ) : (
-              visibleRoutes.map(({ route, best, totals }) => {
-                const origin = airportsById[route.originAirportId];
-                const destination = airportsById[route.destinationAirportId];
-                const revenue = estimatedRouteRevenue(best?.revenue ?? 0, totals.weeklyRevenue);
-                return (
-                  <button
-                    key={route.id}
-                    type="button"
-                    onClick={() => setSelectedRouteId(route.id)}
-                    className={`grid w-full grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition last:border-b-0 hover:bg-runway ${
-                      selectedRouteId === route.id ? "bg-mint/10" : "bg-white"
-                    }`}
-                  >
-                    <span className="min-w-0 truncate font-black text-ink">
-                      {origin.iata} - {destination.iata}
-                    </span>
-                    <span className="whitespace-nowrap font-semibold text-slate-600">{formatNumber.format(route.distanceKm)} km</span>
-                    <span className="whitespace-nowrap font-black text-mint">{formatGBP.format(revenue)}/week</span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-          <aside className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-            {selectedRoute ? (
-              <RouteReadOnlyCard
-                route={selectedRoute.route}
-                game={game}
-                summary={selectedRoute.summary}
-                scheduleTotals={selectedRoute.totals}
-              />
-            ) : (
-              <div className="flex min-h-48 items-center justify-center rounded-md border border-dashed border-slate-300 bg-runway px-4 py-8 text-center text-sm font-semibold text-slate-500">
-                {t("routes.selectRouteDetails")}
-              </div>
-            )}
-          </aside>
-        </div>
-      )}
+  const selectedRoutes = game.routes.filter((item) => checked.includes(item.id));
+  const validPercent = Number.isFinite(percent) && percent >= 1 && percent <= 1000;
+  return <div className="min-w-0 space-y-5">
+    <h2 className="text-2xl font-black text-ink">{t("routes.openedRoutes")}</h2>
+    <div className="flex flex-wrap gap-3 border-y border-slate-200 bg-white py-3">
+      <label className="min-w-0 text-sm font-bold text-slate-600">{t("routes.originBase")}
+        <select value={baseFilter} onChange={(event) => setBaseFilter(event.target.value)} className="ml-2 max-w-full rounded-md border border-slate-300 p-2">
+          <option value="all">{t("fleet.allBases")}</option>{game.baseAirports.map((id) => <option key={id} value={id}>{airportsById[id]?.iata}</option>)}
+        </select>
+      </label>
+      <label className="text-sm font-bold text-slate-600">{t("market.sort")}
+        <select value={sort} onChange={(event) => setSort(event.target.value as Sort)} className="ml-2 rounded-md border border-slate-300 p-2">
+          <option value="profit">{t("market.sortProfit")}</option><option value="revenue">{t("market.sortRevenue")}</option><option value="distance">{t("routes.shortestFirst")}</option>
+        </select>
+      </label>
     </div>
-  );
+    <details className="border-b border-slate-200 pb-3">
+      <summary className="cursor-pointer text-sm font-bold text-jet">{t("market.batchPricing")} ({checked.length})</summary>
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" checked={routes.length > 0 && routes.every((item) => checked.includes(item.id))}
+          onChange={(event) => { setChecked(event.target.checked ? [...new Set([...checked, ...routes.map((item) => item.id)])] : checked.filter((id) => !routes.some((item) => item.id === id))); setBatchPreview(false); setApplied(false); }} />{t("market.selectAll")}</label>
+        <label className="text-xs font-bold">{t("market.referencePercent")}<input type="number" min={1} max={1000} step={5} value={Number.isFinite(percent) ? percent : ""}
+          onChange={(event) => { setPercent(event.target.valueAsNumber); setBatchPreview(false); setApplied(false); }} className="ml-2 w-20 rounded-md border border-slate-300 p-2 text-sm" /></label>
+        <button type="button" disabled={!checked.length || !validPercent} onClick={() => setBatchPreview(true)} className="flex min-h-10 items-center gap-2 rounded-md bg-white px-3 text-sm font-bold disabled:opacity-40"><Eye size={16} />{t("market.preview")}</button>
+        {batchPreview && <button type="button" disabled={applied || !validPercent || !checked.length} onClick={() => setApplied(batchPricing(checked, percent))}
+          className="flex min-h-10 items-center gap-2 rounded-md bg-jet px-3 text-sm font-bold text-white disabled:opacity-40"><Check size={16} />{t(applied ? "market.applied" : "market.apply")}</button>}
+      </div>
+      {batchPreview && <div className="mt-3 max-h-52 divide-y divide-slate-200 overflow-y-auto">{selectedRoutes.map((item) => {
+        const recommended = item.recommendedPricing ?? routePricingFromDefaults(item);
+        return <div key={item.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><strong>{airportsById[item.originAirportId]?.iata} - {airportsById[item.destinationAirportId]?.iata}</strong>
+          <span>{t("market.fare.economy")}: {formatGBP.format(item.pricing?.economy ?? recommended.economy)} / {formatGBP.format(Math.round(recommended.economy * percent / 100))}</span></div>;
+      })}</div>}
+    </details>
+    {!routes.length ? <p className="py-8 text-sm text-slate-500">{t("routes.noRoutesForFilter")}</p> :
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <section className="min-w-0">
+          <div className="mb-2 grid grid-cols-[24px_1fr_auto] gap-2 text-xs text-slate-500"><span /><span>{t("nav.routes")}</span><span>{t("market.sortProfit")}</span></div>
+          <div className="divide-y divide-slate-200 border-y border-slate-200 bg-white">{routes.map((item) => <div key={item.id}
+            className={`flex items-center gap-2 px-3 py-2 ${item.id === selectedId ? "bg-teal-50" : ""}`}>
+            <input type="checkbox" aria-label={`${t("market.batchPricing")} ${airportsById[item.originAirportId]?.iata}-${airportsById[item.destinationAirportId]?.iata}`} checked={checked.includes(item.id)}
+              onChange={() => { setChecked(checked.includes(item.id) ? checked.filter((id) => id !== item.id) : [...checked, item.id]); setBatchPreview(false); setApplied(false); }} />
+            <button type="button" onClick={() => setSelectedId(item.id)} className="flex min-h-12 min-w-0 flex-1 flex-wrap items-center justify-between gap-2 text-left text-sm">
+              <span className="min-w-0"><strong>{airportsById[item.originAirportId]?.iata} - {airportsById[item.destinationAirportId]?.iata}</strong><span className="mt-1 block text-xs text-slate-500">{formatNumber.format(item.distanceKm)} km</span></span>
+              <span className={actual[item.id]?.profit < 0 ? "font-bold text-coral" : "font-bold text-jet"}>{actual[item.id] ? formatGBP.format(actual[item.id].profit) : "--"}</span>
+            </button>
+          </div>)}</div>
+        </section>
+        <section className="min-w-0 bg-white p-4">
+          {route ? <RouteDetails key={route.id} route={route} game={game} onSchedule={onSchedule} /> : <p className="py-10 text-center text-sm text-slate-500">{t("routes.selectRouteDetails")}</p>}
+        </section>
+      </div>}
+  </div>;
 }
-
-function RouteReadOnlyCard({
-  route,
-  game,
-  summary,
-  scheduleTotals
-}: {
-  route: Route;
-  game: GameState;
-  summary: RemainingDemandSummary | null;
-  scheduleTotals: ReturnType<typeof routeScheduleTotals>;
-}) {
+function RouteDetails({ route, game, onSchedule }: { route: Route; game: GameState; onSchedule?: () => void }) {
   const { t } = useTranslation();
-  const origin = airportsById[route.originAirportId];
-  const destination = airportsById[route.destinationAirportId];
-  const pricing = route.pricing ?? routePricingFromDefaults(route);
-  const evaluation = evaluateRoute({ route, gameState: game });
-  const hasScheduledFlights = scheduleTotals.weeklyFlights > 0;
-  const weeklyRevenue = hasScheduledFlights ? scheduleTotals.weeklyRevenue : evaluation.estimatedWeeklyRevenue;
-  const weeklyCost = hasScheduledFlights ? scheduleTotals.weeklyCost : evaluation.estimatedWeeklyCost ?? 0;
-  const weeklyProfit = hasScheduledFlights ? scheduleTotals.weeklyProfit : evaluation.estimatedWeeklyProfit ?? 0;
-  const weeklyFlights = hasScheduledFlights ? scheduleTotals.weeklyFlights : evaluation.estimatedWeeklyFlights;
-
-  return (
-    <article className="min-w-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-normal text-coral">Open</p>
-          <h3 className="text-xl font-black text-ink">
-            {origin.iata} {origin.city} - {destination.iata} {destination.city}
-          </h3>
-          <p className="text-sm text-slate-500">{formatNumber.format(route.distanceKm)} km</p>
-        </div>
-        <span className="rounded-md bg-mint/10 px-3 py-2 text-xs font-black text-mint">{t("routes.readOnly")}</span>
-      </div>
-
-      <RouteEvaluationCard evaluation={evaluation} game={game} />
-
-      <div className="mt-4 grid gap-2 text-sm md:grid-cols-4">
-        <Info label={t("airport.origin")} value={`${origin.iata} ${origin.city}`} />
-        <Info label={t("airport.destination")} value={`${destination.iata} ${destination.city}`} />
-        <Info label={t("routes.rangeRequirement")} value={`${formatNumber.format(route.distanceKm)} km`} />
-        <Info label={t("detail.duration")} value={formatFlightTime(route.distanceKm)} />
-        <Info label={t("economics.weeklyFlights")} value={String(weeklyFlights)} />
-        <Info label={`${t("economics.estimatedRevenue")} / ${t("economics.perWeek")}`} value={formatGBP.format(weeklyRevenue)} />
-        <Info label={`${t("economics.totalOperatingCost")} / ${t("economics.perWeek")}`} value={formatGBP.format(weeklyCost)} />
-        <Info label={`${t("economics.operatingProfit")} / ${t("economics.perWeek")}`} value={formatGBP.format(weeklyProfit)} />
-      </div>
-
-      <div className="mt-4 grid gap-2 text-sm md:grid-cols-4">
-        <Info label="Economy fare" value={formatGBP.format(pricing.economy)} />
-        <Info label="Premium fare" value={formatGBP.format(pricing.premiumEconomy)} />
-        <Info label="Business fare" value={formatGBP.format(pricing.business)} />
-        <Info label="Cargo rate" value={`${formatGBP.format(pricing.cargo)}/t`} />
-      </div>
-
-      <DemandGrid title={t("routes.weeklyDemand")} demand={evaluation.adjustedDemand} />
-      {summary ? <RemainingDemandBars summary={summary} /> : null}
-      <ActiveSchedules route={route} game={game} />
-    </article>
-  );
+  const summary = calculateRemainingDemand(route.id, game)!;
+  const schedules = game.fleet.flatMap((aircraft) => aircraft.weeklySchedules.filter((schedule) => schedule.routeId === route.id).map((schedule) => ({ aircraft, schedule })));
+  return <div className="space-y-5">
+    <header><h3 className="text-xl font-bold text-ink">{airportsById[route.originAirportId]?.iata} - {airportsById[route.destinationAirportId]?.iata}</h3>
+      <p className="text-sm text-slate-500">{airportsById[route.originAirportId]?.city} / {airportsById[route.destinationAirportId]?.city}</p></header>
+    <RouteBusinessPanel route={route} game={game} />
+    <section className="border-t border-slate-200 pt-4">
+      <h4 className="font-bold">{t("market.weeklyBoth")}</h4>
+      <div className="mt-3 space-y-2">{(["first", "business", "premiumEconomy", "economy", "cargoTons"] as const).map((key) => <CapacityRow key={key} cabin={key} demand={summary.totalDemand} capacity={summary.usedDemand} />)}</div>
+    </section>
+    <section className="border-t border-slate-200 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold">{t("routes.activeSchedules")}</h4>
+        {onSchedule && <button type="button" onClick={onSchedule} className="min-h-10 rounded-md bg-slate-100 px-3 text-sm font-bold">{t("market.schedule")}</button>}</div>
+      <div className="mt-2 divide-y divide-slate-100">{schedules.map(({ aircraft, schedule }) => <p key={schedule.id} className="break-words py-2 text-sm">{aircraft.registration} / {formatScheduleFlightNumbers(schedule)} / {schedule.departureTimeLocal} UTC</p>)}</div>
+    </section>
+    <RouteEvaluationCard evaluation={evaluateRoute({ route, gameState: game })} game={game} compact />
+  </div>;
 }
-
-function ActiveSchedules({ route, game }: { route: Route; game: GameState }) {
+function CapacityRow({ cabin, demand, capacity }: { cabin: keyof CabinDemand; demand: CabinDemand; capacity: CabinDemand }) {
   const { t } = useTranslation();
-  const schedules = game.fleet.flatMap((aircraft) =>
-    aircraft.weeklySchedules
-      .filter((schedule) => schedule.routeId === route.id)
-      .map((schedule) => ({ aircraft, schedule, model: aircraftById[aircraft.modelId] }))
-  );
-
-  return (
-    <div className="mt-4 min-w-0 overflow-hidden rounded-md border border-slate-200 p-3">
-      <p className="mb-2 text-sm font-black text-ink">{t("routes.activeSchedules")}</p>
-      {schedules.length === 0 ? (
-        <p className="text-sm text-slate-500">{t("routes.noWeeklyServices")}</p>
-      ) : (
-        <div className="grid min-w-0 gap-2 md:grid-cols-2">
-          {schedules.map(({ aircraft, schedule, model }) => {
-            const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft, game.difficultyConfig);
-            return (
-              <div key={`${aircraft.id}-${schedule.id}`} className="min-w-0 rounded-md bg-runway px-3 py-2 text-sm">
-                <p className="font-bold text-ink">
-                  <span className="block truncate whitespace-nowrap tabular-nums">
-                    {formatScheduleFlightNumbers(schedule)} {formatRouteCode(route)} - {aircraft.registration} - {model.model}
-                  </span>
-                </p>
-                <p className="text-slate-500">
-                  {schedule.daysOfWeek.length} days - {t("economics.estimatedRevenue")}: {formatGBP.format(estimate.weeklyRevenue)} - {t("economics.totalOperatingCost")}: {formatGBP.format(estimate.weeklyCost)} - {t("economics.operatingProfit")}: {formatGBP.format(estimate.weeklyProfit)}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DemandGrid({ title, demand }: { title: string; demand: CabinDemand }) {
-  return (
-    <div className="mt-4 rounded-md border border-slate-200 p-3">
-      <p className="mb-2 text-sm font-black text-ink">{title}</p>
-      <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
-        <Info label="First" value={formatNumber.format(demand.first)} />
-        <Info label="Business" value={formatNumber.format(demand.business)} />
-        <Info label="Premium" value={formatNumber.format(demand.premiumEconomy)} />
-        <Info label="Economy" value={formatNumber.format(demand.economy)} />
-        <Info label="Cargo" value={`${demand.cargoTons.toFixed(1)} t`} />
-      </div>
-    </div>
-  );
-}
-
-function RemainingDemandBars({ summary }: { summary: RemainingDemandSummary }) {
-  const { t } = useTranslation();
-  return (
-    <div className="mt-4 space-y-3 rounded-md border border-slate-200 p-3">
-      <p className="text-sm font-black text-ink">{t("routes.remainingDemand")}</p>
-      <DemandBar label="First" total={summary.totalDemand.first} used={summary.usedDemand.first} remaining={summary.remainingDemand.first} />
-      <DemandBar label="Business" total={summary.totalDemand.business} used={summary.usedDemand.business} remaining={summary.remainingDemand.business} />
-      <DemandBar label="Premium" total={summary.totalDemand.premiumEconomy} used={summary.usedDemand.premiumEconomy} remaining={summary.remainingDemand.premiumEconomy} />
-      <DemandBar label="Economy" total={summary.totalDemand.economy} used={summary.usedDemand.economy} remaining={summary.remainingDemand.economy} />
-      <DemandBar label="Cargo" total={summary.totalDemand.cargoTons} used={summary.usedDemand.cargoTons} remaining={summary.remainingDemand.cargoTons} suffix=" t" />
-    </div>
-  );
-}
-
-function DemandBar({ label, total, used, remaining, suffix = "" }: { label: string; total: number; used: number; remaining: number; suffix?: string }) {
-  const safeTotal = Math.max(total, 1);
-  const usedPercent = Math.min((used / safeTotal) * 100, 100);
-  return (
-    <div>
-      <div className="mb-1 flex flex-wrap justify-between gap-2 text-xs">
-        <span className="font-black text-ink">{label}</span>
-        <span className="font-semibold text-slate-500">
-          Used {formatDemand(used, suffix)} - Remaining {formatDemand(remaining, suffix)} - Total {formatDemand(total, suffix)}
-        </span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-runway">
-        <div className="h-full rounded-full bg-mint" style={{ width: `${usedPercent}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function bestRoutePreview(route: Route, game: GameState) {
-  return game.fleet
-    .map((aircraft) => {
-      const model = aircraftById[aircraft.modelId];
-      if (!model || model.rangeKm < route.distanceKm) return null;
-      return estimateExpectedFlightProfit(route, model, aircraft.cabinLayout, game.difficultyConfig);
-    })
-    .filter(Boolean)
-    .sort((a, b) => (b?.profit ?? 0) - (a?.profit ?? 0))[0] ?? null;
-}
-
-function routeScheduleTotals(route: Route, game: GameState) {
-  return game.fleet.reduce(
-    (totals, aircraft) => {
-      const model = aircraftById[aircraft.modelId];
-      aircraft.weeklySchedules
-        .filter((schedule) => schedule.routeId === route.id)
-        .forEach((schedule) => {
-          const estimate = estimateWeeklyScheduleFinancials(schedule, route, model, aircraft, game.difficultyConfig);
-          totals.weeklyFlights += estimate.weeklyFlights;
-          totals.weeklyRevenue += estimate.weeklyRevenue;
-          totals.weeklyCost += estimate.weeklyCost;
-          totals.weeklyProfit += estimate.weeklyProfit;
-        });
-      return totals;
-    },
-    { weeklyFlights: 0, weeklyRevenue: 0, weeklyCost: 0, weeklyProfit: 0 }
-  );
-}
-
-function estimatedRouteRevenue(bestRevenuePerFlight: number, weeklyRevenue: number) {
-  return weeklyRevenue > 0 ? weeklyRevenue : bestRevenuePerFlight;
-}
-
-function formatFlightTime(distanceKm: number) {
-  const minutes = Math.max(1, Math.round((distanceKm / 820) * 60));
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return `${hours}h ${remainder.toString().padStart(2, "0")}m`;
-}
-
-function formatDemand(value: number, suffix: string) {
-  return `${suffix ? value.toFixed(1) : formatNumber.format(Math.round(value))}${suffix}`;
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-runway px-3 py-2">
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="truncate font-bold text-ink">{value}</p>
-    </div>
-  );
+  return <div className="text-xs"><div className="flex flex-wrap justify-between gap-2"><strong>{t(`market.fare.${cabin === "cargoTons" ? "cargo" : cabin}`)}</strong>
+    <span>{formatNumber.format(capacity[cabin])} / {formatNumber.format(demand[cabin])}{cabin === "cargoTons" ? " t" : ""}</span></div>
+    <progress aria-label={t("market.capacity")} max={Math.max(1, demand[cabin], capacity[cabin])} value={capacity[cabin]} className="mt-1 h-2 w-full accent-teal-700" />
+  </div>;
 }

@@ -67,7 +67,7 @@ export function AppShell() {
       <header className="sticky top-0 z-[900] border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto grid max-w-[1500px] gap-3 px-3 py-3 xl:grid-cols-[minmax(180px,1fr)_auto] xl:items-center">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1.6.0</p>
+            <p className="text-xs font-semibold uppercase tracking-normal text-jet">Airline Tycoon V1.7.0</p>
             <h1 className="truncate text-xl font-black text-ink">{game.airlineName}</h1>
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm xl:justify-end">
@@ -153,7 +153,7 @@ export function AppShell() {
           {screen === "map" && <MapScreen />}
           {screen === "fleet" && <FleetScreen initialSelectedAircraftId={fleetSelection} />}
           {screen === "market" && <AircraftMarketScreen />}
-          {screen === "routes" && <RoutesScreen />}
+          {screen === "routes" && <RoutesScreen onSchedule={() => setScreen("schedule")} />}
           {screen === "schedule" && <ScheduleScreen />}
           {screen === "finance" && <FinanceScreen />}
           {screen === "leaderboard" && <LeaderboardScreen />}

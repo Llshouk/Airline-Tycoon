@@ -1,5 +1,13 @@
 # V1.5.2 Economy and Finance
 
+## V1.7.0 Model
+
+The figures below describe historical releases, not the latest demand model.
+V1.7.0 adds finite directional/local-time demand pools, bounded
+fare elasticity, continuous distance effects and departure-locked bookings.
+See [shared route market](route-market.md). V1.5.3 operating cost and difficulty
+calibration remains in effect; past settlements are not recalculated.
+
 ## Company Clock
 
 Company age is derived from currentGameTimeMs minus baseGameTimeMs, displayed
@@ -57,7 +65,7 @@ of calibrated real-world airline accounting.
   long-haul fares loss-making.
 - TODO: model depreciation or lease payments, fixed airline overhead and taxes
   separately from per-flight operating contribution.
-- TODO: allocate a shared weekly route market across simultaneous aircraft
-  rather than reusing weekly demand independently for each settlement.
+- Shared finite route demand is implemented in V1.7.0; future
+  traffic-data calibration and connecting passengers remain TODOs.
 - TODO: evaluate a larger or aggregate long-term financial history without
   unbounded save growth.

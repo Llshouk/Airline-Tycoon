@@ -32,6 +32,16 @@ const finite = (value: unknown) => typeof value === "number" && Number.isFinite(
 const pairKey = (a: string, b: string) => [a, b].sort().join(":");
 const cityKey = (id: string) => `${airportsById[id]?.country}:${airportsById[id]?.city}`;
 const samePair = (a: string, b: string, target: ContractTarget) => pairKey(a, b) === pairKey(target.originId, target.destinationId);
+export const isCargoContract = (kind: ContractKind) => kind === "cargo" || kind === "longTerm";
+
+export function contractTargetAmount(contract: CompanyContract, target: ContractTarget, event: Extract<FinanceEvent, { kind: "flight" }>, accepted: number) {
+  if (!samePair(event.entry.originAirportId, event.entry.destinationAirportId, target) ||
+    event.departureGameTimeMs === undefined || event.departureGameTimeMs < accepted || event.gameTimeMs < accepted) return 0;
+  if (contract.kind === "longTerm" && Math.floor(Math.max(0, event.gameTimeMs - accepted - 1) / (7 * DAY_MS)) !== target.deliveryWeek) return 0;
+  if (isCargoContract(contract.kind)) return finite(event.entry.cargoTons);
+  if ((contract.kind === "network" || contract.kind === "charter") && event.entry.destinationAirportId !== target.destinationId) return 0;
+  return contract.kind === "charter" ? finite(event.entry.passengerCount) : event.entry.passengerCount > 0 ? 1 : 0;
+}
 
 export function createCompanyGrowth(game: GameState, legacy = false): CompanyGrowth {
   const progress = { flights: legacy ? finite(game.completedFlights) : 0, passengers: legacy ? finite(game.passengerCount) : 0,
@@ -51,12 +61,13 @@ export function createCompanyGrowth(game: GameState, legacy = false): CompanyGro
 
 function validContract(raw: CompanyContract) {
   return raw && typeof raw.id === "string" && raw.id.length < 500 && typeof raw.key === "string" && raw.key.length < 500 &&
-    ["commuter", "cargo", "network"].includes(raw.kind) && Array.isArray(raw.targets) && raw.targets.length >= 1 && raw.targets.length <= 3 &&
+    ["commuter", "cargo", "network", "charter", "longTerm"].includes(raw.kind) && Array.isArray(raw.targets) && raw.targets.length >= 1 && raw.targets.length <= 3 &&
     raw.targets.every((target) => target && airportsById[target.originId] && airportsById[target.destinationId] &&
       target.originId !== target.destinationId && Number.isFinite(target.required) && target.required > 0 &&
       Number.isFinite(target.progress) && target.progress >= 0 && typeof target.needsNewRoute === "boolean") &&
-    Number.isFinite(raw.durationDays) && raw.durationDays > 0 && raw.durationDays <= 14 &&
-    Number.isFinite(raw.points) && raw.points > 0 && raw.points <= 200 &&
+    (raw.kind !== "longTerm" || (raw.targets.length === 3 && raw.targets.every((target, index) => target.deliveryWeek === index))) &&
+    Number.isFinite(raw.durationDays) && raw.durationDays > 0 && raw.durationDays <= 21 &&
+    Number.isFinite(raw.points) && raw.points > 0 && raw.points <= 350 &&
     Number.isFinite(raw.quotedCost) && raw.quotedCost >= 0 && Number.isFinite(raw.cashReward) && raw.cashReward >= 0 && raw.cashReward <= 1000000;
 }
 
@@ -117,8 +128,7 @@ export function advanceCompanyGrowth(game: GameState, events: readonly FinanceEv
       if (!Number.isFinite(event.departureGameTimeMs) || event.departureGameTimeMs! < contract.acceptedGameTimeMs! ||
         event.departureGameTimeMs! > event.gameTimeMs) return true;
       for (const target of contract.targets) if (samePair(event.entry.originAirportId, event.entry.destinationAirportId, target)) {
-        const amount = contract.kind === "cargo" ? finite(event.entry.cargoTons) : event.entry.passengerCount > 0 &&
-          (contract.kind !== "network" || event.entry.destinationAirportId === target.destinationId) ? 1 : 0;
+        const amount = contractTargetAmount(contract, target, event, contract.acceptedGameTimeMs!);
         target.progress = Math.min(target.required, Math.round((target.progress + amount) * 1000000) / 1000000);
       }
       if (contract.targets.every((target) => target.progress >= target.required)) {
@@ -152,30 +162,35 @@ function quoteAircraft(game: GameState, route: Route, aircraft: AircraftInstance
   const unavailable = Math.max(0, (aircraft.lifecycle?.maintenance?.completesGameTimeMs ?? game.currentGameTimeMs) - game.currentGameTimeMs);
   const blockHours = route.distanceKm / model.cruiseSpeedKmh + model.turnaroundMinutes / 60 + 0.75;
   // Conservative capacity envelope, not a promise that existing schedules meet a contract.
-  // TODO: preview combined timetable/curfew feasibility without auto-editing schedules.
+  // The explicit contract forecast checks the actual combined timetable separately.
   const legs = Math.floor(Math.max(0, days * 24 - unavailable / 3600000) / blockHours * 0.4);
   return { cost: estimate.cost, cargo: estimate.cargoTons, passengers: estimate.passengerCount, legs };
 }
 function blocked(growth: CompanyGrowth, key: string, now: number) {
   return growth.active.some((contract) => contract.key === key) || growth.cooldowns.some((item) => item.key === key && item.untilGameTimeMs > now);
 }
-function contractFor(game: GameState, growth: CompanyGrowth, route: Route, kind: "commuter" | "cargo", level: number, cycle: number): CompanyContract | null {
-  const days = kind === "commuter" ? 7 : 10;
+function contractFor(game: GameState, growth: CompanyGrowth, route: Route, kind: Exclude<ContractKind, "network">, level: number, cycle: number): CompanyContract | null {
+  const cargo = isCargoContract(kind);
+  const days = kind === "longTerm" ? 21 : kind === "charter" ? 5 : kind === "commuter" ? 7 : 10;
   const key = `${kind}:${pairKey(route.originAirportId, route.destinationAirportId)}`;
   if (blocked(growth, key, game.currentGameTimeMs)) return null;
   const quotes = capableAircraft(game, route).map((aircraft) => quoteAircraft(game, route, aircraft, days))
-    .filter((quote) => kind === "commuter" ? quote.passengers > 0 && quote.legs >= 4 : quote.cargo >= 0.1 && quote.legs >= 4)
-    .sort((a, b) => (kind === "cargo" ? b.cargo * b.legs - a.cargo * a.legs : b.legs - a.legs));
+    .filter((quote) => cargo ? quote.cargo >= 0.1 && quote.legs >= 4 : quote.passengers > 0 && quote.legs >= 4)
+    .sort((a, b) => cargo ? b.cargo * b.legs - a.cargo * a.legs : b.legs - a.legs);
   const quote = quotes[0];
   if (!quote) return null;
-  const required = kind === "commuter" ? Math.min(20 + level * 5, Math.floor(quote.legs * 0.6)) :
+  const required = kind === "charter" ? Math.max(1, Math.floor(Math.min(800 + level * 100, quote.passengers * quote.legs * 0.25))) :
+    kind === "longTerm" ? Math.max(1, Math.floor(Math.min(120 + level * 30, quote.cargo * quote.legs * 0.15))) :
+    kind === "commuter" ? Math.min(20 + level * 5, Math.floor(quote.legs * 0.6)) :
     Math.max(1, Math.floor(Math.min(120 + level * 30, quote.cargo * quote.legs * 0.45)));
-  if (kind === "cargo" && quote.cargo * quote.legs < required) return null;
-  const legs = kind === "commuter" ? required : Math.ceil(required / quote.cargo);
+  if (cargo && quote.cargo * quote.legs < required * (kind === "longTerm" ? 3 : 1)) return null;
+  const legs = kind === "commuter" ? required : Math.ceil(required / (cargo ? quote.cargo : quote.passengers)) * (kind === "longTerm" ? 3 : 1);
   const quotedCost = Math.round(quote.cost * legs);
-  return { id: `${cycle}:${key}`, key, kind, durationDays: days, points: kind === "commuter" ? 100 : 150,
+  return { id: `${cycle}:${key}`, key, kind, durationDays: days, points: kind === "longTerm" ? 350 : kind === "charter" ? 250 : kind === "commuter" ? 100 : 150,
     cashReward: Math.min(1000000, Math.round(quotedCost * 0.08)), quotedCost,
-    targets: [{ originId: route.originAirportId, destinationId: route.destinationAirportId, required, progress: 0, needsNewRoute: false }] };
+    targets: Array.from({ length: kind === "longTerm" ? 3 : 1 }, (_, index) => ({ originId: route.originAirportId,
+      destinationId: route.destinationAirportId, required, progress: 0, needsNewRoute: false,
+      ...(kind === "longTerm" ? { deliveryWeek: index } : {}) })) };
 }
 function previewRoute(originId: string, destinationId: string): Route {
   const origin = airportsById[originId], destination = airportsById[destinationId];
@@ -230,6 +245,10 @@ export function refreshContractBoard(game: GameState, raw?: CompanyGrowth): Comp
     offers: growth.boardCycle === cycle ? [...growth.offers] : [], consumedOfferIds: growth.boardCycle === cycle ? [...growth.consumedOfferIds] : [],
     cooldowns: growth.cooldowns.filter((item) => item.untilGameTimeMs > game.currentGameTimeMs) };
   const candidates: CompanyContract[] = [];
+  if (level >= 3) for (const kind of (level >= 4 ? ["longTerm", "charter"] : ["charter"]) as Exclude<ContractKind, "network">[]) {
+    const offer = game.routes.filter((route) => route.isOpen).map((route) => contractFor(game, next, route, kind, level, cycle)).find(Boolean);
+    if (offer) candidates.push(offer);
+  }
   if (level >= 2) { const network = networkContract(game, next, level, cycle); if (network) candidates.push(network); }
   // Longer existing routes remain available to isolated-base and long-haul startups.
   const routes = game.routes.filter((route) => route.isOpen)
@@ -249,6 +268,7 @@ export type ContractError = "noGame" | "slotsFull" | "unavailable" | "ineligible
 export function contractEligibility(game: GameState, offer: CompanyContract): ContractError | null {
   if (game.gameStatus !== "active") return "noGame";
   const growth = normalizeCompanyGrowth(game.companyGrowth, game);
+  if (offer.kind === "charter" && companyLevel(growth) < 3 || offer.kind === "longTerm" && companyLevel(growth) < 4) return "ineligible";
   if (growth.active.length >= 2) return "slotsFull";
   if (growth.consumedOfferIds.includes(offer.id) || blocked(growth, offer.key, game.currentGameTimeMs)) return "unavailable";
   let openingCost = 0;
@@ -259,8 +279,9 @@ export function contractEligibility(game: GameState, offer: CompanyContract): Co
     const preview = route ?? previewRoute(target.originId, target.destinationId);
     if (!game.baseAirports.includes(target.originId)) return "ineligible";
     const capacity = capableAircraft(game, preview).map((aircraft) => quoteAircraft(game, preview, aircraft, offer.durationDays));
-    if (!capacity.some((quote) => offer.kind === "cargo" ? quote.cargo > 0 && quote.cargo * quote.legs >= target.required :
-      quote.passengers > 0 && quote.legs >= target.required * (offer.kind === "network" ? 2 : 1))) return "ineligible";
+    if (!capacity.some((quote) => isCargoContract(offer.kind) ? quote.cargo > 0 && quote.cargo * quote.legs >= target.required * (offer.kind === "longTerm" ? 3 : 1) :
+      offer.kind === "charter" ? quote.passengers * quote.legs * 0.5 >= target.required :
+        quote.passengers > 0 && quote.legs >= target.required * (offer.kind === "network" ? 2 : 1))) return "ineligible";
     if (!route) openingCost += estimateRouteOpeningCost(preview.distanceKm);
   }
   return openingCost <= game.money ? null : "ineligible";

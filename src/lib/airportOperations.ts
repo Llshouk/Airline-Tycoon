@@ -1,4 +1,5 @@
 import { airportsById } from "@/data/airports";
+import { ROUTE_MARKET, hourlyPassengerPreference } from "@/config/routeMarket";
 import { DAY_MS, WEEK_MS, flightWaitMs, timeOfDayMs, turnaroundWaitMs, weekStartMs } from "@/lib/time";
 import type { AircraftModel, DayOfWeek, Route } from "@/types/game";
 
@@ -15,10 +16,13 @@ export function airportLocalMinutes(airportId: string, time: number) {
 }
 
 export function nightPassengerDemandMultiplier(distanceKm: number, airportId: string, departure?: number) {
-  if (departure === undefined || !Number.isFinite(departure) || distanceKm > 1500) return 1;
+  if (departure === undefined || !Number.isFinite(departure)) return 1;
   const minute = airportLocalMinutes(airportId, departure);
-  // Gameplay tuning, not measured traffic data. Cargo and long-haul demand are unchanged.
-  return minute >= 23 * 60 || minute < 6 * 60 ? 0.85 : 1;
+  // Night penalty is weaker on long-haul, where overnight services are common.
+  if (minute < 23 * 60 && minute >= 6 * 60) return 1;
+  const start = Math.floor(minute / (ROUTE_MARKET.windowHours * 60)) * ROUTE_MARKET.windowHours;
+  const weight = (hour: number) => Array.from({ length: ROUTE_MARKET.windowHours }, (_, index) => hourlyPassengerPreference(distanceKm, hour + index)).reduce((sum, value) => sum + value, 0);
+  return Math.min(1, weight(start) / weight(12));
 }
 
 export type AirportOperatingIssue = { airportId: string; localTime: string; blocking: boolean };
