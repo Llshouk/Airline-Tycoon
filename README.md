@@ -1,13 +1,16 @@
-# Airline Tycoon V1.7.0
+# Airline Tycoon V1.7.1
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.7.0 - Shared Route Markets and Operations Tools
+Release: V1.7.1 - Visual Cabin Designer
 
 ## Features
 
 - Start an airline from a selected base airport
 - Buy and manage aircraft
+- Configure cabins on a draggable aircraft floor plan with seat-product images
+- Select Basic, Premium or Luxury products and bounded seat pitch
+- Track arrival-based passenger satisfaction without altering historical flights
 - Open routes between real airports
 - Adjust ticket prices by cabin class
 - Estimate demand, revenue, cost and profit
@@ -80,6 +83,8 @@ npm run dev
 ```
 
 ## Current Status
+
+V1.7.1 adds a visual cabin designer: adjacent cabin dividers, live whole-row seat maps, seat-product images, pitch controls and model-specific Premium Economy layouts. Existing V1.7.0 aircraft retain their original products and capacity; new purchases use the corrected layouts. See [cabin experience](docs/cabin-experience.md).
 
 Airline Tycoon V1.7.0 adds finite shared route markets, bounded fare elasticity and local-time red-eye demand. Very short and very long routes receive continuous demand adjustments. Bookings lock at departure, and chronological fleet operations settle them once on arrival. Route analysis separates actual recent results from isolated forward forecasts; batch tools preserve independent aircraft and check timetable conflicts. See [shared route market](docs/route-market.md) for the model and its gameplay assumptions.
 

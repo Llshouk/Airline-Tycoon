@@ -1,7 +1,8 @@
-const CACHE_VERSION = "airline-tycoon-v1.7.0";
+const CACHE_VERSION = "airline-tycoon-v1.7.1";
 const PRECACHE_URLS = [
   "/",
   "/offline.html",
+  "/cabin/seat-products.png",
   "/aircraft-icons/regional.png",
   "/aircraft-icons/narrow-body-twin.png",
   "/aircraft-icons/wide-body-twin.png",
@@ -58,7 +59,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/aircraft")) {
+  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/aircraft") || url.pathname.startsWith("/cabin/")) {
     event.respondWith(cacheFirst(request));
     return;
   }

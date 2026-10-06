@@ -1,7 +1,34 @@
 # Cabin Products and Passenger Experience
 
-Local development after V1.7.0; this feature does not change the release number.
-No new dependency, save key, Supabase table column or save-format version is needed.
+Cabin products and reviews shipped after V1.7.0. V1.7.1 adds the visual designer
+and corrected narrowbody Premium Economy products. No new dependency, save key,
+Supabase table column or outer save-format version is needed.
+
+## V1.7.1 Visual Designer
+
+- Full aircraft top view includes cockpit, wings, windows and actual whole seat
+  rows. Cabin tabs and seat-product images select the settings shown below.
+- Pointer/touch/keyboard dividers transfer space between adjacent supported
+  cabins only. All other sections remain unchanged. Endpoints clamp safely;
+  a percentage control can also restore zero-space cabins.
+- Basic/Premium/Luxury image tiles show product appearance; the separate row
+  diagram shows the actual selected abreast arrangement, not a stock cabin photo.
+- New A320/A321/737 economy and Premium Economy retain 3-3 for every grade.
+  A220 retains 2-3 because of its narrower five-abreast cross section.
+  Widebody Premium Economy offers model-specific 2-4-2/2-3-2/2-2-2 profiles.
+  These are game profiles, not a certified interior design or aisle-width model.
+- New configurations use internal cabin version 2. Version 1 aircraft continue
+  resolving the old products so capacity, comfort, purchase prices and reviews
+  are not silently recalculated. Old templates upgrade only when loaded into a
+  new purchase draft; owned aircraft remain unchanged.
+- Pitch stays bounded and changes whole rows; row positions/counts and comfort
+  animate. Reduced-motion preferences disable these transitions. Image failures
+  show an Armchair fallback. Apply remains separate from buying an aircraft.
+- PWA branding/cache advances to V1.7.1 and precaches the local seat catalog.
+
+Physical-layout reference: [Airbus A220 cabin](https://www.aircraft.airbus.com/en/newsroom/stories/2025-09-the-passenger-favourite-a220-gets-an-airspace-cabin)
+describes five-abreast economy versus larger six-abreast single aisles.
+Widebody layouts remain conservative gameplay presets, not exhaustive airline options.
 
 ## Configuration
 
@@ -12,7 +39,8 @@ No new dependency, save key, Supabase table column or save-format version is nee
   Model/family profiles choose allowable row arrangements and fixed widths.
   First is unavailable on narrowbodies; A330 supports 1-2-1 and Luxury 1-1-1.
 - Players allocate section percentages and adjust integer pitch within product
-  bounds. Allocation changes redistribute other sections proportionally; pitch
+  bounds. Percentage changes redistribute other sections proportionally; boundary
+  drags change only neighbors. Pitch
   changes retain section boundaries and remove/add whole rows.
 - Row capacity is `floor(section length / pitch) * seats per row`, also capped by
   the existing model/cabin maximum. The length budget is calibrated from the
@@ -70,12 +98,18 @@ quality/price curves, costs, departure locks, arrival-only reviews, cancellation
 offline/reload parity, finite markets, weighted samples, seven-day retention,
 templates, legacy saves, IndexedDB/LocalStorage fallback and 100 upgraded aircraft.
 
-Browser acceptance uses the actual app in English/Chinese at 1440px and 390px.
-It checks purchase and persisted cash, template reuse/reload, pitch bounds,
-737/A330 eligibility, detail metrics, actual reviews and horizontal overflow.
-Development and production checks pass, including a 390x844 mobile viewport
-and the live configured profit preview. All 139 automated tests, typecheck,
-lint and the optimized production build pass on 2026-10-06.
+V1.7.1 automated tests: 152 pass, including neighbor-boundary allocation, every
+narrowbody grade, version-1 preservation and save reloads. Typecheck, zero-warning
+lint and optimized production build pass on 2026-10-06.
+Development and production browser acceptance covers EN/ZH at 1440px, 390x844 and 320x844: real pointer and
+keyboard dragging, emulated touch, images/fallback, reduced motion, 737/A220/A330/A350
+layouts, pitch bounds, cancellation, templates, reload and canonical purchase cash.
+The cabin dialog has no horizontal overflow. The pre-existing market background
+is 370px wide at a 320px viewport; V1.7.1 does not expand it or refactor that page.
+Production service-worker checks confirm V1.7.1 precaching and seat images served
+from the cache with the browser network disabled. Missing-image UI tests disable
+the service worker to test true absence separately from a cached image.
+Physical touch, authenticated Supabase and Vercel completion remain unverified.
 
 TODO: verified cabin/aisle/exit constraints, paid ground-only refits with downtime,
 mixed seat products inside a cabin, catering/service staff and loyalty programs.

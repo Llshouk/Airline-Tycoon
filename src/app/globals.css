@@ -210,3 +210,25 @@ select {
   animation: demand-fill 520ms ease-out;
   transform-origin: left center;
 }
+
+.cabin-stage { margin-bottom: 24px; }
+.cabin-divider {
+  cursor: ew-resize;
+  transition: left 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+.cabin-divider:hover, .cabin-divider:focus-visible { transform: translateX(-50%) scale(1.08); }
+.cabin-stage.is-dragging .cabin-divider { transition: none; }
+.cabin-seat-row { transition: transform 180ms ease; animation: cabin-row-in 180ms ease-out; }
+.cabin-stage.is-dragging .cabin-seat-row { transition: none; }
+.cabin-region { transition: fill-opacity 180ms ease; }
+.cabin-comfort-fill { transition: width 220ms ease, background-color 180ms ease; }
+.cabin-seat-count { animation: seat-count-in 160ms ease-out; }
+@keyframes seat-count-in {
+  from { opacity: 0.5; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cabin-row-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .cabin-divider, .cabin-region, .cabin-comfort-fill, .cabin-product, .cabin-seat-row { transition: none; }
+  .cabin-seat-count, .cabin-seat-row, .animate-modal-in { animation: none; }
+}

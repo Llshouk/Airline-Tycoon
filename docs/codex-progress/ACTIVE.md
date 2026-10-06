@@ -4,7 +4,7 @@
 
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
-- Current version: `1.7.0`
+- Current version: `1.7.1`
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
@@ -14,29 +14,49 @@
 - V1.6.0 release / V1.7.0 baseline: `9b648d5618886af870631162d2a4ee0620a4d242`
 - V1.7.0 release baseline: `89310ef7d975d47417926578a5b002bd93d45fe6`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
-- Release status: cabin experience and simplified route opening verified; user authorized direct main-branch commit/push on 2026-10-06 without a version bump
+- Cabin/route follow-up published checkpoint: `a66f24eae852be4d6e59e1ce8185ffec4ba62f94`
+- Release status: V1.7.1 visual cabin update; user authorized version bump and main push on 2026-10-06
 - Latest focused review date: 2026-10-06
-- Latest successful production build: V1.7.0 `pnpm run build` passed on 2026-10-06 with Next.js 15.5.24
+- Latest successful production build: V1.7.1 `pnpm run build` passed on 2026-10-06 with Next.js 15.5.24
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
 - No earlier `ACTIVE.md` or WIP patch existed at audit start
 
 ## Roadmap Position
 
 - Current major version: V1
-- Current minor version: V1.7.0
-- Current release objective: shared route markets, operating analysis, batch tools and deeper contract opportunities
+- Current minor version: V1.7.1
+- Current release objective: visual cabin editing, product imagery and corrected narrowbody Premium Economy
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Simplified maintenance scope: immediate ground work, dated after-flight reservations, conflict cancellation/recovery, and batch booking work; workshop capacity, replacement aircraft and model-specific verified limits remain TODOs
 - The earlier V1.6.0 reputation plan became Contracts and Company Growth. The user has now approved local development of cabin products and Passenger Experience after V1.7.0; alliances and airline-wide loyalty effects remain deferred.
-- Release-gate status: 149 automated tests, typecheck, lint, browser acceptance, responsive layout, save compatibility and production build pass; dependencies unchanged
+- Release-gate status: 152 automated tests, typecheck, lint, browser acceptance, responsive cabin layout, save compatibility and production build pass; dependencies unchanged
 
 ## Current Objective
 
-Commit and push the verified cabin-product, passenger-experience and simplified
-route-opening changes to Llshouk/Airline-Tycoon main. The user authorized push on
-2026-10-06. Keep version 1.7.0, independent aircraft, canonical money, finite
-route markets and historical accounting. Verify the remote commit after push;
-Vercel deployment completion requires separate verification.
+Complete and push V1.7.1 visual cabin editing to Llshouk/Airline-Tycoon main.
+The user authorized this patch release on 2026-10-06. Preserve independent aircraft,
+canonical money, finite markets and historical accounting. Verify the remote
+commit after push; Vercel deployment completion requires separate verification.
+
+## V1.7.1 Evidence (2026-10-06)
+
+- Aircraft top-view designer with live seat rows, neighboring pointer/keyboard/touch
+  dividers, class tabs and locally generated seat-product imagery.
+- Product image tiles, pitch steppers/sliders, actual row layouts and comfort
+  animations; reduced-motion support, image fallback, cargo/templates and cancel/apply.
+- New narrowbody Premium Economy/Economy grades keep the economy abreast count:
+  3-3 A320/A321/737, 2-3 A220. Widebody profiles have model-specific arrangements.
+- Internal cabin version 2 changes new purchases; version 1 aircraft still use
+  original products, seats, comfort and cost. Outer save/database schema unchanged.
+- 152 tests, typecheck, lint and production build pass. Dev/production browser checks cover
+  EN/ZH at 1440px, 390x844 and 320x844, including drag, emulated touch, images,
+  reduced motion, purchase cash, old aircraft, templates, reload and draft cancellation.
+- Cabin dialog has no horizontal overflow. Existing market background is 370px
+  wide at a 320px viewport; no unrelated market refactor performed.
+- Package, branding, metadata, manifest, README and PWA cache updated to 1.7.1.
+- Production service-worker precache and offline seat images pass; image absence
+  is tested separately with service workers disabled to avoid cached-resource masking.
+- Documentation: docs/cabin-experience.md; illustration provenance: public/cabin/README.md.
 
 ## Local Cabin Development (2026-10-06)
 
@@ -686,13 +706,13 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 After the authorized main push, verify Vercel deployment separately. Review the
 cabin-product, satisfaction and route-opening changes at http://localhost:3015.
-Version remains 1.7.0. Live Supabase and Vercel are external verification steps,
+Version is 1.7.1. Live Supabase and Vercel are external verification steps,
 not claims from the local browser tests. Use Git history for the new checkpoint.
 
 ## Recovery Instructions
 
 1. Read this file, then run `git status --short --branch` and `git log -3 --oneline`.
-2. V1.6.0 (`9b648d5`) is the previous published baseline; verify the V1.7.0 release commit against origin/main and preserve subsequent user edits.
+2. Cabin/route checkpoint `a66f24e` precedes V1.7.1; verify the latest release against origin/main and preserve subsequent user edits.
 3. Treat `src/lib/economics/*` as the canonical calculation layer and `src/lib/economy.ts` as the compatibility and settlement boundary.
 4. Preserve preview purity, canonical `money`, save compatibility, and one-record-per-aircraft state in all future work.
 5. Treat `aircraftMaintenance.ts` as the lifecycle/compatibility owner and `aircraftOperations.ts` as the flight-settlement owner; `fleetOperations.ts` orders fleet boundaries, never creates a second cash or maintenance timeline.

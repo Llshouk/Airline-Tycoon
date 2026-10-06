@@ -20,7 +20,7 @@ export function normalizeCabinConfiguration(model: AircraftModel, raw: CabinConf
   }
   const total = CABIN_CLASSES.reduce((sum, cabin) => sum + sections[cabin].spacePercent, 0);
   if (total > 100) for (const cabin of CABIN_CLASSES) sections[cabin].spacePercent *= 100 / total;
-  const config: CabinConfiguration = { version: 1, sections, cargoTons: Math.max(0, finite(raw?.cargoTons)) };
+  const config: CabinConfiguration = { version: 2, sections, cargoTons: Math.max(0, finite(raw?.cargoTons)) };
   config.cargoTons = Math.round(Math.min(config.cargoTons, configuredCargoLimit(model, config)) * 10) / 10;
   return config;
 }
@@ -38,12 +38,12 @@ export function defaultCabinConfiguration(model: AircraftModel, maximumSeats = f
       spacePercent: maximumSeats ? (cabin === "economy" ? 100 : 0) : Math.floor(lengths[index] / Math.max(1, total) * 100) };
   });
   if (!maximumSeats) sections.economy.spacePercent += 100 - CABIN_CLASSES.reduce((sum, cabin) => sum + sections[cabin].spacePercent, 0);
-  return normalizeCabinConfiguration(model, { version: 1, sections, cargoTons: layout.cargoTons });
+  return normalizeCabinConfiguration(model, { version: 2, sections, cargoTons: layout.cargoTons });
 }
 
 export function configuredSection(model: AircraftModel, config: CabinConfiguration, cabin: CabinClass) {
   const section = config.sections[cabin];
-  const product = seatProducts(model, cabin).find((item) => item.grade === section.grade);
+  const product = seatProducts(model, cabin, config.version).find((item) => item.grade === section.grade);
   const length = cabinLengthInches(model) * section.spacePercent / 100;
   const rows = product ? Math.max(0, Math.min(Math.floor((length + 1e-8) / section.pitchInches),
     Math.floor(model.cabinLimits[cabin].max / product.seatsPerRow))) : 0;
@@ -69,10 +69,10 @@ export function configuredPurchasePrice(model: AircraftModel, config: CabinConfi
 
 export function validateCabinConfiguration(model: AircraftModel, config: CabinConfiguration, expectedLayout?: CabinLayout) {
   const errors: string[] = [];
-  if (config.version !== 1) errors.push("Invalid cabin configuration version.");
+  if (config.version !== 1 && config.version !== 2) errors.push("Invalid cabin configuration version.");
   for (const cabin of CABIN_CLASSES) {
     const section = config.sections?.[cabin];
-    const products = seatProducts(model, cabin);
+    const products = seatProducts(model, cabin, config.version);
     const product = products.find((item) => item.grade === section?.grade);
     if (!section || !Number.isFinite(section.spacePercent) || section.spacePercent < 0 || section.spacePercent > 100 ||
       !Number.isInteger(section.pitchInches) || (products.length && (!product || section.pitchInches < product.minPitch || section.pitchInches > product.maxPitch)) ||
@@ -110,15 +110,30 @@ export function setSeatProduct(model: AircraftModel, config: CabinConfiguration,
     [cabin]: { ...config.sections[cabin], grade, pitchInches: product.defaultPitch } } });
 }
 
+// Boundaries transfer space only between neighbors; other cabins stay unchanged.
+export function moveCabinBoundary(model: AircraftModel, config: CabinConfiguration, cabin: CabinClass, positionPercent: number) {
+  const cabins = CABIN_CLASSES.filter((key) => seatProducts(model, key).length);
+  const index = cabins.indexOf(cabin);
+  if (index < 0 || index >= cabins.length - 1 || !Number.isFinite(positionPercent)) return config;
+  const nextCabin = cabins[index + 1];
+  const start = cabins.slice(0, index).reduce((sum, key) => sum + config.sections[key].spacePercent, 0);
+  const pairSpace = config.sections[cabin].spacePercent + config.sections[nextCabin].spacePercent;
+  const left = Math.round(clamp(positionPercent - start, 0, pairSpace) * 100) / 100;
+  const next = structuredClone(config);
+  next.sections[cabin].spacePercent = left;
+  next.sections[nextCabin].spacePercent = Math.round((pairSpace - left) * 100) / 100;
+  return normalizeCabinConfiguration(model, next);
+}
+
 export function cabinComfort(model: AircraftModel, config: CabinConfiguration | undefined, cabin: CabinClass, durationHours = 2) {
   if (!config) return BASE_COMFORT[cabin];
   const section = config.sections[cabin];
-  const product = seatProducts(model, cabin).find((item) => item.grade === section.grade);
+  const product = seatProducts(model, cabin, config.version).find((item) => item.grade === section.grade);
   if (!product) return BASE_COMFORT[cabin];
   const durationWeight = clamp(durationHours / 6, 0.4, 1.4);
   const pitchScore = clamp((section.pitchInches - BASE_PITCH[cabin]) * (cabin === "economy" ? 2 : 0.8), -14, 10) * durationWeight;
   return Math.round(clamp(BASE_COMFORT[cabin] + GRADE_COMFORT[section.grade] + pitchScore +
-    Math.min(3, (product.widthInches - seatProducts(model, cabin)[0].widthInches) * 0.8), 20, 98));
+    Math.min(3, (product.widthInches - seatProducts(model, cabin, config.version)[0].widthInches) * 0.8), 20, 98));
 }
 
 export function cabinFareMultiplier(model: AircraftModel, config: CabinConfiguration | undefined, cabin: CabinClass, durationHours: number) {

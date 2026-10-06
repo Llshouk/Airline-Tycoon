@@ -6,7 +6,7 @@ import { seatProducts } from "../src/config/cabinProducts";
 import { aircraftById, aircraftModels } from "../src/data/aircraft";
 import { CABIN_CLASSES, totalPassengerSeats } from "../src/lib/cabin";
 import { cabinComfort, cabinFareMultiplier, configuredCabinLayout, configuredCargoLimit, configuredPurchasePrice,
-  defaultCabinConfiguration, normalizeCabinConfiguration, setCabinSpace, setSeatProduct, validateCabinConfiguration } from "../src/lib/cabinConfiguration";
+  defaultCabinConfiguration, moveCabinBoundary, normalizeCabinConfiguration, setCabinSpace, setSeatProduct, validateCabinConfiguration } from "../src/lib/cabinConfiguration";
 import { normalizeCabinTemplates } from "../src/lib/cabinTemplates";
 import { createCompactSaveState, restoreGameStateFromCloudSave } from "../src/lib/cloudSave";
 import { estimateExpectedFlightProfit, estimateScheduleFinancials } from "../src/lib/economy";
@@ -59,6 +59,76 @@ test("Boeing thumbnails resolve existing uploaded assets without replacing Airbu
   }
   assert.equal(aircraftById["a220-300"].imageUrl, "/aircraft/a220-300.jpg");
   assert.equal(aircraftById["a330-900neo"].imageUrl, "/aircraft/a330-900neo.jpg");
+});
+
+test("new narrowbody Premium Economy keeps economy's abreast count for every grade", () => {
+  for (const aircraft of aircraftModels.filter((item) => item.type === "narrowbody")) {
+    const arrangement = aircraft.id === "a220-300" ? "2-3" : "3-3";
+    for (const cabin of ["premiumEconomy", "economy"] as const) {
+      assert.deepEqual(seatProducts(aircraft, cabin).map((product) => product.arrangement), [arrangement, arrangement, arrangement]);
+      const initial = setCabinSpace(aircraft, defaultCabinConfiguration(aircraft), cabin, 100);
+      for (const grade of ["basic", "premium", "luxury"] as const) {
+        const config = setSeatProduct(aircraft, initial, cabin, grade);
+        assert.equal(config.version, 2);
+        assert.ok(configuredCabinLayout(aircraft, config)[cabin] % seatProducts(aircraft, cabin)[0].seatsPerRow === 0);
+        assert.ok(validateCabinConfiguration(aircraft, config).isValid);
+      }
+    }
+  }
+  assert.deepEqual(seatProducts(aircraftById["a330-900neo"], "premiumEconomy").map((item) => item.arrangement), ["2-3-2", "2-3-2", "2-2-2"]);
+  assert.deepEqual(seatProducts(aircraftById["a350-900"], "premiumEconomy").map((item) => item.arrangement), ["2-4-2", "2-3-2", "2-2-2"]);
+  assert.deepEqual(seatProducts(aircraftById["777-300er"], "premiumEconomy").map((item) => item.arrangement), ["2-4-2", "2-3-2", "2-2-2"]);
+  assert.ok(existsSync(join(process.cwd(), "public/cabin/seat-products.png")));
+});
+
+test("drag boundaries transfer only neighboring space, clamp endpoints and never mutate the original", () => {
+  const aircraft = aircraftById["a330-900neo"];
+  const initial = defaultCabinConfiguration(aircraft);
+  const before = JSON.stringify(initial);
+  const boundary = initial.sections.first.spacePercent + initial.sections.business.spacePercent;
+  const moved = moveCabinBoundary(aircraft, initial, "business", boundary + 3);
+  assert.equal(moved.sections.first.spacePercent, initial.sections.first.spacePercent);
+  assert.equal(moved.sections.economy.spacePercent, initial.sections.economy.spacePercent);
+  assert.equal(moved.sections.business.spacePercent, initial.sections.business.spacePercent + 3);
+  assert.equal(moved.sections.premiumEconomy.spacePercent, initial.sections.premiumEconomy.spacePercent - 3);
+  for (const position of [-100, 0, 12.345, 100, 10000]) {
+    const config = moveCabinBoundary(aircraft, initial, "business", position);
+    assert.ok(validateCabinConfiguration(aircraft, config).isValid);
+    assert.equal(Math.round(CABIN_CLASSES.reduce((sum, cabin) => sum + config.sections[cabin].spacePercent, 0)), 100);
+  }
+  assert.equal(moveCabinBoundary(model, initial, "first", 10), initial);
+  assert.equal(moveCabinBoundary(aircraft, initial, "economy", 10), initial);
+  assert.equal(moveCabinBoundary(aircraft, initial, "business", NaN), initial);
+  assert.equal(JSON.stringify(initial), before);
+});
+
+test("V1.7.0 products, aircraft seats, price and reviews survive a V1.7.1 compact save reload", () => {
+  const game = fixture();
+  const legacy = defaultCabinConfiguration(model);
+  legacy.version = 1;
+  legacy.sections.premiumEconomy.grade = "luxury";
+  legacy.sections.premiumEconomy.pitchInches = 40;
+  legacy.sections.economy.grade = "luxury";
+  legacy.sections.economy.pitchInches = 36;
+  game.fleet[0].cabinConfiguration = legacy;
+  game.fleet[0].cabinLayout = configuredCabinLayout(model, legacy);
+  game.cabinTemplates = [{ id: "legacy-product", name: "Legacy", modelId: model.id, configuration: structuredClone(legacy) }];
+  const before = JSON.stringify(game);
+  const price = configuredPurchasePrice(model, legacy);
+  const comfort = cabinComfort(model, legacy, "economy");
+  const restored = normalizeGame(restoreGameStateFromCloudSave(JSON.parse(JSON.stringify(createCompactSaveState(game)))))!;
+  assert.deepEqual(restored.fleet[0].cabinConfiguration, legacy);
+  assert.deepEqual(restored.fleet[0].cabinLayout, game.fleet[0].cabinLayout);
+  assert.equal(restored.money, game.money);
+  assert.equal(configuredPurchasePrice(model, restored.fleet[0].cabinConfiguration!), price);
+  assert.equal(cabinComfort(model, restored.fleet[0].cabinConfiguration!, "economy"), comfort);
+  assert.deepEqual(restored.cabinTemplates, game.cabinTemplates);
+  const draft = normalizeCabinConfiguration(model, restored.cabinTemplates![0].configuration);
+  assert.equal(draft.version, 2);
+  assert.ok(validateCabinConfiguration(model, draft).isValid);
+  assert.equal(JSON.stringify(game), before);
+  assert.equal(seatProducts(model, "premiumEconomy", 1)[2].arrangement, "2-2");
+  assert.equal(seatProducts(model, "premiumEconomy", 2)[2].arrangement, "3-3");
 });
 
 test("100 upgraded aircraft retain bounded review aggregates during a recurring-week forecast", () => {

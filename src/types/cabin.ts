@@ -3,7 +3,7 @@ import type { AircraftInstance, CabinClass } from "@/types/game";
 export type SeatGrade = "basic" | "premium" | "luxury";
 export type CabinSection = { grade: SeatGrade; pitchInches: number; spacePercent: number };
 export type CabinConfiguration = {
-  version: 1;
+  version: 1 | 2;
   sections: Record<CabinClass, CabinSection>;
   cargoTons: number;
 };
