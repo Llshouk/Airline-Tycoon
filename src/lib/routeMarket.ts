@@ -4,6 +4,9 @@ import { estimateFlightFinancials, routePricingFromDefaults } from "@/lib/econom
 import { splitRoundedCost } from "@/lib/financialReports";
 import { DEMAND_KEYS, emptyDemand, marketWindow, priceDemandMultiplier, referenceWindowDemand } from "@/lib/marketDemand";
 import { DAY_MS } from "@/lib/time";
+import { cabinFareMultiplier } from "@/lib/cabinConfiguration";
+import { reputationAttractiveness } from "@/lib/passengerExperience";
+import type { CabinAircraft } from "@/types/cabin";
 import type { AircraftInstance, CabinDemand, GameState, Route, ScheduleItem } from "@/types/game";
 import type { FlightBooking, RouteMarketState } from "@/types/routeMarket";
 
@@ -27,10 +30,15 @@ export function bookingFromFinancials(result: ReturnType<typeof estimateFlightFi
     costs: splitRoundedCost(result.cost, [result.economics.estimatedFuelCostPerFlight, result.economics.estimatedCrewCostPerFlight,
       result.economics.estimatedAirportCostPerFlight, result.economics.estimatedMaintenanceReservePerFlight]) as FlightBooking["costs"],
     passengerCapacity: result.economics.passengerCapacity, cargoCapacity: aircraft.cabinLayout.cargoTons,
-    nightDemandMultiplier: result.nightDemandMultiplier };
+    nightDemandMultiplier: result.nightDemandMultiplier, experienceScores: result.experienceScores };
 }
 
-type Supply = { aircraftId: string; departure: number; key: string; layout: CabinDemand };
+type Supply = { aircraftId: string; modelId: string; aircraft: CabinAircraft; departure: number; key: string; layout: CabinDemand };
+
+function willingness(route: Route, aircraft: CabinAircraft, modelId: string, cabin: keyof Route["estimatedTicketPrices"]) {
+  const model = aircraftById[modelId];
+  return model ? cabinFareMultiplier(model, aircraft.cabinConfiguration, cabin, route.distanceKm / model.cruiseSpeedKmh) : 1;
+}
 
 /** One allocator per simulation transaction; the saved ledger is never mutated in place. */
 export function createMarketAllocator(game: GameState) {
@@ -47,9 +55,10 @@ export function createMarketAllocator(game: GameState) {
       if (!route || item.status === "cancelled" || item.status === "completed" || item.booking || item.operationalStatus === "grounded") continue;
       current.add(item.id);
       const old = indexed.get(item.id);
-      if (old && old.departure === item.departureGameTime && old.layout === aircraft.cabinLayout) continue;
+      if (old && old.departure === item.departureGameTime && old.layout === aircraft.cabinLayout &&
+        old.aircraft.cabinConfiguration === aircraft.cabinConfiguration && old.aircraft.passengerExperience === aircraft.passengerExperience) continue;
       if (old) supply.get(old.key)?.delete(item.id);
-      const value = { aircraftId: aircraft.id, departure: item.departureGameTime,
+      const value = { aircraftId: aircraft.id, modelId: aircraft.modelId, aircraft, departure: item.departureGameTime,
         key: marketWindow(route, item.originAirportId, item.departureGameTime).key, layout: aircraft.cabinLayout };
       indexed.set(item.id, value);
       if (!supply.has(value.key)) supply.set(value.key, new Map());
@@ -71,13 +80,19 @@ export function createMarketAllocator(game: GameState) {
     const recommended = route.recommendedPricing ?? routePricingFromDefaults(route);
     const prices = route.pricing ?? recommended;
     const allocated = emptyDemand();
+    const multipliers = emptyDemand();
     const candidates = [...(supply.get(descriptor.key)?.entries() ?? [])].filter(([id, value]) =>
       id !== item.id && value.departure >= item.departureGameTime && !window.bookedFlightIds.includes(id));
     for (const key of DEMAND_KEYS) {
       const cabin = key === "cargoTons" ? "cargo" : key;
-      const multiplier = priceDemandMultiplier(recommended[cabin], prices[cabin], cabin, route.distanceKm);
-      const own = Math.max(0, aircraft.cabinLayout[key]);
-      const remainingSupply = own + candidates.reduce((sum, [, candidate]) => sum + Math.max(0, candidate.layout[key]), 0);
+      const fareFactor = key === "cargoTons" ? 1 : willingness(route, aircraft, aircraft.modelId, key);
+      const multiplier = priceDemandMultiplier(recommended[cabin] * fareFactor, prices[cabin], cabin, route.distanceKm);
+      multipliers[key] = multiplier;
+      const own = Math.max(0, aircraft.cabinLayout[key]) * (key === "cargoTons" ? 1 :
+        fareFactor * reputationAttractiveness(aircraft, key, item.departureGameTime));
+      const remainingSupply = own + candidates.reduce((sum, [, candidate]) => sum + Math.max(0, candidate.layout[key]) *
+        (key === "cargoTons" ? 1 : willingness(route, candidate.aircraft, candidate.modelId, key) *
+          reputationAttractiveness(candidate.aircraft, key, item.departureGameTime)), 0);
       const remaining = Math.max(0, base[key] - window.consumed[key]) * multiplier;
       const share = remainingSupply ? own / remainingSupply : 0;
       allocated[key] = key === "cargoTons" ? Math.floor(remaining * share * 10) / 10 : Math.floor(remaining * share);
@@ -86,8 +101,7 @@ export function createMarketAllocator(game: GameState) {
       game.difficultyConfig, { departureGameTimeMs: item.departureGameTime, originAirportId: item.originAirportId, allocatedDemand: allocated });
     if (!window.bookedFlightIds.includes(item.id)) {
       for (const key of DEMAND_KEYS) {
-        const cabin = key === "cargoTons" ? "cargo" : key;
-        const multiplier = priceDemandMultiplier(recommended[cabin], prices[cabin], cabin, route.distanceKm);
+        const multiplier = multipliers[key];
         const sold = key === "cargoTons" ? result.cargoTons : result.soldSeats[key];
         if (multiplier > 0) window.consumed[key] += sold / multiplier;
       }

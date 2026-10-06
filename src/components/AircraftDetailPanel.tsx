@@ -6,6 +6,7 @@ import { AircraftWeeklyTimetableGrid } from "@/components/AircraftWeeklyTimetabl
 import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { OperatingEconomicsPanel } from "@/components/OperatingEconomicsPanel";
 import { AircraftMaintenancePanel } from "@/components/AircraftMaintenancePanel";
+import { CabinExperiencePanel } from "@/components/CabinExperiencePanel";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -142,6 +143,7 @@ export function AircraftDetailPanel({
           </aside>
 
           <div className="min-w-0">
+            <CabinExperiencePanel aircraft={aircraft} model={model} now={game.currentGameTimeMs} durationHours={operatingPreview?.economics.durationHours} />
             <AircraftMaintenancePanel aircraft={aircraft} game={game} />
             {operatingPreview ? (
               <OperatingEconomicsPanel
@@ -192,7 +194,7 @@ function getAircraftOperatingPreview(aircraft: AircraftInstance, game: GameState
   const scheduledFlight = aircraft.schedule.find((item) => game.routes.some((route) => route.id === item.routeId));
   const route = scheduledFlight ? game.routes.find((item) => item.id === scheduledFlight.routeId) : null;
   if (!route) return null;
-  const estimate = estimateExpectedFlightProfit(route, model, aircraft.cabinLayout, game.difficultyConfig);
+  const estimate = estimateExpectedFlightProfit(route, model, aircraft, game.difficultyConfig);
   return {
     routeLabel: `${airportsById[route.originAirportId]?.iata ?? route.originAirportId} - ${airportsById[route.destinationAirportId]?.iata ?? route.destinationAirportId}`,
     economics: estimate.economics,

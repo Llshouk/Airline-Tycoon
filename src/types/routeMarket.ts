@@ -1,4 +1,4 @@
-import type { CabinDemand, SeatCabinLayout } from "@/types/game";
+import type { CabinClass, CabinDemand, SeatCabinLayout } from "@/types/game";
 
 export type FlightBooking = {
   modelVersion: 2;
@@ -13,6 +13,8 @@ export type FlightBooking = {
   passengerCapacity: number;
   cargoCapacity: number;
   nightDemandMultiplier: number;
+  // Seat experience and price/value are frozen with the departure booking.
+  experienceScores?: Record<CabinClass, number>;
 };
 export type MarketWindow = {
   key: string;

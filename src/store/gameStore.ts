@@ -4,6 +4,10 @@ import { aircraftById } from "@/data/aircraft";
 import { getDifficultyConfig, type GameDifficulty } from "@/config/difficulty";
 import { airports, airportsById } from "@/data/airports";
 import { validateCabinLayout } from "@/lib/cabin";
+import { validateCabinConfiguration } from "@/lib/cabinConfiguration";
+import { normalizePassengerExperience } from "@/lib/passengerExperience";
+import type { CabinConfiguration } from "@/types/cabin";
+import { MAX_CABIN_TEMPLATES, normalizeCabinTemplates } from "@/lib/cabinTemplates";
 import { advanceFleetOperations } from "@/lib/fleetOperations";
 import { createFlightItem, generateWeeklyEvents, mergeGeneratedEvents } from "@/lib/recurringFlights";
 import { normalizeRouteMarket } from "@/lib/routeMarket";
@@ -67,7 +71,9 @@ type GameStore = {
   hydrateGameTime: () => void;
   setTimeMultiplier: (speed: TimeMultiplier) => void;
   togglePause: () => void;
-  buyAircraft: (modelId: string, cabinLayout: CabinLayout, registration: string, homeBaseAirportId: string) => { ok: boolean; message: string; aircraft?: AircraftInstance };
+  buyAircraft: (modelId: string, cabinLayout: CabinLayout, registration: string, homeBaseAirportId: string, cabinConfiguration?: CabinConfiguration) => { ok: boolean; message: string; aircraft?: AircraftInstance };
+  saveCabinTemplate: (modelId: string, name: string, configuration: CabinConfiguration) => boolean;
+  deleteCabinTemplate: (id: string) => void;
   openRoute: (originAirportId: string, destinationAirportId: string, pricing?: Route["pricing"]) => { ok: boolean; message: string; route?: Route };
   buyBaseAirport: (airportId: string) => { ok: boolean; message: string };
   setPrimaryBaseAirport: (airportId: string) => { ok: boolean; message: string };
@@ -192,7 +198,23 @@ export const useGameStore = create<GameStore>()(
           notice: normalized.isPaused ? "Simulation resumed." : "Simulation paused."
         });
       },
-      buyAircraft: (modelId, cabinLayout, registration, homeBaseAirportId) => {
+      saveCabinTemplate: (modelId, name, configuration) => {
+        const game = get().game;
+        const model = aircraftById[modelId];
+        const trimmed = name.trim();
+        if (!game || !model || !trimmed || trimmed.length > 32 || !validateCabinConfiguration(model, configuration).isValid) return false;
+        const templates = normalizeCabinTemplates(game.cabinTemplates);
+        const old = templates.find((item) => item.modelId === modelId && item.name === trimmed);
+        if (!old && templates.length >= MAX_CABIN_TEMPLATES) return false;
+        const next = { id: old?.id ?? createId("cabin"), name: trimmed, modelId, configuration: structuredClone(configuration) };
+        set({ game: withUpdatedAt({ ...game, cabinTemplates: [...templates.filter((item) => item.id !== next.id), next] }) });
+        return true;
+      },
+      deleteCabinTemplate: (id) => {
+        const game = get().game;
+        if (game) set({ game: withUpdatedAt({ ...game, cabinTemplates: normalizeCabinTemplates(game.cabinTemplates).filter((item) => item.id !== id) }) });
+      },
+      buyAircraft: (modelId, cabinLayout, registration, homeBaseAirportId, cabinConfiguration) => {
         const game = normalizeGame(get().game);
         const model = aircraftById[modelId];
         if (!game || !model) return { ok: false, message: "Start or load a game first." };
@@ -206,7 +228,7 @@ export const useGameStore = create<GameStore>()(
           set({ notice: registrationValidation.message });
           return { ok: false, message: registrationValidation.message };
         }
-        const validation = validateCabinLayout(model, cabinLayout);
+        const validation = cabinConfiguration ? validateCabinConfiguration(model, cabinConfiguration, cabinLayout) : validateCabinLayout(model, cabinLayout);
         if (!validation.isValid) {
           const message = validation.errors[0] ?? "Invalid cabin layout.";
           set({ notice: message });
@@ -228,7 +250,8 @@ export const useGameStore = create<GameStore>()(
           status: "idle",
           schedule: [],
           weeklySchedules: [],
-          cabinLayout,
+          cabinLayout: { ...cabinLayout },
+          cabinConfiguration: cabinConfiguration ? structuredClone(cabinConfiguration) : undefined,
           purchasePriceGBP: validation.purchasePriceGBP,
           totalRevenue: 0,
           totalProfit: 0,
@@ -813,6 +836,7 @@ export function normalizeGame(game: GameState | null | undefined): GameState | n
         pricing: route.pricing ?? recommendedPricing
       };
     }),
+    cabinTemplates: normalizeCabinTemplates(game.cabinTemplates),
     fleet: syncWeeklyFlightNumbers(game.fleet.map((aircraft) => {
       const model = aircraftById[aircraft.modelId];
       const weeklySchedules = (aircraft.weeklySchedules ?? []).map((schedule, index) => {
@@ -871,6 +895,9 @@ export function normalizeGame(game: GameState | null | undefined): GameState | n
             item.operationalStatus ?? (item.status === "completed" ? "arrived" : item.status === "in-flight" ? "departed" : "onTime")
         })),
         cabinLayout: aircraft.cabinLayout ?? model?.suggestedLayout ?? { first: 0, business: 0, premiumEconomy: 0, economy: 100, cargoTons: 0 },
+        cabinConfiguration: model && aircraft.cabinConfiguration && validateCabinConfiguration(model, aircraft.cabinConfiguration, aircraft.cabinLayout).isValid
+          ? aircraft.cabinConfiguration : undefined,
+        passengerExperience: normalizePassengerExperience(aircraft.passengerExperience, game.currentGameTimeMs),
         purchasePriceGBP: aircraft.purchasePriceGBP ?? model?.estimatedPriceGBP ?? 0,
         passengerCount: aircraft.passengerCount ?? 0,
         cargoTransportedTons: aircraft.cargoTransportedTons ?? 0

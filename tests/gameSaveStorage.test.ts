@@ -6,6 +6,8 @@ import { applyFinanceEvents, createFinancialHistory } from "../src/lib/financial
 import { gameSaveStorage } from "../src/lib/gameSaveStorage";
 import { normalizeGame } from "../src/store/gameStore";
 import { createCompanyGrowth } from "../src/lib/companyGrowth";
+import { aircraftById } from "../src/data/aircraft";
+import { configuredCabinLayout, defaultCabinConfiguration } from "../src/lib/cabinConfiguration";
 
 const SAVE_KEY = "airline-tycoon-v1";
 
@@ -45,6 +47,37 @@ Object.defineProperty(globalThis, "window", {
     localStorage,
     setTimeout: (callback: () => void) => setTimeout(callback, 0)
   }
+});
+
+test("cabin products, reviews and templates survive both IndexedDB and localStorage fallback", async () => {
+  const now = Date.UTC(2026, 0, 1, 12);
+  const model = aircraftById["a320neo"];
+  const configuration = defaultCabinConfiguration(model);
+  const game = normalizeGame(restoreGameStateFromCloudSave({ saveFormatVersion: 2, baseAirportId: "lhr", money: 600, currentGameTimeMs: now,
+    fleet: [{ id: "cabin-storage", modelId: model.id, registration: "G-CABIN", homeBaseAirportId: "lhr", currentAirportId: "lhr",
+      schedule: [], weeklySchedules: [], cabinLayout: configuredCabinLayout(model, configuration), cabinConfiguration: configuration }], routes: [] }))!;
+  game.fleet[0].passengerExperience = { version: 1, days: [{ day: Math.floor(now / 86400000), cabins: {
+    first: { passengers: 0, scoreTotal: 0 }, business: { passengers: 0, scoreTotal: 0 }, premiumEconomy: { passengers: 0, scoreTotal: 0 },
+    economy: { passengers: 80, scoreTotal: 6400 } } }] };
+  game.cabinTemplates = [{ id: "cabin-template", name: "Balanced", modelId: model.id, configuration }];
+  const indexedDB = window.indexedDB;
+  try {
+    for (const fallback of [false, true]) {
+      Object.defineProperty(window, "indexedDB", { configurable: true, value: fallback ? undefined : indexedDB });
+      const key = `cabin-storage-${fallback}`;
+      const json = JSON.stringify({ state: { game: createCompactSaveState(game) }, version: 4 });
+      await gameSaveStorage.setItem(key, json);
+      const saved = await gameSaveStorage.getItem(key);
+      assert.equal(saved, json);
+      assert.equal(Boolean(localStorage.getItem(key)), fallback);
+      const restored = normalizeGame(restoreGameStateFromCloudSave(JSON.parse(saved!).state.game))!;
+      assert.deepEqual(restored.fleet[0].cabinConfiguration, configuration);
+      assert.deepEqual(restored.fleet[0].passengerExperience, game.fleet[0].passengerExperience);
+      assert.deepEqual(restored.cabinTemplates, game.cabinTemplates);
+      assert.equal(restored.money, game.money);
+      await gameSaveStorage.removeItem(key);
+    }
+  } finally { Object.defineProperty(window, "indexedDB", { configurable: true, value: indexedDB }); }
 });
 
 test("financial summaries survive IndexedDB persistence without storing another cash field", async () => {

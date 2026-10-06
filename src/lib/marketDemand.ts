@@ -1,7 +1,7 @@
 import { ROUTE_MARKET, hourlyPassengerPreference } from "@/config/routeMarket";
 import { airportsById } from "@/data/airports";
 import { airportLocalMinutes } from "@/lib/airportOperations";
-import type { CabinDemand, Route, RoutePricing } from "@/types/game";
+import type { CabinDemand, CabinPrices, Route, RoutePricing } from "@/types/game";
 
 export const DEMAND_KEYS = ["first", "business", "premiumEconomy", "economy", "cargoTons"] as const;
 export function emptyDemand(): CabinDemand { return { first: 0, business: 0, premiumEconomy: 0, economy: 0, cargoTons: 0 }; }
@@ -40,13 +40,14 @@ export function referenceWindowDemand(route: Route, originId = route.originAirpo
   return result;
 }
 
-export function demandAtPrice(route: Route, demand: CabinDemand): CabinDemand {
+export function demandAtPrice(route: Route, demand: CabinDemand, fareMultipliers?: CabinPrices): CabinDemand {
   const reference = route.recommendedPricing ?? { ...route.estimatedTicketPrices, cargo: route.estimatedCargoRatePerTon };
   const actual = route.pricing ?? reference;
   const result = emptyDemand();
   for (const key of DEMAND_KEYS) {
     const cabin = key === "cargoTons" ? "cargo" : key;
-    const value = demand[key] * priceDemandMultiplier(reference[cabin], actual[cabin], cabin, route.distanceKm);
+    const referenceFare = reference[cabin] * (key === "cargoTons" ? 1 : fareMultipliers?.[key] ?? 1);
+    const value = demand[key] * priceDemandMultiplier(referenceFare, actual[cabin], cabin, route.distanceKm);
     result[key] = key === "cargoTons" ? Math.floor(value * 10) / 10 : Math.floor(value);
   }
   return result;

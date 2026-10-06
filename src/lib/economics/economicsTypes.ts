@@ -37,6 +37,8 @@ export type RouteEconomicsInput = {
   loadFactor: number;
   cargoLoadFactor: number;
   revenueMultiplier: number;
+  cabinCleaningCost?: number;
+  cabinMaintenanceReserve?: number;
 };
 
 export type RouteEconomicsResult = {

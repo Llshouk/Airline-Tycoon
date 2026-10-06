@@ -23,11 +23,13 @@
     "tests/financialReports.test.ts",
     "tests/companyGrowth.test.ts",
     "tests/aircraftMaintenance.test.ts",
+    "tests/cabinExperience.test.ts",
     "tests/leafletLayerLifecycle.test.ts",
     "tests/leafletTileReadiness.test.ts",
     "tests/mapLibreErrorPolicy.test.ts",
     "tests/routeEconomics.test.ts",
     "tests/routeMarket.test.ts",
+    "tests/routeScheduling.test.ts",
     "tests/saveCompatibility.test.ts"
   ]
 }

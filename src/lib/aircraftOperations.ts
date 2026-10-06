@@ -5,6 +5,7 @@ import { estimateFlightFinancials } from "@/lib/economy";
 import { pruneOperationalFlights } from "@/lib/cloudSave";
 import { flightWaitMs, turnaroundWaitMs } from "@/lib/time";
 import { bookingFromFinancials } from "@/lib/routeMarket";
+import { normalizePassengerExperience, recordPassengerExperience } from "@/lib/passengerExperience";
 import type { FlightBooking } from "@/types/routeMarket";
 import type { FinanceEvent } from "@/types/finance";
 import type { AircraftInstance, FlightLogEntry, Route, ScheduleItem } from "@/types/game";
@@ -26,6 +27,7 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
   bookFlight?: (aircraft: AircraftInstance, item: ScheduleItem, route: Route) => FlightBooking) {
   const model = aircraftById[aircraft.modelId];
   let lifecycle = normalizeAircraftLifecycle(aircraft, now);
+  let passengerExperience = aircraft.passengerExperience;
   let currentAirportId = aircraft.currentAirportId;
   let readyGameTime = 0;
   const entries: FlightLogEntry[] = [];
@@ -144,6 +146,8 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
     }
     if (now >= item.arrivalGameTime) {
       const booking = item.booking!;
+      const experience = recordPassengerExperience(passengerExperience, booking, item.arrivalGameTime, item.delayMinutes ?? 0);
+      passengerExperience = experience.history;
       lifecycle = recordAircraftFlight(lifecycle, item.arrivalGameTime - item.departureGameTime, booking.costs[3]);
       currentAirportId = item.destinationAirportId;
       const accounting = {
@@ -153,7 +157,8 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
       const entry: FlightLogEntry = {
         id: item.id, aircraftId: aircraft.id, aircraftRegistration: aircraft.registration,
         flightNumber: item.flightNumber, routeId: route.id, originAirportId: item.originAirportId,
-        destinationAirportId: item.destinationAirportId, completedGameTime: item.arrivalGameTime, ...accounting
+        destinationAirportId: item.destinationAirportId, completedGameTime: item.arrivalGameTime,
+        passengerSatisfaction: experience.score, ...accounting
       };
       entries.push(entry);
       const [fuelCost, crewCost, airportCost, maintenanceReserve] = booking.costs;
@@ -184,6 +189,7 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
   return {
     aircraft: {
       ...aircraft, lifecycle, currentAirportId, status, schedule: retained,
+      passengerExperience: normalizePassengerExperience(passengerExperience, now),
       totalFlights: aircraft.totalFlights + entries.length,
       totalRevenue: aircraft.totalRevenue + entries.reduce((sum, entry) => sum + entry.revenue, 0),
       totalProfit: (aircraft.totalProfit ?? 0) + entries.reduce((sum, entry) => sum + entry.profit, 0) - maintenanceCashCost,

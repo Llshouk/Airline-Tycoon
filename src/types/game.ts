@@ -2,6 +2,7 @@ import type { DifficultyConfig, GameDifficulty } from "@/config/difficulty";
 import type { FinancialHistory } from "@/types/finance";
 import type { CompanyGrowth } from "@/types/companyGrowth";
 import type { FlightBooking, RouteMarketState } from "@/types/routeMarket";
+import type { CabinConfiguration, CabinTemplate, PassengerExperience } from "@/types/cabin";
 
 export type AirportSizeTier = "regional" | "large" | "mega";
 export type CabinClass = "first" | "business" | "premiumEconomy" | "economy";
@@ -119,6 +120,8 @@ export interface AircraftInstance {
   schedule: ScheduleItem[];
   weeklySchedules: WeeklySchedule[];
   cabinLayout: CabinLayout;
+  cabinConfiguration?: CabinConfiguration;
+  passengerExperience?: PassengerExperience;
   purchasePriceGBP: number;
   totalRevenue: number;
   totalFlights: number;
@@ -231,6 +234,7 @@ export interface FlightLogEntry {
   profit: number;
   passengerCount: number;
   cargoTons: number;
+  passengerSatisfaction?: number;
 }
 
 export interface GameState {
@@ -262,6 +266,7 @@ export interface GameState {
   financialHistory?: FinancialHistory;
   companyGrowth?: CompanyGrowth;
   routeMarket?: RouteMarketState;
+  cabinTemplates?: CabinTemplate[];
 }
 
 export interface ActiveFlightInfo {

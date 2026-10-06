@@ -12,9 +12,9 @@
 - Previous published checkpoint / V1.5.3 baseline: V1.5.2 (`2109bb65278beedbf08fc5b22b9c716222f1c4eb`)
 - Previous published release: V1.5.3 (`ccc9268bd703129e2dee20c0e148b455e7946796`)
 - V1.6.0 release / V1.7.0 baseline: `9b648d5618886af870631162d2a4ee0620a4d242`
-- Current release checkpoint: the V1.7.0 release commit containing this document
+- V1.7.0 release baseline: `89310ef7d975d47417926578a5b002bd93d45fe6`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
-- Release status: V1.7.0 implemented and locally verified; user authorized direct main-branch commit/push
+- Release status: cabin experience and simplified route opening verified; user authorized direct main-branch commit/push on 2026-10-06 without a version bump
 - Latest focused review date: 2026-10-06
 - Latest successful production build: V1.7.0 `pnpm run build` passed on 2026-10-06 with Next.js 15.5.24
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
@@ -27,17 +27,63 @@
 - Current release objective: shared route markets, operating analysis, batch tools and deeper contract opportunities
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Simplified maintenance scope: immediate ground work, dated after-flight reservations, conflict cancellation/recovery, and batch booking work; workshop capacity, replacement aircraft and model-specific verified limits remain TODOs
-- The user replaced the earlier V1.6.0 reputation plan with Contracts and Company Growth. Reputation and Passenger Experience remain deferred.
-- Release-gate status: 120 automated tests, typecheck, lint, browser acceptance, responsive layout, save compatibility and production build pass; dependencies unchanged
+- The earlier V1.6.0 reputation plan became Contracts and Company Growth. The user has now approved local development of cabin products and Passenger Experience after V1.7.0; alliances and airline-wide loyalty effects remain deferred.
+- Release-gate status: 149 automated tests, typecheck, lint, browser acceptance, responsive layout, save compatibility and production build pass; dependencies unchanged
 
 ## Current Objective
 
-Implement the approved shared route-demand model, business analysis, batch tools
-and deeper growth opportunities. Airline positioning, alliances and market
-events remain deferred. Preserve independent aircraft, cash and historical
-accounting. Finalize V1.7.0 branding, README and PWA cache marker, then commit
-and push directly to Llshouk/Airline-Tycoon main as requested. Verify the remote
-commit after pushing; never infer successful Vercel deployment from that push.
+Commit and push the verified cabin-product, passenger-experience and simplified
+route-opening changes to Llshouk/Airline-Tycoon main. The user authorized push on
+2026-10-06. Keep version 1.7.0, independent aircraft, canonical money, finite
+route markets and historical accounting. Verify the remote commit after push;
+Vercel deployment completion requires separate verification.
+
+## Local Cabin Development (2026-10-06)
+
+- Basic/Premium/Luxury seat products, model eligibility, row arrangements/widths,
+  bounded manual pitch, cabin-space allocation and whole-row capacity changes.
+- Independent purchase configurations, real configured affordability/deductions,
+  model-specific template save/load/delete, draft cancellation and bilingual UI.
+- Bounded comfort-adjusted willingness to pay and competitive reputation retain
+  V1.7.0 price elasticity and shared finite demand. Extra cleaning/seat upkeep
+  reconcile through existing finance buckets; no direct revenue/DP multiplier.
+- Departure-locked price/comfort scores become arrival-only, passenger-weighted
+  seven-game-day ratings. Company rating is derived, never a second state owner.
+- Optional JSON fields keep old seats/cash/history, save format 2 and database
+  schema unchanged. Completed booking snapshots are redundant and omitted from
+  compact saves; active/airborne snapshots are preserved.
+- Legacy Boeing thumbnail paths pointed to nonexistent files. They now reuse
+  existing uploaded side images; Airbus mappings and asset files are unchanged.
+- Full model, caveats, verification and future TODOs: docs/cabin-experience.md.
+- Local verification: 139/139 tests, typecheck, zero-error lint and optimized
+  production build pass. Actual development/production browser acceptance at
+  1440px and 390px (mobile height 844px in production) covers English/Chinese,
+  purchase/cash, templates/reload, pitch/rows, eligibility and actual ratings.
+  No new console/page errors or horizontal overflow; favicon 404 is excluded.
+- The modal previews configured per-flight profit without changing route fares
+  or cash. Local/cloud JSON and IndexedDB/LocalStorage fallback are tested;
+  authenticated live Supabase and physical touch remain unverified.
+- Originally verified locally before push authorization; no release bump.
+  Development preview remains http://localhost:3015. Test artifacts are ignored.
+
+## Local Route Opening Follow-Up (2026-10-06)
+
+- User requested no profitable-route recommendations during opening and direct
+  destination selection from Map. One dialog now retains the clicked airport,
+  offers origin/destination choices, cost and independent aircraft availability.
+- Removed opening-flow revenue sorting, best-profit comparisons, evaluation
+  cards, opportunity-list indirection and the empty launch-video placeholder.
+- Route-specific weekly round-trip availability uses contiguous flight/turnaround
+  gaps, recurring week wrapping, dated flights, reservations, range/base/position,
+  maintenance and the canonical timetable validator with optional curfew checks.
+- Preview never charges cash, adds schedules, cancels flights or merges aircraft.
+  Store-owned opening cost/range/duplicate rules remain unchanged.
+- 149/149 tests, typecheck, zero-warning lint and production build pass. Actual
+  dev/production browser checks at 1440px/390x844 in EN/ZH pass, including pointer
+  activation, exact cash/route persistence and unchanged timetables. Production
+  cabin UI regression also passes; no new page/console errors or overflow.
+- Documentation: docs/route-opening.md. The user subsequently authorized main
+  commit/push at version 1.7.0. Preview: http://localhost:3015.
 
 ## V1.7.0 Evidence (2026-10-06)
 
@@ -638,8 +684,10 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 ## Next Exact Action
 
-Confirm the V1.7.0 release commit is synchronized with GitHub main, then verify
-Vercel deployment separately. Local dev server: http://localhost:3015.
+After the authorized main push, verify Vercel deployment separately. Review the
+cabin-product, satisfaction and route-opening changes at http://localhost:3015.
+Version remains 1.7.0. Live Supabase and Vercel are external verification steps,
+not claims from the local browser tests. Use Git history for the new checkpoint.
 
 ## Recovery Instructions
 

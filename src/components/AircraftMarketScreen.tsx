@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, RotateCcw, ShoppingCart, X } from "lucide-react";
+import { Armchair, CheckCircle2, RotateCcw, ShoppingCart, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { OperatingEconomicsPanel } from "@/components/OperatingEconomicsPanel";
@@ -8,13 +8,15 @@ import { SeatConfigurationModal } from "@/components/SeatConfigurationModal";
 import { aircraftById, aircraftModels } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
-import { getDefaultCabinConfig, routeSuitabilityHints, validateCabinLayout } from "@/lib/cabin";
+import { routeSuitabilityHints } from "@/lib/cabin";
+import { configuredCabinLayout, defaultCabinConfiguration, validateCabinConfiguration } from "@/lib/cabinConfiguration";
 import { canAfford } from "@/lib/cash";
 import { estimateExpectedFlightProfit } from "@/lib/economy";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { createRegistration } from "@/lib/ids";
 import { useGameStore } from "@/store/gameStore";
-import type { AircraftModel, CabinLayout } from "@/types/game";
+import type { AircraftModel } from "@/types/game";
+import type { CabinConfiguration } from "@/types/cabin";
 
 type SortMode = "price" | "range" | "capacity";
 type RouteFilter = "all" | "short-haul" | "medium-haul" | "long-haul";
@@ -29,20 +31,21 @@ export function AircraftMarketScreen() {
   const [sortMode, setSortMode] = useState<SortMode>("price");
   const [selectedModelId, setSelectedModelId] = useState(aircraftModels[1].id);
   const selectedModel = aircraftById[selectedModelId] ?? aircraftModels[0];
-  const [layout, setLayout] = useState<CabinLayout>(() => getDefaultCabinConfig(selectedModel));
+  const [configuration, setConfiguration] = useState<CabinConfiguration>(() => defaultCabinConfiguration(selectedModel));
+  const layout = useMemo(() => configuredCabinLayout(selectedModel, configuration), [selectedModel, configuration]);
   const [registration, setRegistration] = useState(createRegistration(game?.fleet.length ?? 0));
   const [selectedBaseAirportId, setSelectedBaseAirportId] = useState(game?.primaryBaseAirport ?? game?.baseAirportId ?? "");
   const [economicsRouteId, setEconomicsRouteId] = useState("");
   const [isSeatConfigOpen, setIsSeatConfigOpen] = useState(false);
   const [purchaseToast, setPurchaseToast] = useState<{ modelLabel: string; registration: string; baseIata: string } | null>(null);
-  const validation = useMemo(() => validateCabinLayout(selectedModel, layout), [layout, selectedModel]);
+  const validation = useMemo(() => validateCabinConfiguration(selectedModel, configuration), [configuration, selectedModel]);
   const affordable = game ? canAfford(game, validation.purchasePriceGBP) : false;
   const economicsRoute = game?.routes.find((route) => route.id === economicsRouteId) ?? null;
   const marketEconomics = useMemo(
     () => game && economicsRoute
-      ? estimateExpectedFlightProfit(economicsRoute, selectedModel, layout, game.difficultyConfig).economics
+      ? estimateExpectedFlightProfit(economicsRoute, selectedModel, { cabinLayout: layout, cabinConfiguration: configuration }, game.difficultyConfig).economics
       : null,
-    [economicsRoute, game, layout, selectedModel]
+    [economicsRoute, game, layout, selectedModel, configuration]
   );
   const registrationError = useMemo(() => {
     if (!game) return null;
@@ -100,12 +103,12 @@ export function AircraftMarketScreen() {
 
   function selectModel(model: AircraftModel) {
     setSelectedModelId(model.id);
-    setLayout(getDefaultCabinConfig(model));
+    setConfiguration(defaultCabinConfiguration(model));
     setRegistration(createRegistration(game?.fleet.length ?? 0));
   }
 
   function resetLayout() {
-    setLayout(getDefaultCabinConfig(selectedModel));
+    setConfiguration(defaultCabinConfiguration(selectedModel));
   }
 
   return (
@@ -210,9 +213,9 @@ export function AircraftMarketScreen() {
             <button
               type="button"
               onClick={() => setIsSeatConfigOpen(true)}
-              className="w-full rounded-md bg-jet px-3 py-3 text-sm font-black text-white transition hover:bg-jet/90"
+              className="flex w-full items-center justify-center gap-2 rounded-md bg-jet px-3 py-3 text-sm font-black text-white transition hover:bg-jet/90"
             >
-              Seat Configuration
+              <Armchair size={18} /> {t("cabin.title")}
             </button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
@@ -259,7 +262,7 @@ export function AircraftMarketScreen() {
           <button
             type="button"
             onClick={() => {
-              const result = buyAircraft(selectedModel.id, layout, registration, selectedBaseAirportId);
+              const result = buyAircraft(selectedModel.id, layout, registration, selectedBaseAirportId, configuration);
               if (!result.ok || !result.aircraft) return;
               setPurchaseToast({
                 modelLabel: `${selectedModel.manufacturer} ${selectedModel.model}`,
@@ -279,13 +282,13 @@ export function AircraftMarketScreen() {
       {isSeatConfigOpen ? (
         <SeatConfigurationModal
           model={selectedModel}
-          layout={layout}
+          configuration={configuration}
+          route={economicsRoute}
           registration={registration}
           onRegistrationChange={setRegistration}
-          onLayoutChange={setLayout}
           onCancel={() => setIsSeatConfigOpen(false)}
-          onConfirm={(nextLayout) => {
-            setLayout(nextLayout);
+          onConfirm={(nextConfiguration) => {
+            setConfiguration(nextConfiguration);
             setIsSeatConfigOpen(false);
           }}
         />

@@ -4,8 +4,11 @@ import { airportsById } from "@/data/airports";
 import { calculateRouteEconomics, calculateScheduleFrequency } from "@/lib/economics/routeEconomics";
 import { nightPassengerDemandMultiplier } from "@/lib/airportOperations";
 import { demandAtPrice, priceDemandMultiplier, referenceWindowDemand } from "@/lib/marketDemand";
+import { cabinExtraOperatingCosts, cabinFareMultiplier } from "@/lib/cabinConfiguration";
+import { flightExperienceScores } from "@/lib/passengerExperience";
+import type { CabinAircraft } from "@/types/cabin";
 import { DAY_MS, WEEK_MS, timeOfDayMs, weekStartMs } from "@/lib/time";
-import type { AircraftInstance, AircraftModel, CabinDemand, CabinLayout, CabinPrices, Route, RoutePricing, WeeklySchedule } from "@/types/game";
+import type { AircraftModel, CabinDemand, CabinLayout, CabinPrices, Route, RoutePricing, WeeklySchedule } from "@/types/game";
 
 type PriceDemandClass = keyof RoutePricing;
 
@@ -37,16 +40,21 @@ export function estimateRouteOpeningCost(distanceKm: number) {
 export function estimateFlightFinancials(
   route: Route,
   model: AircraftModel,
-  aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout,
+  aircraft: CabinAircraft | CabinLayout,
   seed: number,
   difficultyConfig?: DifficultyConfig,
   operations?: { departureGameTimeMs: number; originAirportId: string; allocatedDemand?: CabinDemand }
 ) {
   const difficulty = difficultyConfig ?? getDifficultyConfig("easy");
   const cabinLayout = "cabinLayout" in aircraft ? aircraft.cabinLayout : aircraft;
+  const cabinAircraft: CabinAircraft = "cabinLayout" in aircraft ? aircraft : { cabinLayout };
+  const duration = route.distanceKm / model.cruiseSpeedKmh;
+  const extraCosts = cabinExtraOperatingCosts(model, cabinAircraft.cabinConfiguration, duration);
   const nightMultiplier = nightPassengerDemandMultiplier(route.distanceKm, operations?.originAirportId ?? route.originAirportId, operations?.departureGameTimeMs);
   const timedDemand = operations?.allocatedDemand ?? demandAtPrice(route,
-    referenceWindowDemand(route, operations?.originAirportId, operations?.departureGameTimeMs));
+    referenceWindowDemand(route, operations?.originAirportId, operations?.departureGameTimeMs),
+    Object.fromEntries(["first", "business", "premiumEconomy", "economy"].map((cabin) =>
+      [cabin, cabinFareMultiplier(model, cabinAircraft.cabinConfiguration, cabin as keyof CabinPrices, duration)])) as CabinPrices);
   const prices = route.pricing ?? routePricingFromDefaults(route);
   const simulation = difficulty.difficulty === "simulation";
   const longHaulBonus = route.distanceKm >= 5500
@@ -67,6 +75,8 @@ export function estimateFlightFinancials(
     originAirportTier: airportsById[operations?.originAirportId ?? route.originAirportId]?.sizeTier,
     destinationAirportTier: airportsById[operations?.originAirportId === route.destinationAirportId ? route.originAirportId : route.destinationAirportId]?.sizeTier,
     cabinLayout,
+    cabinCleaningCost: extraCosts.cleaning,
+    cabinMaintenanceReserve: extraCosts.maintenance,
     demand: timedDemand,
     pricing: prices,
     loadFactor: GAME_BALANCE.minLoadFactor + deterministicNoise(seed) * (GAME_BALANCE.maxLoadFactor - GAME_BALANCE.minLoadFactor),
@@ -85,6 +95,7 @@ export function estimateFlightFinancials(
     cost,
     profit: revenue - cost,
     economics,
+    experienceScores: flightExperienceScores(route, model, cabinAircraft),
     nightDemandMultiplier: nightMultiplier
   };
 }
@@ -106,26 +117,26 @@ export function priceWarning(recommendedPrice: number, actualPrice: number) {
   return null;
 }
 
-export function estimateExpectedFlightProfit(route: Route, model: AircraftModel, layout?: CabinLayout, difficultyConfig?: DifficultyConfig) {
+export function estimateExpectedFlightProfit(route: Route, model: AircraftModel, layout?: CabinLayout | CabinAircraft, difficultyConfig?: DifficultyConfig) {
   return estimateFlightFinancials(route, model, layout ?? model.suggestedLayout, stableSeed(route.id.length + model.id.length), difficultyConfig);
 }
 
-export function estimateFlightRevenue(route: Route, model: AircraftModel, aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout) {
-  return estimateExpectedFlightProfit(route, model, "cabinLayout" in aircraft ? aircraft.cabinLayout : aircraft).revenue;
+export function estimateFlightRevenue(route: Route, model: AircraftModel, aircraft: CabinAircraft | CabinLayout) {
+  return estimateExpectedFlightProfit(route, model, aircraft).revenue;
 }
 
-export function estimateFlightCost(route: Route, model: AircraftModel, aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout) {
-  return estimateExpectedFlightProfit(route, model, "cabinLayout" in aircraft ? aircraft.cabinLayout : aircraft).cost;
+export function estimateFlightCost(route: Route, model: AircraftModel, aircraft: CabinAircraft | CabinLayout) {
+  return estimateExpectedFlightProfit(route, model, aircraft).cost;
 }
 
-export function estimateFlightProfit(route: Route, model: AircraftModel, aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout) {
-  return estimateExpectedFlightProfit(route, model, "cabinLayout" in aircraft ? aircraft.cabinLayout : aircraft).profit;
+export function estimateFlightProfit(route: Route, model: AircraftModel, aircraft: CabinAircraft | CabinLayout) {
+  return estimateExpectedFlightProfit(route, model, aircraft).profit;
 }
 
 export function estimateScheduleWeeklyRevenue(input: {
   route: Route;
   model: AircraftModel;
-  aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout;
+  aircraft: CabinAircraft | CabinLayout;
   daysOfWeek: unknown[];
   isRoundTrip: boolean;
   difficultyConfig?: DifficultyConfig;
@@ -136,7 +147,7 @@ export function estimateScheduleWeeklyRevenue(input: {
 export function estimateScheduleWeeklyProfit(input: {
   route: Route;
   model: AircraftModel;
-  aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout;
+  aircraft: CabinAircraft | CabinLayout;
   daysOfWeek: unknown[];
   isRoundTrip: boolean;
   difficultyConfig?: DifficultyConfig;
@@ -148,7 +159,7 @@ export function estimateWeeklyScheduleFinancials(
   schedule: WeeklySchedule,
   route: Route,
   model: AircraftModel,
-  aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout,
+  aircraft: CabinAircraft | CabinLayout,
   difficultyConfig?: DifficultyConfig,
   referenceGameTimeMs?: number
 ) {
@@ -167,14 +178,13 @@ export function estimateWeeklyScheduleFinancials(
 export function estimateScheduleFinancials(input: {
   route: Route;
   model: AircraftModel;
-  aircraft: Pick<AircraftInstance, "cabinLayout"> | CabinLayout;
+  aircraft: CabinAircraft | CabinLayout;
   daysOfWeek: unknown[];
   isRoundTrip: boolean;
   difficultyConfig?: DifficultyConfig;
   departureTimeLocal?: string;
   referenceGameTimeMs?: number;
 }) {
-  const cabinLayout = "cabinLayout" in input.aircraft ? input.aircraft.cabinLayout : input.aircraft;
   const reference = input.referenceGameTimeMs ?? Date.UTC(2026, 0, 1);
   const days = [...new Set(input.daysOfWeek.filter((day): day is number => Number.isInteger(day) && Number(day) >= 0 && Number(day) <= 6))];
   const departures = days.map((day) => {
@@ -183,7 +193,7 @@ export function estimateScheduleFinancials(input: {
     return time;
   });
   const seed = stableSeed(input.route.id.length + input.model.id.length);
-  const estimateLeg = (departure: number, originAirportId: string) => estimateFlightFinancials(input.route, input.model, cabinLayout, seed,
+  const estimateLeg = (departure: number, originAirportId: string) => estimateFlightFinancials(input.route, input.model, input.aircraft, seed,
     input.difficultyConfig, input.departureTimeLocal ? { departureGameTimeMs: departure, originAirportId } : undefined);
   const estimates = departures.flatMap((departure) => {
     const outbound = estimateLeg(departure, input.route.originAirportId);
@@ -191,7 +201,7 @@ export function estimateScheduleFinancials(input: {
     const returning = departure + input.route.distanceKm / input.model.cruiseSpeedKmh * 3_600_000 + input.model.turnaroundMinutes * 60_000;
     return [outbound, estimateLeg(returning, input.route.destinationAirportId)];
   });
-  const perFlight = estimates[0] ?? estimateExpectedFlightProfit(input.route, input.model, cabinLayout, input.difficultyConfig);
+  const perFlight = estimates[0] ?? estimateExpectedFlightProfit(input.route, input.model, input.aircraft, input.difficultyConfig);
   const frequency = calculateScheduleFrequency(input.daysOfWeek, input.isRoundTrip);
   const weeklyFlights = frequency.flightsPerWeek;
   return {

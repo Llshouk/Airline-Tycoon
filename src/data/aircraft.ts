@@ -170,8 +170,8 @@ function model(
   // To replace an aircraft image, put the file in public/aircraft/ and set imageUrl to
   // the root-relative runtime path, for example "/aircraft/a320neo.jpg".
   const imageAlt = `${manufacturer} ${aircraftModel}`;
-  const imageUrl = image?.imageUrl ?? `/aircraft/${id}.jpg`;
   const sideImageUrl = aircraftSideImageUrl(id);
+  const imageUrl = image?.imageUrl ?? (manufacturer === "Boeing" ? sideImageUrl : `/aircraft/${id}.jpg`);
   const baseModel: AircraftModel = {
     id,
     manufacturer,

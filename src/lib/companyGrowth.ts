@@ -158,7 +158,7 @@ function capableAircraft(game: GameState, route: Route) {
 }
 function quoteAircraft(game: GameState, route: Route, aircraft: AircraftInstance, days: number): Quote {
   const model = aircraftById[aircraft.modelId];
-  const estimate = estimateExpectedFlightProfit(route, model, aircraft.cabinLayout, game.difficultyConfig);
+  const estimate = estimateExpectedFlightProfit(route, model, aircraft, game.difficultyConfig);
   const unavailable = Math.max(0, (aircraft.lifecycle?.maintenance?.completesGameTimeMs ?? game.currentGameTimeMs) - game.currentGameTimeMs);
   const blockHours = route.distanceKm / model.cruiseSpeedKmh + model.turnaroundMinutes / 60 + 0.75;
   // Conservative capacity envelope, not a promise that existing schedules meet a contract.

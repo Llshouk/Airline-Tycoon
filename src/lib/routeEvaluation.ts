@@ -68,7 +68,7 @@ export function evaluateRoute({ route, gameState }: { route: Route; gameState: G
     .filter((item) => item.canOperate)
     .map((item) => ({
       aircraftScore: item,
-      financials: estimateExpectedFlightProfit(evaluationRoute, item.model, item.aircraft.cabinLayout, gameState.difficultyConfig)
+      financials: estimateExpectedFlightProfit(evaluationRoute, item.model, item.aircraft, gameState.difficultyConfig)
     }))
     .sort((a, b) => b.financials.profit - a.financials.profit || b.aircraftScore.score - a.aircraftScore.score);
   const bestComparison = financialComparisons[0];

@@ -9,6 +9,10 @@ import { distanceKm } from "@/lib/geo";
 import { supabase, supabaseConfigError } from "@/lib/supabaseClient";
 import { DAY_MS, GAME_SPEED_OPTIONS } from "@/lib/time";
 import { normalizeAircraftLifecycle } from "@/lib/aircraftMaintenance";
+import { aircraftById } from "@/data/aircraft";
+import { validateCabinConfiguration } from "@/lib/cabinConfiguration";
+import { normalizePassengerExperience } from "@/lib/passengerExperience";
+import { normalizeCabinTemplates } from "@/lib/cabinTemplates";
 import { getLocalSaveMetadataSync, safeGetLocalStorage } from "@/lib/gameSaveStorage";
 import type { AircraftInstance, GameState, Route, TimeMultiplier } from "@/types/game";
 
@@ -25,6 +29,8 @@ export type CompactAircraftSave = Pick<
   | "schedule"
   | "weeklySchedules"
   | "cabinLayout"
+  | "cabinConfiguration"
+  | "passengerExperience"
   | "purchasePriceGBP"
   | "totalRevenue"
   | "totalFlights"
@@ -72,6 +78,7 @@ export type CompactGameSave = Pick<
   | "financialHistory"
   | "companyGrowth"
   | "routeMarket"
+  | "cabinTemplates"
 > & {
   fleet: CompactAircraftSave[];
   routes: CompactRouteSave[];
@@ -203,6 +210,7 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
     financialHistory: normalizeFinancialHistory(gameState.financialHistory, gameState.currentGameTimeMs, gameState.money),
     companyGrowth: gameState.companyGrowth,
     routeMarket: gameState.routeMarket,
+    cabinTemplates: normalizeCabinTemplates(gameState.cabinTemplates),
     fleet: gameState.fleet.map((aircraft) => ({
       id: aircraft.id,
       modelId: aircraft.modelId,
@@ -210,9 +218,14 @@ export function createCompactSaveState(gameState: GameState, updatedAt = new Dat
       homeBaseAirportId: aircraft.homeBaseAirportId,
       currentAirportId: aircraft.currentAirportId,
       status: aircraft.status,
-      schedule: pruneOperationalFlights(aircraft.schedule, gameState.currentGameTimeMs),
+      // Settled amounts and review aggregates are authoritative after arrival.
+      // Only airborne/pending flights need the full departure snapshot on reload.
+      schedule: pruneOperationalFlights(aircraft.schedule, gameState.currentGameTimeMs).map((item) =>
+        item.status === "completed" ? { ...item, booking: undefined } : item),
       weeklySchedules: aircraft.weeklySchedules,
       cabinLayout: aircraft.cabinLayout,
+      cabinConfiguration: aircraft.cabinConfiguration,
+      passengerExperience: normalizePassengerExperience(aircraft.passengerExperience, gameState.currentGameTimeMs),
       purchasePriceGBP: aircraft.purchasePriceGBP,
       totalRevenue: aircraft.totalRevenue,
       totalProfit: aircraft.totalProfit,
@@ -358,8 +371,13 @@ function restoreCompactGameState(compact: CompactGameSave): GameState {
     financialHistory: compact.financialHistory,
     companyGrowth: compact.companyGrowth,
     routeMarket: compact.routeMarket,
+    cabinTemplates: normalizeCabinTemplates(compact.cabinTemplates),
     fleet: compact.fleet.map((aircraft) => ({
       ...aircraft,
+      cabinConfiguration: aircraftById[aircraft.modelId] && aircraft.cabinConfiguration &&
+        validateCabinConfiguration(aircraftById[aircraft.modelId], aircraft.cabinConfiguration, aircraft.cabinLayout).isValid
+        ? aircraft.cabinConfiguration : undefined,
+      passengerExperience: normalizePassengerExperience(aircraft.passengerExperience, compact.currentGameTimeMs),
       lifecycle: normalizeAircraftLifecycle(aircraft, compact.currentGameTimeMs)
     })),
     routes: compact.routes.map(restoreCompactRoute),
@@ -552,6 +570,7 @@ function normalizeCloudPayload(saveState: unknown, rowDifficulty?: string): Comp
     financialHistory: normalizeFinancialHistory(raw.financialHistory, raw.currentGameTimeMs ?? Date.UTC(2026, 0, 1, 6), getCurrentCash(raw)),
     companyGrowth: raw.companyGrowth,
     routeMarket: raw.routeMarket,
+    cabinTemplates: normalizeCabinTemplates(raw.cabinTemplates),
     fleet: (raw.fleet ?? []) as CompactAircraftSave[],
     routes: (raw.routes ?? []) as CompactRouteSave[],
     flightLogSummary: raw.flightLogSummary ?? raw.flightLog ?? [],

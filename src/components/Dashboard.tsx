@@ -6,6 +6,7 @@ import { AircraftImage } from "@/components/AircraftImage";
 import { CompanyAge } from "@/components/CompanyAge";
 import { CompanyGrowthSummary } from "@/components/CompanyGoalsScreen";
 import { FleetAlerts } from "@/components/FleetAlerts";
+import { PassengerSatisfaction } from "@/components/PassengerSatisfaction";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -49,6 +50,7 @@ export function Dashboard({ onOpenAircraft, onOpenGoals }: { onOpenAircraft: (id
         <Stat icon={CheckCircle2} label={t("dashboard.flights")} value={String(stats.completedFlights)} />
       </div>
       <FleetAlerts game={game} onOpenAircraft={onOpenAircraft} />
+      <PassengerSatisfaction fleet={game.fleet} now={game.currentGameTimeMs} company />
       <CompanyGrowthSummary game={game} onOpen={onOpenGoals} />
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-soft">

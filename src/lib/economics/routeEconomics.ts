@@ -35,6 +35,15 @@ export function calculateRouteEconomics(input: RouteEconomicsInput): RouteEconom
         }
       : { distanceKm: 0, cruiseSpeedKmh: 0, fuelCostPerKm: 0, cargoTons: 0 }
   );
+  if (validInput) {
+    const cleaning = finiteNonNegative(input.cabinCleaningCost ?? 0);
+    const seatMaintenance = finiteNonNegative(input.cabinMaintenanceReserve ?? 0);
+    // Keep the existing four reporting buckets: cleaning is ground handling;
+    // premium seat upkeep accrues in reserve and is not charged twice at service.
+    costs.airportCost += cleaning;
+    costs.maintenanceReserve += seatMaintenance;
+    costs.totalOperatingCost += cleaning + seatMaintenance;
+  }
   const first = soldSeats.first * pricing.first * revenueMultiplier;
   const business = soldSeats.business * pricing.business * revenueMultiplier;
   const premiumEconomy = soldSeats.premiumEconomy * pricing.premiumEconomy * revenueMultiplier;
