@@ -37,6 +37,12 @@ Maintenance uses game time and simplified gameplay assumptions, not certified ai
 - Existing technical inspections and legacy dated reservations remain compatible.
   Cancel before work starts if needed; an airborne ferry finishes safely rather
   than disappearing. Active work is not refundable or cancellable.
+- Legacy full-service reservations already blocked by a grounded aircraft or a
+  missing anchor automatically become home-return requests on restoration or
+  simulation. Migration alone does not charge cash, repair condition, move an
+  aircraft or change its weekly timetable. A paid full service supersedes its
+  stale blocked request, preventing a second service after completion. Valid
+  dated reservations, inspections and existing cash waits are unchanged.
 - No database migration, new package or unrelated economy change is included.
   The public version remains 1.7.3 pending a separately requested release.
 
@@ -59,7 +65,7 @@ Maintenance uses game time and simplified gameplay assumptions, not certified ai
 - Reliability begins at 99.5%, with readable penalties for wear, age, hours/cycles since service, and overdue service, bounded to 80-99.5%. Starting maintenance does not improve reliability before completion. Model-specific verified baselines remain a TODO.
 - Technical disruption probability is `1 - reliability / 100`, bounded to 0.5-20%. Each eligible departure checks once using its deterministic flight ID. A disruption adds 15-90 game minutes alongside existing operational delay and turnaround rules; reloads do not reroll it.
 - New maintenance cancels dated departures that overlap the maintenance window rather than postponing them indefinitely. The weekly service template is retained. Afterwards, departures from the wrong airport are cancelled until the first position-compatible leg can resume. There is no teleportation or automatic replacement aircraft.
-- Reservations cost nothing to book; the actual quote and affordability are checked at the start after the anchor's wear and reserve funding. Insufficient funds, a deleted anchor, or grounding before the anchor leave a visible blocked reservation with no maintenance charge. Cancel and rebook, or maintain immediately on the ground.
+- Reservations cost nothing to book; the actual quote and affordability are checked at the start after the anchor's wear and reserve funding. Cash waits and blocked technical inspections remain visible with no maintenance charge. Legacy full-service requests blocked by grounding or a deleted anchor recover through automatic home return instead of requiring cancel/rebook.
 - Fleet supports condition filtering and batch automatic full maintenance. Legacy reservation validation remains atomic, and aircraft registrations, locations, schedules and accounts remain independent.
 - Reservations can be cancelled before work starts. Active work cannot be cancelled/refunded. Legacy active maintenance tasks without a recovery window keep the old retained-flight delay behavior.
 
@@ -88,6 +94,17 @@ Cash uses whole GBP. Fractional reserve is retained rather than spent above its 
 Labour is GBP 12,000 for an inspection or 65,000 for full service. Parts are `(100 - condition) * 200` or `* 1,800`, respectively. Widebody costs use a 1.6 factor. All are explicitly tunable gameplay values.
 
 ## Validation
+
+The 2026-10-17 legacy compatibility fix passes 172 automated tests, typecheck,
+lint and the optimized production build. Development and production browser
+acceptance pass EN/ZH at all four sizes below with
+`LEGACY_MAINTENANCE_CHECK=1`: the 29.7% grounded fixture recovers without another
+click, preserves cash/reserve until service starts, returns from away, displays
+progress, survives reload and resumes its original eligible flight. Tests also
+protect paid active work from duplicate service and charges. The page includes
+`airline-tycoon-maintenance=home-return-v2` metadata and, when provided by Vercel,
+the public Git revision so deployment can be verified independently of the
+unchanged 1.7.3 title. Local checks do not imply a deployed-site update.
 
 The 2026-10-16 one-click follow-up passes 169 automated tests, including 100
 simultaneous home-base services, existing and empty-ferry returns, grounded

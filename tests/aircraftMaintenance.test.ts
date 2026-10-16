@@ -21,6 +21,85 @@ const now = Date.UTC(2026, 0, 1, 6);
 const hour = 3_600_000;
 const model = aircraftById["a220-300"];
 
+test("blocked legacy full-service saves migrate without changing cash, wear, aircraft identity or the weekly calendar", () => {
+  for (const error of ["grounded", "missing"] as const) {
+    const game = fixture();
+    game.fleet[0].lifecycle = { ...game.fleet[0].lifecycle!, condition: 29.7, flightHours: 1791.8, flightCycles: 854,
+      hoursSinceService: 1791.8, cyclesSinceService: 168, reserveBalance: 3781289,
+      reservation: { kind: "service", afterFlightId: "YA107", state: "blocked", error } };
+    const before = structuredClone(game);
+    const restored = normalizeGame(restoreGameStateFromCloudSave(JSON.parse(JSON.stringify(createCompactSaveState(game)))))!;
+    const aircraft = restored.fleet[0];
+    assert.equal(restored.money, before.money);
+    assert.equal(aircraft.id, before.fleet[0].id);
+    assert.equal(aircraft.registration, before.fleet[0].registration);
+    assert.deepEqual(aircraft.weeklySchedules, before.fleet[0].weeklySchedules);
+    assert.equal(aircraft.lifecycle!.condition, 29.7);
+    assert.equal(aircraft.lifecycle!.flightHours, 1791.8);
+    assert.equal(aircraft.lifecycle!.reserveBalance, 3781289);
+    assert.equal(aircraft.lifecycle!.reservation!.mode, "home");
+    assert.equal(aircraft.lifecycle!.reservation!.state, "scheduled");
+    assert.equal(aircraft.lifecycle!.reservation!.afterFlightId, undefined);
+    assert.equal(aircraft.lifecycle!.maintenance, undefined);
+    assert.deepEqual(normalizeAircraftLifecycle(aircraft, now), aircraft.lifecycle);
+    const running = advanceFleetOperations(restored, now, now).game;
+    assert.equal(running.fleet[0].lifecycle!.maintenance!.startedGameTimeMs, now);
+    assert.equal(running.fleet[0].lifecycle!.reservation, undefined);
+    assert.equal(running.money, before.money, "The existing reserve covers the service; do not create another charge");
+    assert.ok(running.fleet[0].lifecycle!.reserveBalance < 3781289);
+    assert.equal(advanceFleetOperations(running, now, now).game.fleet[0].lifecycle!.reserveBalance, running.fleet[0].lifecycle!.reserveBalance);
+  }
+});
+
+test("direct advancement recovers a grounded legacy request away from base with one empty ferry", () => {
+  const game = fixture();
+  game.fleet[0].currentAirportId = "cdg";
+  game.fleet[0].lifecycle = { ...game.fleet[0].lifecycle!, condition: 29.7, reserveBalance: 3781289,
+    reservation: { kind: "service", afterFlightId: "YA107", state: "blocked", error: "grounded" } };
+  const first = advanceAircraftOperations(game.fleet[0], game.routes, now, game.difficultyConfig, game.money);
+  const ferry = first.aircraft.schedule.find((flight) => flight.isMaintenanceFerry)!;
+  assert.ok(ferry);
+  assert.equal(first.aircraft.currentAirportId, "cdg");
+  assert.equal(first.aircraft.status, "in-flight");
+  const repeated = advanceAircraftOperations(first.aircraft, game.routes, now, game.difficultyConfig, game.money);
+  assert.equal(repeated.aircraft.schedule.filter((flight) => flight.isMaintenanceFerry).length, 1);
+  const finished = advanceAircraftOperations(repeated.aircraft, game.routes, ferry.readyGameTime + 8 * hour, game.difficultyConfig, game.money);
+  assert.equal(finished.aircraft.currentAirportId, "lhr");
+  assert.equal(finished.aircraft.lifecycle!.condition, 100);
+  assert.equal(finished.aircraft.lifecycle!.reservation, undefined);
+  assert.equal(finished.entries.length, 0);
+});
+
+test("legacy migration leaves inspections, valid reservations, cash waits and paid active work unchanged", () => {
+  const game = fixture();
+  for (const reservation of [
+    { kind: "inspection" as const, afterFlightId: "YA107", state: "blocked" as const, error: "grounded" as const },
+    { kind: "service" as const, afterFlightId: "YA107", state: "scheduled" as const },
+    { kind: "service" as const, afterFlightId: "YA107", state: "blocked" as const, error: "cash" as const }
+  ]) {
+    const aircraft = { ...game.fleet[0], lifecycle: { ...game.fleet[0].lifecycle!, reservation } };
+    const plan = normalizeAircraftLifecycle(aircraft, now).reservation!;
+    assert.equal(plan.mode, undefined);
+    assert.equal(plan.afterFlightId, reservation.afterFlightId);
+    assert.equal(plan.state, reservation.state);
+  }
+  const active = { ...game.fleet[0], lifecycle: { ...beginAircraftMaintenance(game.fleet[0].lifecycle!, model, "service", now),
+    reservation: { kind: "service" as const, afterFlightId: "YA107", state: "blocked" as const, error: "grounded" as const } } };
+  const normalized = normalizeAircraftLifecycle(active, now);
+  assert.equal(normalized.reservation, undefined, "Paid full service supersedes its stale blocked request");
+  assert.deepEqual(normalized.maintenance, active.lifecycle.maintenance);
+  assert.equal(normalized.reserveBalance, active.lifecycle.reserveBalance);
+  const paid = { ...game, fleet: [{ ...active, lifecycle: normalized }] };
+  const finished = advanceFleetOperations(paid, now, now + 8 * hour).game;
+  const repeated = advanceFleetOperations(finished, finished.currentGameTimeMs, now + 9 * hour).game;
+  assert.equal(repeated.fleet[0].lifecycle!.maintenance, undefined);
+  assert.equal(repeated.fleet[0].lifecycle!.reservation, undefined);
+  assert.equal(repeated.fleet[0].lifecycle!.condition, 100);
+  assert.equal(repeated.fleet[0].lifecycle!.totalMaintenanceCost, active.lifecycle.totalMaintenanceCost);
+  assert.equal(repeated.fleet[0].lifecycle!.reserveBalance, active.lifecycle.reserveBalance);
+  assert.equal(repeated.money, game.money);
+});
+
 test("one-click full maintenance starts 100 independent aircraft at base with no workshop limit", () => {
   const game = fixture();
   game.money = 1e9;

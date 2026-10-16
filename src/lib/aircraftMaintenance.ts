@@ -38,12 +38,19 @@ export function normalizeAircraftLifecycle(aircraft: Pick<AircraftInstance, "lif
       }
     : undefined;
   const plan = raw?.reservation;
-  const reservation = plan && (plan.kind === "inspection" || plan.kind === "service") &&
+  let reservation = plan && (plan.kind === "inspection" || plan.kind === "service") &&
     (plan.mode === "home" || (typeof plan.afterFlightId === "string" && plan.afterFlightId.length > 0))
     ? { ...plan, state: plan.state === "blocked" ? "blocked" as const : "scheduled" as const,
         requestedGameTimeMs: plan.mode === "home" ? Math.min(now, nonnegative(plan.requestedGameTimeMs, now)) : undefined,
         startsAfterGameTimeMs: Number.isFinite(plan.startsAfterGameTimeMs) ? plan.startsAfterGameTimeMs : undefined }
     : undefined;
+  // Old blocked full-service anchors cannot run; retain the request, not the deadlock.
+  if (reservation?.kind === "service" && reservation.mode !== "home" && reservation.state === "blocked" &&
+    (reservation.error === "grounded" || reservation.error === "missing")) {
+    if (maintenance?.kind === "service") reservation = undefined;
+    else if (!maintenance) reservation = { kind: "service", mode: "home", state: "scheduled", requestedGameTimeMs: now,
+      startsAfterGameTimeMs: undefined };
+  }
   const window = raw?.recovery;
   const recovery = window && Number.isFinite(window.startsGameTimeMs) && Number.isFinite(window.completesGameTimeMs) &&
     window.completesGameTimeMs > window.startsGameTimeMs && typeof window.airportId === "string"

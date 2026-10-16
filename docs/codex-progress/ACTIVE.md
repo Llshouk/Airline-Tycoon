@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current working version: `1.7.3`
-- Latest published release / development baseline: V1.7.3 (`8fcafb302b2fc4c035f85a0d6a8635ebe32f35fa`)
+- Latest published release / development baseline: V1.7.3 home maintenance (`a8d966cabeedc657317ed4ee7a2a01f99cd39db4`)
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
@@ -16,9 +16,9 @@
 - V1.7.0 release baseline: `89310ef7d975d47417926578a5b002bd93d45fe6`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Cabin/route follow-up published checkpoint: `a66f24eae852be4d6e59e1ce8185ffec4ba62f94`
-- Release status: one-click home maintenance follow-up verified; user authorized commit/push to Llshouk/Airline-Tycoon main on 2026-10-16, version remains 1.7.3
-- Latest focused review date: 2026-10-16
-- Latest successful production build: V1.7.3 `pnpm run build` passed on 2026-10-16 with Next.js 15.5.24
+- Release status: legacy blocked-maintenance compatibility verified; user authorized commit/push to Llshouk/Airline-Tycoon main on 2026-10-17, version remains 1.7.3
+- Latest focused review date: 2026-10-17
+- Latest successful production build: V1.7.3 `pnpm run build` passed on 2026-10-17 with Next.js 15.5.24
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
 - No earlier `ACTIVE.md` or WIP patch existed at audit start
 
@@ -26,22 +26,46 @@
 
 - Current major version: V1
 - Current minor version: V1.7.3
-- Current release objective: simplify full maintenance into automatic home return, unlimited parallel work, timetable recovery and per-aircraft Fleet progress
+- Current release objective: recover legacy blocked full-service reservations and verify the production domain actually serves the updated maintenance code
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Simplified maintenance scope: one-click home return/ferry, unlimited parallel work, dated conflict cancellation/recovery and Fleet progress; replacement aircraft and model-specific verified limits remain TODOs
 - The earlier V1.6.0 reputation plan became Contracts and Company Growth. The user has now approved local development of cabin products and Passenger Experience after V1.7.0; alliances and airline-wide loyalty effects remain deferred.
-- Release-gate status: maintenance follow-up has 169 automated tests, typecheck, lint, optimized build and responsive browser acceptance passing; no dependencies added
+- Release-gate status: maintenance compatibility has 172 automated tests, typecheck, lint, optimized build and responsive development/production browser acceptance passing; no dependencies added
 
 ## Current Objective
 
-Commit and push the verified one-click full maintenance follow-up to
-Llshouk/Airline-Tycoon main with the user's 2026-10-16 authorization. The aircraft
-finishes its current flight, returns to its own home base (empty ferry approved
-if needed), maintains without workshop limits, then resumes its original next
-compatible timetable leg. Preserve canonical money, individual aircraft and
-weekly templates. Version remains 1.7.3; no monitor-off was requested. Keep
-docs/ROADMAP.md and ignored local files intact. Verify the remote commit after
-push; publication does not itself verify Vercel deployment or live Supabase.
+Commit and push the verified legacy blocked-maintenance fix to
+Llshouk/Airline-Tycoon main with the user's 2026-10-17 authorization, then check
+https://airline-tycoon-brown.vercel.app/ for the new build marker. A fresh browser
+currently receives old maintenance code from that domain despite a8d966c being
+on origin/main; do not misdiagnose this solely as browser cache. Preserve cash,
+fleet, weekly templates, valid reservations and paid active work. Version remains
+1.7.3; no monitor-off was requested. Keep docs/ROADMAP.md and ignored local files
+intact. GitHub publication alone does not verify Vercel deployment or Supabase.
+
+## Legacy Blocked Maintenance Recovery (2026-10-17)
+
+- The screenshot's old full-service reservation is blocked before its anchor
+  flight by condition 29.7%. Refreshing old code keeps that deadlock in the save.
+- The shared lifecycle normalizer upgrades only legacy full-service requests
+  blocked by grounding or a missing anchor into automatic home return. It does
+  not charge, heal, teleport or rewrite weekly schedules during migration.
+- A paid active full service supersedes its stale blocked request without
+  changing its task/cost, preventing a second maintenance after completion.
+  Valid dated reservations, inspections and old cash waits remain unchanged.
+- Direct aircraft advancement also recovers legacy plans; local/cloud compact
+  restore, empty ferry, one-time reserve/cash use and original-flight recovery
+  are covered. 172 tests, lint, typecheck and optimized build pass.
+- Legacy fixture browser checks pass development/production, EN/ZH, at
+  1440x1000, 390x844, 320x740 and 844x390. No page/console errors, paused progress
+  drift, overflow or duplicate completion charges were observed.
+- Page metadata now exposes maintenance marker home-return-v2 and the public
+  Vercel Git revision when available. No secret or new environment requirement.
+- Before this fix is published, an isolated fresh browser on the user's domain
+  received HTTP 200 and title 1.7.3 but none of the initial bundles contained
+  requestFullMaintenance, maintenance-progress- or maintenance-ferry-. The old
+  cancel-and-maintain error was present. No Vercel commit status was returned for
+  a8d966c. The exact Vercel deployment/configuration failure remains unconfirmed.
 
 ## One-Click Home Maintenance Follow-Up (2026-10-16)
 
@@ -817,11 +841,12 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 ## Next Exact Action
 
-Commit and push the verified home maintenance follow-up to origin/main, then
-compare the remote hash with local HEAD. The user has authorized this follow-up;
-version remains 1.7.3 and the pre-push baseline is 8fcafb3. Preserve docs/ROADMAP.md
-and ignored local files. Dev preview remains http://localhost:3015. Distinguish
-GitHub publication from live Supabase/Vercel deployment.
+Commit and push the verified legacy compatibility fix to origin/main, then
+compare the remote hash with local HEAD. The user authorized this on 2026-10-17;
+version remains 1.7.3 and the pre-push baseline is a8d966c. Check the user's public
+domain for home-return-v2 and the new revision; if absent, report deployment as
+unverified rather than asking the user to delete saves. Preserve docs/ROADMAP.md
+and ignored local files. Dev preview remains http://localhost:3015.
 
 ## Recovery Instructions
 

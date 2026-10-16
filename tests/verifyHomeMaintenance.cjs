@@ -27,6 +27,11 @@ function maintenanceFixture() {
   technicalChecked: true, technicalDelayMinutes: 0, baseDelayMinutes: 0 });
   game.fleet[0].schedule = [flight(game.fleet[0], "MA100", now + hour), flight(game.fleet[0], "MA102", now + 12 * hour)];
   game.fleet[1].schedule = [{ ...flight(game.fleet[1], "CURRENT", now - hour / 4), status: "in-flight" }];
+  if (process.env.LEGACY_MAINTENANCE_CHECK === "1") for (const index of [0, 2]) {
+    game.fleet[index].lifecycle = { ...game.fleet[index].lifecycle, condition: 29.7, flightHours: 1791.8, flightCycles: 854,
+      hoursSinceService: 1791.8, cyclesSinceService: 168, reserveBalance: 3781289,
+      reservation: { kind: "service", afterFlightId: "YA107", state: "blocked", error: "grounded" } };
+  }
   return createCompactSaveState(game);
 }
 
@@ -63,10 +68,17 @@ async function main() {
       await page.clock.install();
       await page.goto(process.env.UI_CHECK_URL || "http://localhost:3015", { waitUntil: "networkidle", timeout: 90000 });
       await page.getByRole("button", { name: "Continue Offline", exact: true }).click();
+      if (process.env.LEGACY_MAINTENANCE_CHECK === "1") {
+        const restored = await saved(page);
+        assert.equal(restored.money, 1e9);
+        assert.equal(restored.fleet[0].lifecycle.reservation.mode, "home");
+        assert.equal(restored.fleet[0].lifecycle.reserveBalance, 3781289);
+      }
       await navigate(page, "fleet");
       for (let index = 0; index < 3; index++) {
         const dialog = await openAircraft(page, `G-SVC${index + 1}`);
-        await dialog.getByRole("button", { name: "Full maintenance", exact: true }).click();
+        if (process.env.LEGACY_MAINTENANCE_CHECK !== "1" || index === 1) await dialog.getByRole("button", { name: "Full maintenance", exact: true }).click();
+        else assert.ok(!(await dialog.innerText()).includes("Cancel the reservation and maintain now."));
         await dialog.getByTestId(`maintenance-progress-maint-${index}`).waitFor();
         assert.equal(await dialog.getByRole("progressbar").getAttribute("value"), "0");
         await layout(page, width);

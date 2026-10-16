@@ -17,7 +17,7 @@ export function maintenanceFerryRoute(flight: ScheduleItem): Route | undefined {
 
 /** Resolve one return leg without changing the recurring timetable or opening a commercial route. */
 export function prepareHomeMaintenance(aircraft: AircraftInstance, now: number): AircraftInstance {
-  if (aircraft.lifecycle?.reservation?.mode !== "home") return aircraft;
+  if (!aircraft.lifecycle?.reservation) return aircraft;
   const lifecycle = normalizeAircraftLifecycle(aircraft, now);
   const plan = lifecycle.reservation;
   const model = aircraftById[aircraft.modelId];
