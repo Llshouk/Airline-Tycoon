@@ -1,6 +1,49 @@
 # Seat Product Catalog
 
-Runtime asset: `/cabin/seat-products.png`.
+
+## V1.7.3 All-Cabin Gallery
+
+The original `seat-products.png` is retained for history but is no longer used
+by the current gallery or precached. First Class still uses its V1.7.2 atlas.
+Business, Premium Economy and Economy each use a new three-frame vertical
+atlas: Basic, Premium, Luxury from top to bottom. The presentation registry uses
+measured frame bounds to exclude seams where generated heights vary slightly.
+All were generated with the
+built-in image tool in **generate** mode, without reference images. Original
+PNGs are used unchanged; CSS selects a frame inside a stable 16:9 viewport.
+These fictional photorealistic concepts are not certified layouts or real
+airline product photographs. Actual seat arrangements remain model-driven.
+
+### Business
+
+Saved asset: `public/cabin/business-products-v173.png` (965 x 1629 PNG).
+Runtime URL: `/cabin/business-products-v173.png`.
+
+Full generation prompt:
+
+> Use case: product-mockup. Asset type: a production sprite atlas for an airline management game's Business Class seat photographs. Create ONE image with exactly THREE equal-height edge-to-edge photographic frames vertically stacked, each frame a 16:9 landscape picture; overall portrait strip ratio 16:27 (desired 1024 by 1728). Top frame Basic, middle Premium, bottom Luxury, but do not write any words. Style: photorealistic aircraft interior product photography, soft neutral daylight through real oval airliner windows, crisp fabric weave, believable upholstery, aisle carpet and overhead bins, matching the polished realistic look of an airline First Class product catalog. Every frame uses the same aisle-side three-quarter close-up with ONE complete Business Class seat, headrest to footrest visible, and limited neighboring context, not a full cabin-row layout. TOP Basic: open dark gray-blue padded Business recliner, broad shared armrests, straightforward fabric, modest recline and simple folding footrest, no privacy pod. MIDDLE Premium: noticeably upgraded indigo upholstered Business recliner, sculpted headrest and substantial leg support, discrete side console and half-height privacy wing, more refined stitching. BOTTOM Luxury: sophisticated deep teal upholstered Business seat with generous padding, extended legrest, a compact sculpted privacy shell and refined light-metal detailing; noticeably more premium but still Business, NOT an enclosed First Class room and NO sliding door. Make all three grades clearly different at small thumbnail size. No people, branding, logos, labels, letters, visible screen text, watermarks, decorative borders or gutters. Keep each whole seat inside its own frame without clipping important parts at boundaries. Three equally sized frames, camera and lighting consistent. These are fictional product concepts, not certified technical layouts.
+
+### Premium Economy
+
+Saved asset: `public/cabin/premium-economy-products-v173.png` (965 x 1629 PNG).
+Runtime URL: `/cabin/premium-economy-products-v173.png`.
+
+Full generation prompt:
+
+> Use case: product-mockup. Asset type: production sprite atlas for an airline management game's Premium Economy cabin products. Create ONE portrait image, a vertical strip with exactly THREE equal-height edge-to-edge photographic panels, each panel 16:9 landscape, overall ratio 16:27 (desired 1024 by 1728). Top Basic, middle Premium, bottom Luxury, with NO written labels. Style: photorealistic airline cabin interior photography, natural daylight through oval windows, crisp woven fabric and realistic seat hardware, clean contemporary airliner architecture; consistent with a high-end First Class seat catalog but a visibly more modest class of travel. Use the SAME aisle-side three-quarter product view in every frame, one complete upright Premium Economy seat shown from headrest to floor, partial adjacent seats and cabin context only, not a full row arrangement or seating plan. TOP Basic: a generous upright slate blue fabric seat, padded headrest, useful broad shared armrest and modest legroom, clearly more substantial than a slim economy seat. MIDDLE Premium: better padded warm gray and muted ochre fabric Premium Economy recliner, sculpted adjustable winged headrest, broad armrest, folding calf support and refined stitching. BOTTOM Luxury: elegant burgundy and light-gray upholstered Premium Economy recliner, visibly thicker cushioning, adjustable headrest wings, substantial armrest console and extended calf support, still an OPEN UPRIGHT AIRLINER SEAT. All products remain seated upright with only modest recline; NO lie-flat beds, privacy pods, doors, full-height partitions or First/Business Class suites. Grades must be noticeably different at thumbnail scale through materials, cushioning and support, with believable cabin dimensions. Keep complete main seat within each frame, no clipped headrests or feet. No people, brands, logos, text, letters, watermarks, frame gutters or borders. Fictional product concepts, not certified layouts.
+
+### Economy
+
+Saved asset: `public/cabin/economy-products-v173.png` (965 x 1629 PNG).
+Runtime URL: `/cabin/economy-products-v173.png`.
+
+Full generation prompt:
+
+> Use case: product-mockup. Asset type: production sprite atlas of Economy Class seat products for an airline management game. Make ONE portrait image containing exactly THREE equal-height edge-to-edge photographic frames stacked vertically. Each frame is 16:9 landscape; overall strip ratio 16:27, desired size 1024 by 1728. Frames are top Basic, middle Premium and bottom Luxury, but include NO words or labels. Style: photorealistic professional aircraft cabin photography, believable contemporary commercial airliner interior, oval windows, overhead bins, aisle carpet, honest woven-fabric textures and seat hardware, soft neutral daylight. Same aisle-side three-quarter perspective in every frame, one whole MAIN ECONOMY seat headrest-to-floor plus cropped neighboring seats for context; do not show a complete row layout or try to communicate seats abreast. TOP Basic: compact gray economy slimline fabric seat, thin but plausible padding, simple fixed headrest, narrow practical armrests, tight normal economy spacing, plain functional finish. MIDDLE Premium: noticeably improved blue fabric economy seat with contoured cushioning, adjustable headrest wings, nicer upholstery and more comfortable but still narrow armrests; a modern seat-back screen visible only in background. BOTTOM Luxury: refined dark emerald and muted gray economy seat, clearly thicker ergonomic cushions and stitched textile, supportive adjustable winged headrest, tasteful small lumbar cushion and slightly improved ordinary economy legroom. All three are normal upright ECONOMY seats, not Premium Economy, Business or First Class. NO giant recliners, no broad console armrests, no extended calf rests or foot beds, no privacy shells, no partitions or doors, no lie-flat seat. Different grades should read clearly through fabric, cushion shape and headrest quality at small thumbnail size while remaining physically believable. Keep main seat completely within each frame. No people, brand logos, letters, screen text, watermarks, gutters or decorative borders. Fictional product concepts rather than certified engineering layouts.
+
+## Original V1.7.1 Catalog (Historical)
+
+Former runtime asset: `/cabin/seat-products.png`.
 
 AI-generated, unbranded product illustrations made with the built-in image tool.
 They are visual game assets, not photographs of certified airline products.

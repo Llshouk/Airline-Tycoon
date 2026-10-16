@@ -63,7 +63,7 @@ export function AppShell() {
         <div className="hud-airline">
           <Plane size={24} aria-hidden="true" className="shrink-0 text-jet" />
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-500">Airline Tycoon V1.7.2</p>
+            <p className="text-[10px] font-bold text-slate-500">Airline Tycoon V1.7.3</p>
             <h1 className="truncate text-base font-black text-ink">{game.airlineName}</h1>
           </div>
         </div>

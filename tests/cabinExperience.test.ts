@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { seatProducts } from "../src/config/cabinProducts";
+import { CABIN_ARTWORK } from "../src/config/cabinArtwork";
+import { cabinDividerLanes } from "../src/lib/cabinDesignerLayout";
 import { aircraftById, aircraftModels } from "../src/data/aircraft";
 import { CABIN_CLASSES, totalPassengerSeats } from "../src/lib/cabin";
 import { cabinComfort, cabinFareMultiplier, configuredCabinLayout, configuredCargoLimit, configuredPurchasePrice,
@@ -21,6 +23,33 @@ import type { CabinConfiguration } from "../src/types/cabin";
 const now = Date.UTC(2026, 0, 1, 11);
 const hour = 3600000;
 const model = aircraftById["737-max-8"];
+
+test("all cabin classes have distinct local photo atlases with accurate dimensions", () => {
+  assert.deepEqual(Object.keys(CABIN_ARTWORK).sort(), [...CABIN_CLASSES].sort());
+  assert.equal(new Set(Object.values(CABIN_ARTWORK).map((art) => art.src)).size, 4);
+  assert.equal(CABIN_ARTWORK.first.src, "/cabin/first-class-products-v172.png");
+  for (const art of Object.values(CABIN_ARTWORK)) {
+    assert.ok(art.src.startsWith("/cabin/") && !art.src.includes("public/"));
+    const bytes = readFileSync(join(process.cwd(), "public", art.src));
+    assert.equal(bytes.subarray(1, 4).toString(), "PNG");
+    assert.equal(bytes.readUInt32BE(16), art.width);
+    assert.equal(bytes.readUInt32BE(20), art.height);
+    assert.ok(Math.abs(art.width / (art.height / 3) - 16 / 9) < 0.01);
+    for (const [index, [top, bottom]] of (art.frames ?? []).entries()) {
+      assert.ok(top >= 0 && bottom > top && bottom <= art.height);
+      assert.ok(!index || top >= art.frames![index - 1][1]);
+      assert.ok(Math.abs(art.width / (bottom - top) - 16 / 9) < 0.06);
+    }
+  }
+});
+
+test("collapsed cabin dividers get distinct tracks while separated handles share one", () => {
+  assert.deepEqual(cabinDividerLanes([14, 14, 14], 270), [0, 1, 2]);
+  assert.deepEqual(cabinDividerLanes([14, 50, 85], 270), [0, 0, 0]);
+  assert.deepEqual(cabinDividerLanes([14, 20, 50], 270), [0, 1, 0]);
+  assert.deepEqual(cabinDividerLanes([14, 20, 50], 1200), [0, 0, 0]);
+  assert.deepEqual(cabinDividerLanes([14, 20, 50], 0), [0, 1, 2]);
+});
 useGameStore.persist.setOptions({ storage: { getItem: () => null, setItem: () => {}, removeItem: () => {} } });
 function fixture(count = 1, grade: "basic" | "premium" | "luxury" = "basic") {
   const configuration = setSeatProduct(model, defaultCabinConfiguration(model, true), "economy", grade);

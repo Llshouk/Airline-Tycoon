@@ -1,14 +1,14 @@
-# Airline Tycoon V1.7.2
+# Airline Tycoon V1.7.3
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.7.2 - Map-first Operations
+Release: V1.7.3 - Cabin Product Gallery
 
 ## Features
 
 - Full-viewport map with an icon dock, keyboard tooltips and mobile navigation
 - Open operating panels without losing the map camera position
-- Browse aircraft using local aircraft imagery and compare First Class product illustrations
+- Browse aircraft using local aircraft imagery and compare realistic product concepts for every cabin
 - Start an airline from a selected base airport
 - Buy and manage aircraft
 - Configure cabins on a draggable aircraft floor plan with seat-product images
@@ -86,6 +86,8 @@ npm run dev
 ```
 
 ## Current Status
+
+V1.7.3 extends the realistic seat-product gallery to Business, Premium Economy and Economy, each with Basic, Premium and Luxury concepts. First Class keeps its existing artwork. Compact layouts separate collapsed cabin dividers and keep the price and Apply button readable. Images are fictional concepts; actual arrangements, capacity, comfort and costs still come from the existing aircraft rules. See [cabin gallery](docs/cabin-gallery-v173.md).
 
 V1.7.2 makes the map the main play surface, with a compact company HUD, bottom navigation and operating panels. Both map views use free OpenFreeMap vector detail, including airport layouts, with zoom up to level 18 and a Focus Base control. Aircraft catalog and fleet groups use existing local aircraft assets; First Class receives more distinct fictional product illustrations. Economy rules and save schemas are unchanged. Satellite imagery and desktop/mobile packaging remain deferred. See [UI update](docs/ui-v172.md).
 

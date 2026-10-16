@@ -1,11 +1,12 @@
 "use client";
 
 import { ArrowLeftRight, Armchair } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { seatProducts } from "@/config/cabinProducts";
 import { useTranslation } from "@/i18n";
 import { CABIN_CLASSES } from "@/lib/cabin";
 import { cabinLengthInches, configuredSection, moveCabinBoundary } from "@/lib/cabinConfiguration";
+import { CABIN_DIVIDER_SIZE, CABIN_DIVIDER_TRACK, cabinDividerLanes } from "@/lib/cabinDesignerLayout";
 import type { CabinConfiguration } from "@/types/cabin";
 import type { AircraftModel, CabinClass } from "@/types/game";
 
@@ -24,6 +25,7 @@ export function CabinLayoutDesigner({ model, configuration, selected, onSelect, 
   const { t } = useTranslation();
   const stage = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<CabinClass | null>(null);
+  const [stageWidth, setStageWidth] = useState(0);
   const clipId = useId().replaceAll(":", "");
   const cabins = CABIN_CLASSES.filter((cabin) => seatProducts(model, cabin).length);
   let offset = 0;
@@ -32,6 +34,20 @@ export function CabinLayoutDesigner({ model, configuration, selected, onSelect, 
     offset += configuration.sections[cabin].spacePercent;
     return { cabin, start, end: offset, ...configuredSection(model, configuration, cabin) };
   });
+  const dividers = sections.slice(0, -1);
+  const lanes = cabinDividerLanes(dividers.map(({ end }) => (FLOOR_START + end / 100 * FLOOR_LENGTH) / 1200 * 100), stageWidth);
+  const dividerTop = stageWidth * 450 / 1200 * 0.66;
+  // Include the existing hover/focus scale in the reserved control area.
+  const dividerBottom = dividerTop + Math.max(0, ...lanes) * CABIN_DIVIDER_TRACK + CABIN_DIVIDER_SIZE + 4;
+  useLayoutEffect(() => {
+    const element = stage.current;
+    if (!element) return;
+    const resize = () => setStageWidth(element.clientWidth);
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const label = (cabin: CabinClass) => t(cabin === "first" ? "fleet.firstClass" : `fleet.${cabin}`);
   function move(cabin: CabinClass, clientX: number) {
     const rect = stage.current?.getBoundingClientRect();
@@ -64,7 +80,8 @@ export function CabinLayoutDesigner({ model, configuration, selected, onSelect, 
           </button>;
         })}
       </div>
-      <div ref={stage} className={`cabin-stage relative my-2 w-full select-none ${dragging ? "is-dragging" : ""}`}>
+      <div ref={stage} className={`cabin-stage relative my-2 w-full select-none ${dragging ? "is-dragging" : ""}`}
+        style={{ paddingBottom: Math.max(0, dividerBottom - stageWidth * 450 / 1200) }}>
         <svg viewBox="0 0 1200 450" className="block h-auto w-full" role="img" aria-label={`${model.model} ${t("cabin.floorPlan")}`}>
           <defs><clipPath id={clipId}><rect x={FLOOR_START} y="156" width={FLOOR_LENGTH} height="138" rx="10" /></clipPath></defs>
           <path d="M480 160 L735 15 Q753 9 765 23 L702 174 M480 290 L735 435 Q753 441 765 427 L702 276" fill="#e8edef" stroke="#cbd5db" strokeWidth="2" />
@@ -95,7 +112,7 @@ export function CabinLayoutDesigner({ model, configuration, selected, onSelect, 
           {sections.slice(0, -1).map(({ cabin, end }) => <line key={cabin} x1={FLOOR_START + end / 100 * FLOOR_LENGTH} x2={FLOOR_START + end / 100 * FLOOR_LENGTH}
             y1="134" y2="326" stroke={CABIN_COLORS[cabin]} strokeWidth="3" strokeDasharray="5 4" pointerEvents="none" />)}
         </svg>
-        {sections.slice(0, -1).map(({ cabin, start, end }, index) => {
+        {dividers.map(({ cabin, start, end }, index) => {
           const next = sections[index + 1];
           const limit = next.end;
           const name = `${label(cabin)} / ${label(next.cabin)}`;
@@ -103,7 +120,7 @@ export function CabinLayoutDesigner({ model, configuration, selected, onSelect, 
             aria-valuemin={Math.round(start)} aria-valuemax={Math.round(limit)} aria-valuenow={Math.round(end)}
             aria-valuetext={`${label(cabin)} ${configuration.sections[cabin].spacePercent.toFixed(1)}%`}
             className="cabin-divider absolute flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full border-2 border-white text-white shadow-md outline-none focus-visible:ring-4 focus-visible:ring-sky/60"
-            style={{ left: `${(FLOOR_START + end / 100 * FLOOR_LENGTH) / 1200 * 100}%`, top: `${index % 2 ? 76 : 66}%`, background: CABIN_COLORS[cabin], touchAction: "none" }}
+            style={{ left: `${(FLOOR_START + end / 100 * FLOOR_LENGTH) / 1200 * 100}%`, top: dividerTop + lanes[index] * CABIN_DIVIDER_TRACK, background: CABIN_COLORS[cabin], touchAction: "none" }}
             onPointerDown={(event) => { event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); setDragging(cabin); onSelect(cabin); }}
             onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) move(cabin, event.clientX); }}
             onPointerUp={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) { move(cabin, event.clientX); event.currentTarget.releasePointerCapture(event.pointerId); } setDragging(null); }}

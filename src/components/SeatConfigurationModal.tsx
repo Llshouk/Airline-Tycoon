@@ -81,7 +81,7 @@ export function SeatConfigurationModal({ model, configuration, registration, rou
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-6">
           <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-normal text-slate-500">{model.manufacturer} / {model.model}</p>
             <h3 id="seat-configuration-title" className="text-lg font-black text-ink">{t("cabin.title")}</h3></div>
-          <button type="button" onClick={onCancel} aria-label={t("cabin.close")} title={t("cabin.close")} className="rounded-md p-2 text-slate-500 hover:bg-runway"><X size={22} /></button>
+          <button type="button" onClick={onCancel} aria-label={t("cabin.close")} title={t("cabin.close")} className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-runway"><X size={22} /></button>
         </header>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-5 pt-4 sm:px-6" data-testid="cabin-scroll">
           <div className="grid items-center gap-4 border-b border-slate-100 pb-4 sm:grid-cols-[180px_1fr]">
@@ -119,19 +119,21 @@ export function SeatConfigurationModal({ model, configuration, registration, rou
                 className="cabin-product group min-w-0 overflow-hidden rounded-md border-2 text-left outline-none transition hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-sky"
                 style={{ borderColor: section.grade === item.grade ? color : "#e2e8f0" }}>
                 <SeatProductImage cabin={selected} grade={item.grade} alt={`${label(selected)} ${item.grade}`} />
-                <span className="flex items-center justify-between gap-1 px-2 pt-2 text-xs font-black capitalize text-ink sm:px-3 sm:text-sm">
-                  {item.grade}{section.grade === item.grade ? <Check size={15} style={{ color }} /> : null}
+                <span className="grid grid-cols-[minmax(0,1fr)_12px] items-center gap-1 px-1.5 pt-2 text-xs font-black capitalize text-ink sm:px-3 sm:text-sm">
+                  <span>{item.grade}</span><Check size={12} className={section.grade === item.grade ? "" : "invisible"} style={{ color }} aria-hidden="true" />
                 </span>
-                <span className="block px-2 pb-2 pt-1 text-[11px] font-semibold text-slate-500 sm:px-3 sm:text-xs">{item.arrangement} / {item.widthInches} in.</span>
+                <span className="block px-1.5 pb-2 pt-1 text-[11px] font-semibold text-slate-500 sm:px-3 sm:text-xs">
+                  <span className="block">{item.arrangement}</span><span className="block">{item.widthInches} in.</span>
+                </span>
               </button>)}
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_1fr]">
               <div className="min-w-0">
-                <div className="mb-4 overflow-hidden rounded-md" key={`${selected}-${section.grade}`}>
+                <div className="cabin-product-preview mb-4 overflow-hidden rounded-md" key={`${selected}-${section.grade}`}>
                   <SeatProductImage cabin={selected} grade={section.grade} alt={`${label(selected)} ${section.grade}`} />
-                  <div className="flex items-center justify-between gap-3 bg-runway px-3 py-2 text-xs font-bold text-ink">
-                    <span className="capitalize">{label(selected)} / {section.grade}</span>
-                    <span style={{ color }}>{t("cabin.comfort")} {comfort}/100</span>
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-runway px-3 py-2 text-xs font-bold text-ink">
+                    <span className="min-w-0 break-words capitalize">{label(selected)} / {section.grade}</span>
+                    <span className="whitespace-nowrap" style={{ color }}>{t("cabin.comfort")} {comfort}/100</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-2"><Metric label={t("cabin.arrangement")} value={product.arrangement} /><Metric label={t("cabin.rows")} value={String(rows)} /></div>
@@ -193,10 +195,13 @@ export function SeatConfigurationModal({ model, configuration, registration, rou
           </details>
           {!validation.isValid ? <p role="alert" className="mt-3 text-sm font-bold text-coral">{t("cabin.invalid")}</p> : null}
         </div>
-        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
-          <div className="min-w-0"><Metric label={t("cabin.purchase")} value={formatGBP.format(validation.purchasePriceGBP)} />
+        <footer className="grid shrink-0 items-center gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-6">
+          <div className="min-w-0"><div className="flex items-center justify-between gap-3 sm:block">
+            <p className="min-w-0 text-xs font-semibold text-slate-500">{t("cabin.purchase")}</p>
+            <p className="shrink-0 whitespace-nowrap text-sm font-black text-ink">{formatGBP.format(validation.purchasePriceGBP)}</p>
+          </div>
             {financials ? <p className="mt-1 hidden text-xs text-slate-500 sm:block">{t("cabin.estimated")}: {formatGBP.format(financials.profit)}</p> : null}</div>
-          <button type="button" onClick={apply} disabled={!validation.isValid} className="flex shrink-0 items-center gap-2 rounded-md bg-jet px-3 py-2.5 text-sm font-bold text-white disabled:opacity-30"><Check size={18} />{t("cabin.apply")}</button>
+          <button type="button" onClick={apply} disabled={!validation.isValid} className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-jet px-3 py-2.5 text-sm font-bold text-white disabled:opacity-30"><Check size={18} className="shrink-0" />{t("cabin.apply")}</button>
         </footer>
       </section>
     </div>

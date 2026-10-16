@@ -4,8 +4,8 @@
 
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
-- Current working version: `1.7.2`
-- Latest published release / development baseline: V1.7.1 (`459ba5c`)
+- Current working version: `1.7.3`
+- Latest published release / development baseline: V1.7.2 (`589411d83c27fdef4dd845e2cfe0583b34efc371`)
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
@@ -16,30 +16,55 @@
 - V1.7.0 release baseline: `89310ef7d975d47417926578a5b002bd93d45fe6`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Cabin/route follow-up published checkpoint: `a66f24eae852be4d6e59e1ce8185ffec4ba62f94`
-- Release status: V1.7.2 OpenFreeMap/map-first UI verified locally; user authorized main commit/push on 2026-10-16
+- Release status: V1.7.3 verified locally; user authorized commit/push to Llshouk/Airline-Tycoon main on 2026-10-16
 - Latest focused review date: 2026-10-16
-- Latest successful production build: V1.7.2 `pnpm run build` passed on 2026-10-16 with Next.js 15.5.24
+- Latest successful production build: V1.7.3 `pnpm run build` passed on 2026-10-16 with Next.js 15.5.24
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
 - No earlier `ACTIVE.md` or WIP patch existed at audit start
 
 ## Roadmap Position
 
 - Current major version: V1
-- Current minor version: V1.7.2
-- Current release objective: free OpenFreeMap airport detail, map-first shell, responsive operating panels and distinct First Class imagery
+- Current minor version: V1.7.3
+- Current release objective: realistic Basic/Premium/Luxury concepts for all cabins and focused UI conflict repairs
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Simplified maintenance scope: immediate ground work, dated after-flight reservations, conflict cancellation/recovery, and batch booking work; workshop capacity, replacement aircraft and model-specific verified limits remain TODOs
 - The earlier V1.6.0 reputation plan became Contracts and Company Growth. The user has now approved local development of cabin products and Passenger Experience after V1.7.0; alliances and airline-wide loyalty effects remain deferred.
-- Release-gate status: 156 automated tests, typecheck, lint, browser acceptance, responsive layout, save compatibility and production build pass; one locked MapLibre/Leaflet adapter added
+- Release-gate status: V1.7.3 has 158 automated tests, typecheck, lint, optimized build, responsive browser acceptance and offline gallery checks passing; no dependencies added
 
 ## Current Objective
 
-Release V1.7.2 to Llshouk/Airline-Tycoon main with the user's 2026-10-16
-authorization. Include the earlier UI/cabin changes and the OpenFreeMap follow-up.
-Leave the separate untracked docs/ROADMAP.md discussion draft untouched.
-Gameplay, independent aircraft, canonical money, finite markets and save schemas
-are unchanged. Verify the remote commit after push; local checks do not verify
-Vercel deployment. On completion the user requested monitor-off, not shutdown.
+Publish the verified V1.7.3 cabin gallery/UI update to Llshouk/Airline-Tycoon
+main with the user's 2026-10-16 authorization. Preserve gameplay, independent
+aircraft, canonical money, finite markets and save schemas. Leave the separate
+untracked docs/ROADMAP.md discussion draft and ignored local files untouched.
+Verify the remote commit after push. No monitor-off was requested this time;
+local checks and a GitHub push do not verify live Supabase or Vercel deployment.
+
+## V1.7.3 Local Development (2026-10-16)
+
+- Three new local, original AI-generated atlases; existing First Class artwork
+  unchanged. Shared presentation registry covers all four classes and 12 concepts.
+- Stable 16:9 cards/previews, grade frame selection and source-specific image
+  fallback; actual seating plan remains model-driven, not inferred from photos.
+- Reproduced 320px footer crowding and overlapping all-economy cabin handles;
+  mobile footer now stacks, product checkmarks have fixed space and nearby
+  handles use non-overlapping lanes with reserved stage height.
+- Package, app metadata, EN/ZH branding, manifest and PWA cache are V1.7.3;
+  four current atlases precached, unused historical atlas no longer precached.
+- 158 unit tests, typecheck, zero-warning lint and optimized build passed.
+  Development and production gallery acceptance passed in EN/ZH at 1440x1000,
+  390x844, 320x740 and 844x390, including frame bounds, collapsed controls,
+  pointer/keyboard/emulated touch, missing-image fallback, reduced motion,
+  pitch bounds, cancel, exact purchase cash, old aircraft and persisted reload.
+- Production 390px all-screen/map modal-stacking smoke passed; production PWA
+  cached and decoded all four atlases with the network offline and removed an
+  obsolete cache. Tests use isolated profiles, not the player's save. Browser
+  checks recorded no unexpected console errors or uncaught runtime errors.
+- Docs: docs/cabin-gallery-v173.md and public/cabin/README.md (full prompts,
+  generate mode, no references, unchanged PNGs). No new dependency, economic
+  rule, migration or aircraft data change. Commit/push was subsequently
+  authorized by the user; verify the remote hash before reporting publication.
 
 ## OpenFreeMap Follow-Up (2026-10-16)
 
@@ -760,11 +785,11 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 ## Next Exact Action
 
-Review V1.7.2 at http://localhost:3015. The main push is now authorized; verify
-the release hash against origin/main and Git history after committing. Exclude
-the separate docs/ROADMAP.md draft and all secrets/build artifacts. Distinguish
-local verification from live Supabase/Vercel deployment checks. Working version
-remains 1.7.2; the pre-release baseline is 459ba5c (V1.7.1).
+Commit and push verified V1.7.3 to origin/main, then compare the remote hash
+with local HEAD. The user authorized this follow-up; no new gameplay edits or
+monitor-off action are needed. Preserve docs/ROADMAP.md and ignored local files.
+Pre-release baseline is 589411d (V1.7.2). Dev preview remains localhost:3015.
+Distinguish GitHub publication from live Supabase/Vercel verification.
 
 ## Recovery Instructions
 
