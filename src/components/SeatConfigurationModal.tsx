@@ -127,6 +127,13 @@ export function SeatConfigurationModal({ model, configuration, registration, rou
             </div>
             <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_1fr]">
               <div className="min-w-0">
+                <div className="mb-4 overflow-hidden rounded-md" key={`${selected}-${section.grade}`}>
+                  <SeatProductImage cabin={selected} grade={section.grade} alt={`${label(selected)} ${section.grade}`} />
+                  <div className="flex items-center justify-between gap-3 bg-runway px-3 py-2 text-xs font-bold text-ink">
+                    <span className="capitalize">{label(selected)} / {section.grade}</span>
+                    <span style={{ color }}>{t("cabin.comfort")} {comfort}/100</span>
+                  </div>
+                </div>
                 <div className="flex items-center justify-between gap-2"><Metric label={t("cabin.arrangement")} value={product.arrangement} /><Metric label={t("cabin.rows")} value={String(rows)} /></div>
                 <SeatRowPreview arrangement={product.arrangement} cabin={selected} />
                 <div className="flex items-center justify-between gap-3 text-xs font-bold text-slate-500"><span>{t("cabin.comfort")}</span><span className="text-ink">{comfort} / 100</span></div>

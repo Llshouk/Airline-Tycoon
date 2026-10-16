@@ -28,8 +28,8 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
       : "z-0 opacity-0 pointer-events-none";
 
   return (
-    <div className="flex h-full min-h-[520px] min-w-0 w-full flex-col overflow-hidden" data-map-provider={provider}>
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden sm:min-h-[560px]">
+    <div className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden" data-map-provider={provider}>
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         <div
           aria-hidden={isGlobeActive || isPreparingTwoD}
           className={`absolute inset-0 h-full w-full overflow-hidden ${leafletsPaneClass}`}
@@ -47,9 +47,7 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
             {preparingTwoDLabel}
           </div>
         )}
-        <div className={`pointer-events-none absolute top-3 z-20 rounded-md bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-soft ${isGlobeActive ? "left-3" : "right-3"}`}>
-          {engineLabel}
-        </div>
+        <span className="sr-only">{engineLabel}</span>
         {!isOffline ? null : (
           <div className="absolute bottom-3 left-3 right-3 z-20 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:right-auto md:max-w-md">
             {offlineMessage}
@@ -68,8 +66,8 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
 
 function MapLegend({ labels }: { labels: MapLegendLabels }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-200 bg-white/95 px-3 py-2 text-xs font-bold text-ink">
-      <span className="font-black uppercase tracking-normal text-slate-500">{labels.title}:</span>
+    <div className="map-legend">
+      <span className="sr-only">{labels.title}:</span>
       <LegendRow color="#d76745" label={labels.base} />
       <LegendRow color="#4f9d7e" label={labels.opened} />
       <LegendRow color="#ffffff" label={labels.unopened} bordered />

@@ -13,8 +13,9 @@ export type GlobeMapErrorDiagnostics = {
 
 export function classifyMapLibreError({ message = "", sourceId, tile, coreReady }: GlobeMapErrorDiagnostics): GlobeMapErrorSeverity {
   const normalizedMessage = message.toLowerCase();
+  if (sourceId === "openmaptiles" || normalizedMessage.includes("tiles.openfreemap.org/styles/")) return "fatal";
   const isOptionalLayerError = OPTIONAL_LAYER_PREFIXES.some((prefix) => normalizedMessage.includes(prefix));
-  const isOptionalMessage = ["openfreemap", "glyph", "fontstack", "source-layer place", "source-layer water", "country-label"].some((value) => normalizedMessage.includes(value));
+  const isOptionalMessage = ["glyph", "fontstack", "source-layer place", "source-layer water", "country-label"].some((value) => normalizedMessage.includes(value));
 
   if (sourceId && OPTIONAL_SOURCE_IDS.has(sourceId)) return "optional";
   if (isOptionalLayerError || isOptionalMessage) return "optional";

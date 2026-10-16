@@ -1,7 +1,7 @@
 "use client";
 
-import { Armchair, CheckCircle2, RotateCcw, ShoppingCart, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Armchair, ArrowLeft, CheckCircle2, RotateCcw, ShoppingCart, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { OperatingEconomicsPanel } from "@/components/OperatingEconomicsPanel";
 import { SeatConfigurationModal } from "@/components/SeatConfigurationModal";
@@ -38,6 +38,8 @@ export function AircraftMarketScreen() {
   const [economicsRouteId, setEconomicsRouteId] = useState("");
   const [isSeatConfigOpen, setIsSeatConfigOpen] = useState(false);
   const [purchaseToast, setPurchaseToast] = useState<{ modelLabel: string; registration: string; baseIata: string } | null>(null);
+  const preview = useRef<HTMLDivElement>(null);
+  const catalog = useRef<HTMLDivElement>(null);
   const validation = useMemo(() => validateCabinConfiguration(selectedModel, configuration), [configuration, selectedModel]);
   const affordable = game ? canAfford(game, validation.purchasePriceGBP) : false;
   const economicsRoute = game?.routes.find((route) => route.id === economicsRouteId) ?? null;
@@ -105,6 +107,7 @@ export function AircraftMarketScreen() {
     setSelectedModelId(model.id);
     setConfiguration(defaultCabinConfiguration(model));
     setRegistration(createRegistration(game?.fleet.length ?? 0));
+    if (!window.matchMedia("(min-width: 1280px)").matches) preview.current?.scrollIntoView({ block: "start", behavior: "instant" });
   }
 
   function resetLayout() {
@@ -115,17 +118,16 @@ export function AircraftMarketScreen() {
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-black text-ink">{t("fleet.market")}</h2>
-        <p className="text-slate-600">Purchase new aircraft and configure cabins before delivery.</p>
       </div>
-      <section className="grid gap-4 xl:grid-cols-[1fr_430px]">
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-soft">
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+        <div ref={catalog} className="min-w-0 space-y-4">
+          <div className="flex flex-wrap gap-2 border-y border-slate-200 py-3">
             <Select label={t("market.manufacturer")} value={manufacturer} onChange={setManufacturer} options={["all", ...manufacturers]} />
             <Select label="Route type" value={routeType} onChange={(value) => setRouteType(value as RouteFilter)} options={["all", "short-haul", "medium-haul", "long-haul"]} />
             <Select label="Sort" value={sortMode} onChange={(value) => setSortMode(value as SortMode)} options={["price", "range", "capacity"]} />
           </div>
           {grouped.map((group) => (
-            <section key={group.family} className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+            <section key={group.family} className="border-b border-slate-200 pb-5">
               <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                 <div>
                   <p className="text-xs font-black uppercase tracking-normal text-slate-500">{t("market.aircraftFamily")}</p>
@@ -137,27 +139,30 @@ export function AircraftMarketScreen() {
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {group.models.map((model) => (
-                  <article
-                    key={model.id}
-                    className={`rounded-md border p-3 transition hover:border-coral hover:bg-coral/5 ${
+                  <button
+                    key={model.id} type="button" onClick={() => selectModel(model)} aria-pressed={model.id === selectedModelId}
+                    className={`min-w-0 overflow-hidden rounded-md border bg-white text-left transition hover:border-coral ${
                       model.id === selectedModelId ? "border-coral bg-coral/5" : "border-slate-200"
                     }`}
                   >
-                    <button type="button" onClick={() => selectModel(model)} className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-3 text-left">
+                    <AircraftSideImage src={model.sideImageUrl} alt={model.sideImageAlt} size="medium" className="!rounded-none !border-0" />
+                    <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-slate-100 px-3 py-3">
                       <span className="min-w-0">
                         <span className="block truncate font-black text-ink">{model.model}</span>
                         <span className="block text-xs font-semibold text-slate-500">{model.manufacturer}</span>
                       </span>
-                      <span className="text-xs font-bold text-slate-600">{formatNumber.format(model.rangeKm)} km</span>
                       <span className="text-xs font-black text-jet">{formatGBP.format(model.estimatedPriceGBP)}</span>
-                    </button>
-                  </article>
+                      <span className="col-span-2 text-xs font-bold text-slate-500">{formatNumber.format(model.rangeKm)} km / {formatNumber.format(model.maxPassengerSeats)} {t("cabin.seats")}</span>
+                    </span>
+                  </button>
                 ))}
               </div>
             </section>
           ))}
         </div>
-        <div className="h-fit rounded-lg border border-slate-200 bg-white p-4 shadow-soft xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+        <div ref={preview} className="min-w-0 h-fit rounded-lg border border-slate-200 bg-white p-4 xl:sticky xl:top-0 xl:max-h-[calc(100dvh-15rem)] xl:overflow-y-auto">
+          <button type="button" onClick={() => catalog.current?.scrollIntoView({ block: "start", behavior: "instant" })}
+            className="mb-3 flex min-h-11 items-center gap-2 text-sm font-bold text-jet xl:hidden"><ArrowLeft size={18} />{t("market.aircraftFamily")}</button>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">{selectedModel.manufacturer}</p>
@@ -307,7 +312,7 @@ function PurchaseToast({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="fixed bottom-5 right-5 z-[6500] w-[min(360px,calc(100vw-2rem))] rounded-lg border border-mint/30 bg-white p-4 shadow-soft animate-slide-in">
+    <div role="status" className="fixed bottom-24 right-4 z-[6500] w-[min(360px,calc(100vw-2rem))] rounded-lg border border-mint/30 bg-white p-4 shadow-soft animate-slide-in">
       <div className="flex items-start gap-3">
         <CheckCircle2 className="mt-0.5 shrink-0 text-mint" size={22} />
         <div className="min-w-0 flex-1">
@@ -343,7 +348,7 @@ function Spec({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md bg-runway px-3 py-2">
       <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="truncate font-bold text-ink">{value}</p>
+      <p className="break-words font-bold text-ink">{value}</p>
     </div>
   );
 }

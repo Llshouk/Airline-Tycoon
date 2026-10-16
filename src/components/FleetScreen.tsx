@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Plane, Wrench } from "lucide-react";
 import { MaintenancePlanner } from "@/components/MaintenancePlanner";
 import { useEffect, useMemo, useState } from "react";
 import { AircraftDetailPanel } from "@/components/AircraftDetailPanel";
+import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
@@ -42,10 +43,9 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-black text-ink">{t("fleet.title")}</h2>
-        <p className="text-slate-600">Owned aircraft, assigned services, utilization, and lifetime operating results.</p>
       </div>
-      <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-soft">
-        <label className="text-sm font-bold text-slate-600">
+      <section className="border-y border-slate-200 py-3">
+        <label className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-600">
           {t("fleet.baseFilter")}
           <select
             value={baseFilter}
@@ -54,7 +54,7 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
               setSelectedAircraftId(null);
               setExpandedGroups({});
             }}
-            className="ml-2 rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet"
+            className="min-h-11 min-w-0 max-w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet"
           >
             <option value="all">{t("fleet.allBases")}</option>
             {game.baseAirports.map((airportId) => {
@@ -92,7 +92,7 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
           <p className="text-sm text-slate-500">Buy aircraft from the Aircraft Market to build your fleet.</p>
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div>
           <div className="space-y-3">
           {!filteredFleet.length ? <p className="py-5 text-sm text-slate-500">{t("alerts.empty")}</p> : null}
           {groups.map((group) => {
@@ -103,16 +103,17 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
                 <button
                   type="button"
                   onClick={() => setExpandedGroups((current) => ({ ...current, [group.modelId]: !isExpanded }))}
-                  className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left"
+                  aria-expanded={isExpanded}
+                  className="grid w-full grid-cols-[100px_minmax(0,1fr)_24px] items-center gap-3 px-3 py-3 text-left sm:grid-cols-[180px_minmax(0,1fr)_24px] sm:px-4"
                 >
+                  <AircraftSideImage src={group.model.sideImageUrl} alt={group.model.sideImageAlt} size="small" className="border-0 sm:!h-24" />
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-normal text-coral">{group.model.manufacturer}</p>
                     <h3 className="flex items-center gap-2 text-base font-black text-ink">
-                      <Icon size={18} />
                       {group.model.model} x {group.aircraft.length}
                     </h3>
                   </div>
-                  <span className="rounded-md bg-runway px-2 py-1 text-xs font-bold text-jet">{isExpanded ? t("fleet.collapse") : t("fleet.expand")}</span>
+                  <Icon size={20} aria-hidden="true" className="text-jet" />
                 </button>
 
                 {isExpanded ? (
@@ -143,6 +144,9 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
                             <span className={`mt-1 block ${maintenanceStatus === "healthy" ? "text-slate-500" : "text-coral"}`}>
                               {lifecycle.condition.toFixed(1)}% · {t(`maintenance.status.${maintenanceStatus}`)}
                             </span>
+                            <span className="mt-1 block h-1.5 w-24 max-w-full overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+                              <span className="block h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, lifecycle.condition))}%`, backgroundColor: maintenanceStatus === "healthy" ? "#4f9d7e" : "#d76745" }} />
+                            </span>
                             {lifecycle.reservation ? <span className="mt-1 block text-coral">
                               {t(lifecycle.reservation.state === "blocked" ? "maintenance.blocked" : "maintenance.reserved")}
                             </span> : null}
@@ -156,17 +160,6 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
             );
           })}
           </div>
-          <aside className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-sm font-semibold text-slate-500 shadow-soft">
-            {selectedAircraft ? (
-              <div>
-                <p className="text-xs font-black uppercase tracking-normal text-coral">{t("detail.title")}</p>
-                <p className="mt-2 text-base font-black text-ink">{selectedAircraft.registration}</p>
-                <p>{aircraftById[selectedAircraft.modelId].model}</p>
-              </div>
-            ) : (
-              t("fleet.selectAircraftDetails")
-            )}
-          </aside>
         </div>
       )}
       {selectedAircraft ? <AircraftDetailPanel aircraft={selectedAircraft} game={game} onClose={() => setSelectedAircraftId(null)} /> : null}

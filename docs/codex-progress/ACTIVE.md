@@ -4,7 +4,8 @@
 
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
-- Current version: `1.7.1`
+- Current working version: `1.7.2`
+- Latest published release / development baseline: V1.7.1 (`459ba5c`)
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
@@ -15,28 +16,83 @@
 - V1.7.0 release baseline: `89310ef7d975d47417926578a5b002bd93d45fe6`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Cabin/route follow-up published checkpoint: `a66f24eae852be4d6e59e1ce8185ffec4ba62f94`
-- Release status: V1.7.1 visual cabin update; user authorized version bump and main push on 2026-10-06
-- Latest focused review date: 2026-10-06
-- Latest successful production build: V1.7.1 `pnpm run build` passed on 2026-10-06 with Next.js 15.5.24
+- Release status: V1.7.2 OpenFreeMap/map-first UI verified locally; user authorized main commit/push on 2026-10-16
+- Latest focused review date: 2026-10-16
+- Latest successful production build: V1.7.2 `pnpm run build` passed on 2026-10-16 with Next.js 15.5.24
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
 - No earlier `ACTIVE.md` or WIP patch existed at audit start
 
 ## Roadmap Position
 
 - Current major version: V1
-- Current minor version: V1.7.1
-- Current release objective: visual cabin editing, product imagery and corrected narrowbody Premium Economy
+- Current minor version: V1.7.2
+- Current release objective: free OpenFreeMap airport detail, map-first shell, responsive operating panels and distinct First Class imagery
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
 - Simplified maintenance scope: immediate ground work, dated after-flight reservations, conflict cancellation/recovery, and batch booking work; workshop capacity, replacement aircraft and model-specific verified limits remain TODOs
 - The earlier V1.6.0 reputation plan became Contracts and Company Growth. The user has now approved local development of cabin products and Passenger Experience after V1.7.0; alliances and airline-wide loyalty effects remain deferred.
-- Release-gate status: 152 automated tests, typecheck, lint, browser acceptance, responsive cabin layout, save compatibility and production build pass; dependencies unchanged
+- Release-gate status: 156 automated tests, typecheck, lint, browser acceptance, responsive layout, save compatibility and production build pass; one locked MapLibre/Leaflet adapter added
 
 ## Current Objective
 
-Complete and push V1.7.1 visual cabin editing to Llshouk/Airline-Tycoon main.
-The user authorized this patch release on 2026-10-06. Preserve independent aircraft,
-canonical money, finite markets and historical accounting. Verify the remote
-commit after push; Vercel deployment completion requires separate verification.
+Release V1.7.2 to Llshouk/Airline-Tycoon main with the user's 2026-10-16
+authorization. Include the earlier UI/cabin changes and the OpenFreeMap follow-up.
+Leave the separate untracked docs/ROADMAP.md discussion draft untouched.
+Gameplay, independent aircraft, canonical money, finite markets and save schemas
+are unchanged. Verify the remote commit after push; local checks do not verify
+Vercel deployment. On completion the user requested monitor-off, not shutdown.
+
+## OpenFreeMap Follow-Up (2026-10-16)
+
+- Both views use the public OpenFreeMap Liberty vector style: airport/runway,
+  taxiway, apron, building and place detail; max display zoom 18 and primary
+  base focus at zoom 14. Source detail remains OSM-based, not satellite imagery.
+- Leaflet overlays, independent aircraft clicks, world wrapping and route
+  opening remain. The official adapter 0.1.4 supports the existing MapLibre 6.4.1
+  and is pinned in the pnpm lockfile. No map account/key or paid imagery is used.
+- Required vector failures and unavailable WebGL2 recover to the existing
+  standard raster map. Probe contexts are released; map readiness/cancellation,
+  listener cleanup and camera retention remain explicit.
+- Removed obsolete NASA/satellite styling and the legacy Google automatic
+  provider path so old deployment keys cannot enable a paid map accidentally.
+- 156 unit tests, typecheck, zero-warning lint and optimized build pass. Actual
+  production airport screenshots/pixel checks cover LHR 1440x1000, HKG 390x844,
+  JFK 320x740 and LAX 844x390, engine cycles, attribution, unchanged cash/fleet,
+  vector-request failure and missing WebGL2. The test asserts that every fixture
+  airport exists: PVG is not in the current game airport catalog and was not added.
+- All-screen UI/cabin acceptance covers EN/ZH, purchases, legacy aircraft and
+  reload. No external tiles are put in saves or the service-worker precache.
+- No database migration, operating rule, economics coefficient or aircraft
+  model/image mapping changes. Live Supabase/Vercel remain external checks.
+- Docs: docs/ui-v172.md and README map configuration. Optional acceptance:
+  tests/verifyMapUi.cjs and tests/verifyOpenFreeMap.cjs. Dev preview port 3015.
+
+## V1.7.2 Evidence (2026-10-09)
+
+- Full-viewport map, compact company HUD and icon dock with hover/focus labels;
+  secondary mobile screens are in More. All original operating screens remain.
+- Persistent map DOM/camera across panels, collapsible layers/airport board,
+  direct airport route dialog and aircraft-to-Fleet navigation. Globe overview
+  framing responds to viewport size on initialization/reset.
+- Existing uploaded aircraft side images in Market/Fleet; a versioned fictional
+  First Class atlas and selected-product preview. Other cabin/model images and
+  aircraft configurations are unchanged. Provenance: public/cabin/README.md.
+- Responsive navigation and panels pass at 1440x1000, 390x844, 320x740 and
+  844x390 in development/production, with title focus, route dialog, exact cash
+  deduction, unchanged legacy aircraft, EN/ZH and persisted reload.
+- Fixed dialog stacking and 320px Settings speed overflow. First Class image
+  failure has placeholders, reduced motion is honored, and production PWA
+  precaches/serves both cabin atlases offline.
+- Existing cabin regression passes pointer/keyboard/emulated touch, layout
+  rules, bounded pitch, templates, drafts, purchase and old save checks.
+- Globe screenshots/pixel checks at all four sizes are nonblank and actual
+  pointer drag changes pixels, without new page/console errors.
+- 152 automated tests, typecheck, zero-warning lint, optimized build and diff
+  whitespace checks pass. No dependency, database, money or economics changes.
+- Package/metadata/branding/manifest/PWA version is 1.7.2. Paid HD airport maps
+  and native packaging remain TODOs. Live auth/cloud and physical touch/pinch
+  remain external checks. No commit, push or Vercel deployment was performed.
+- Docs: docs/ui-v172.md. Optional acceptance: tests/verifyMapUi.cjs.
+  Preview: http://localhost:3015; browser fixtures, logs and build output ignored.
 
 ## V1.7.1 Evidence (2026-10-06)
 
@@ -704,10 +760,11 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 ## Next Exact Action
 
-After the authorized main push, verify Vercel deployment separately. Review the
-cabin-product, satisfaction and route-opening changes at http://localhost:3015.
-Version is 1.7.1. Live Supabase and Vercel are external verification steps,
-not claims from the local browser tests. Use Git history for the new checkpoint.
+Review V1.7.2 at http://localhost:3015. The main push is now authorized; verify
+the release hash against origin/main and Git history after committing. Exclude
+the separate docs/ROADMAP.md draft and all secrets/build artifacts. Distinguish
+local verification from live Supabase/Vercel deployment checks. Working version
+remains 1.7.2; the pre-release baseline is 459ba5c (V1.7.1).
 
 ## Recovery Instructions
 

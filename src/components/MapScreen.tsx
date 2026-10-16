@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Globe2, Layers, List, LocateFixed, Map, MapPin, Plane, Route as RouteIcon, X } from "lucide-react";
 import { GameMap, type MapDisplayMode } from "@/components/GameMap";
 import type { GlobeQuality, MapEngine } from "@/components/map/mapTypes";
 import { getStoredGlobeQuality, getStoredMapEngine, saveGlobeQuality, saveMapEngine } from "@/lib/mapPreferences";
@@ -14,14 +15,9 @@ import { DAY_MS, dayStartMs, formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
 import type { AircraftInstance, Airport, GameState, Route, ScheduleItem } from "@/types/game";
 
-const mapDisplayModes = [
-  { id: "all", label: "Show All" },
-  { id: "network", label: "Network View" },
-  { id: "airports", label: "Airports Only" },
-  { id: "aircraft", label: "Aircraft Only" }
-] satisfies { id: MapDisplayMode; label: string }[];
-
-export function MapScreen() {
+export function MapScreen({ active = true, onSelectAircraft, onViewRoutes }: {
+  active?: boolean; onSelectAircraft?: (aircraftId: string) => void; onViewRoutes?: () => void;
+}) {
   const { t } = useTranslation();
   const game = useGameStore((state) => state.game);
   const openRoute = useGameStore((state) => state.openRoute);
@@ -41,6 +37,9 @@ export function MapScreen() {
   const [baseBoardAirportId, setBaseBoardAirportId] = useState<string | null>(null);
   const [routeOriginAirportId, setRouteOriginAirportId] = useState<string | null>(null);
   const [basePurchaseAirportId, setBasePurchaseAirportId] = useState<string | null>(null);
+  const [boardOpen, setBoardOpen] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [focusBaseRequest, setFocusBaseRequest] = useState(0);
 
   const selectedAirport = game && selectedAirportId ? airportsById[selectedAirportId] : null;
   const airportActionAirport = game && airportActionAirportId ? airportsById[airportActionAirportId] : null;
@@ -75,6 +74,17 @@ export function MapScreen() {
   }, [globeQuality, globeQualityHydrated]);
 
   useEffect(() => {
+    if (active) return;
+    setRouteOpeningAirportId(null);
+    setAirportActionAirportId(null);
+    setAirportBoardAirportId(null);
+    setBasePurchaseAirportId(null);
+    setOpenedRoute(null);
+    setBoardOpen(false);
+    setLayersOpen(false);
+  }, [active]);
+
+  useEffect(() => {
     if (!game) return;
     const bases = game.baseAirports ?? [game.primaryBaseAirport ?? game.baseAirportId];
     const primary = game.primaryBaseAirport ?? game.baseAirportId;
@@ -105,66 +115,8 @@ export function MapScreen() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-black text-ink">{t("map.title")}</h2>
-          <p className="text-slate-600">Real airport coordinates, route distances, and your growing network.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600 shadow-soft">
-            <span>{t("map.engine")}</span>
-            <div className="flex gap-1 rounded bg-runway p-1">
-              {(["2d", "globe3d"] as MapEngine[]).map((engine) => (
-                <button
-                  key={engine}
-                  type="button"
-                  onClick={() => {
-                    setMapNotice(null);
-                    setMapEngine(engine);
-                  }}
-                  className={`rounded px-2 py-1 text-xs font-black transition ${mapEngine === engine ? "bg-jet text-white" : "text-slate-600 hover:bg-white"}`}
-                >
-                  {engine === "2d" ? t("map.engine2d") : t("map.engineGlobe3d")}
-                </button>
-              ))}
-            </div>
-            {mapEngine === "globe3d" ? <span className="text-coral">{t("map.globeExperimental")}</span> : null}
-          </div>
-          {mapEngine === "globe3d" ? (
-            <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-600 shadow-soft">
-              <span>{t("map.globeQuality")}</span>
-              <select
-                value={globeQuality}
-                onChange={(event) => setGlobeQuality(event.target.value as GlobeQuality)}
-                aria-label={t("map.globeQuality")}
-                className="min-h-10 rounded border border-slate-300 bg-white px-2 text-xs font-black text-ink outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
-              >
-                <option value="auto">{t("map.qualityAuto")}</option>
-                <option value="high">{t("map.qualityHigh")}</option>
-                <option value="reduced">{t("map.qualityReduced")}</option>
-              </select>
-            </label>
-          ) : null}
-          <div className="flex flex-wrap gap-1 rounded-md border border-slate-200 bg-white p-1 shadow-soft">
-            {mapDisplayModes.map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                onClick={() => setDisplayMode(mode.id)}
-                className={`rounded px-3 py-2 text-xs font-black transition ${
-                  displayMode === mode.id ? "bg-jet text-white" : "text-slate-600 hover:bg-runway"
-                }`}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      {mapNotice ? <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{mapNotice}</p> : null}
-      <section className="grid gap-4 xl:grid-cols-[1fr_340px]">
-        <div className="h-[min(72vh,760px)] min-h-[520px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+    <div className="world-map relative h-full min-h-0" aria-label={t("map.title")}>
+        <div className="h-full min-h-0 overflow-hidden">
           <GameMap
             baseAirportId={game.baseAirportId}
             baseAirportIds={baseAirportIds}
@@ -178,6 +130,7 @@ export function MapScreen() {
             displayMode={displayMode}
             mapEngine={mapEngine}
             globeQuality={globeQuality}
+            focusBaseRequest={focusBaseRequest}
             onMapEngineFallback={handleMapEngineFallback}
             onSelectAirport={(airportId) => {
               setSelectedAirportId(airportId);
@@ -188,18 +141,71 @@ export function MapScreen() {
             onSelectRoute={(routeId) => {
               setSelectedRouteId(routeId);
             }}
-            onSelectFlight={() => undefined}
+            onSelectFlight={(flightId) => {
+              const aircraft = game.fleet.find((item) => item.id === flightId || item.schedule.some((flight) => flight.id === flightId));
+              if (aircraft) onSelectAircraft?.(aircraft.id);
+            }}
           />
         </div>
-        <aside className="space-y-4">
+      <div className="map-toolbar" aria-label={t("map.engine")}>
+        {(["2d", "globe3d"] as MapEngine[]).map((engine) => {
+          const Icon = engine === "2d" ? Map : Globe2;
+          const label = t(engine === "2d" ? "map.engine2d" : "map.engineGlobe3d");
+          return <button key={engine} type="button" aria-label={label} aria-pressed={mapEngine === engine}
+            onClick={() => { setMapNotice(null); setMapEngine(engine); }} className={`map-tool-button ${mapEngine === engine ? "is-active" : ""}`}>
+            <Icon size={20} /><span className="game-tooltip" aria-hidden="true">{label}</span>
+          </button>;
+        })}
+        {mapEngine === "2d" ? <button type="button" aria-label={t("map.focusBase")} onClick={() => setFocusBaseRequest((request) => request + 1)} className="map-tool-button">
+          <LocateFixed size={20} /><span className="game-tooltip" aria-hidden="true">{t("map.focusBase")}</span>
+        </button> : null}
+        <button type="button" aria-label={t("shell.layers")} aria-expanded={layersOpen} aria-controls="map-layer-controls"
+          onClick={() => { setLayersOpen(!layersOpen); setBoardOpen(false); }} className={`map-tool-button ${layersOpen ? "is-active" : ""}`}>
+          <Layers size={20} /><span className="game-tooltip" aria-hidden="true">{t("shell.layers")}</span>
+        </button>
+        <button type="button" aria-label={t("base.baseAirportBoard")} aria-expanded={boardOpen} aria-controls="base-airport-board"
+          onClick={() => { setBoardOpen(!boardOpen); setLayersOpen(false); }} className={`map-tool-button ${boardOpen ? "is-active" : ""}`}>
+          <List size={20} /><span className="game-tooltip" aria-hidden="true">{t("base.baseAirportBoard")}</span>
+        </button>
+      </div>
+      {layersOpen ? <div id="map-layer-controls" className="map-layer-controls animate-slide-in">
+        <div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-xs font-black text-ink">{t("shell.layers")}</h3>
+          <button type="button" onClick={() => setLayersOpen(false)} aria-label={t("common.close")} className="hud-icon-button"><X size={18} /></button></div>
+        <div className="grid grid-cols-2 gap-1">
+          {([{ id: "all", key: "shell.showAll", icon: Layers }, { id: "network", key: "shell.networkView", icon: RouteIcon },
+            { id: "airports", key: "shell.airportsOnly", icon: MapPin }, { id: "aircraft", key: "shell.aircraftOnly", icon: Plane }] as const).map((mode) => {
+              const Icon = mode.icon;
+              return <button key={mode.id} type="button" aria-pressed={displayMode === mode.id} onClick={() => setDisplayMode(mode.id)}
+                className={`flex min-h-11 items-center gap-2 rounded px-2 text-xs font-bold ${displayMode === mode.id ? "bg-jet text-white" : "text-slate-600 hover:bg-runway"}`}>
+                <Icon size={17} />{t(mode.key)}
+              </button>;
+            })}
+        </div>
+        {mapEngine === "globe3d" ? <label className="mt-3 block border-t border-slate-200 pt-3 text-xs font-bold text-slate-600">{t("map.globeQuality")}
+          <select aria-label={t("map.globeQuality")} value={globeQuality} onChange={(event) => setGlobeQuality(event.target.value as GlobeQuality)}
+            className="mt-2 min-h-11 w-full rounded border border-slate-300 bg-white px-2">
+            <option value="auto">{t("map.qualityAuto")}</option><option value="high">{t("map.qualityHigh")}</option><option value="reduced">{t("map.qualityReduced")}</option>
+          </select><span className="mt-2 block font-normal text-coral">{t("map.globeExperimental")}</span>
+        </label> : null}
+      </div> : null}
+      {mapNotice ? <p role="status" className="map-notice">{mapNotice}</p> : null}
+      {boardOpen ? <aside id="base-airport-board" className="map-board-panel animate-slide-in">
+          <button type="button" onClick={() => setBoardOpen(false)} aria-label={t("common.close")} className="absolute right-2 top-2 z-10 grid h-11 w-11 place-items-center rounded-md text-white hover:bg-white/10"><X size={19} /></button>
           <BaseAirportBoardPanel
             game={game}
             baseAirportIds={baseAirportIds}
             selectedAirportId={baseBoardAirportId ?? primaryBaseAirportId}
             onSelectAirport={setBaseBoardAirportId}
           />
-        </aside>
-      </section>
+        </aside> : null}
+      {!boardOpen && selectedRouteId && game.routes.find((route) => route.id === selectedRouteId) ? <aside className="map-route-panel animate-slide-in">
+        {(() => { const route = game.routes.find((item) => item.id === selectedRouteId)!; return <>
+          <div className="flex items-center justify-between gap-2"><h3 className="font-black text-ink">{airportsById[route.originAirportId].iata} - {airportsById[route.destinationAirportId].iata}</h3>
+            <button type="button" aria-label={t("common.close")} onClick={() => setSelectedRouteId(null)} className="hud-icon-button"><X size={18} /></button></div>
+          <p className="text-sm font-semibold text-slate-500">{formatNumber.format(route.distanceKm)} km</p>
+          <button type="button" onClick={onViewRoutes} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-jet text-sm font-bold text-white"><RouteIcon size={17} />{t("map.viewRoute")}</button>
+        </>; })()}
+      </aside> : null}
       {routeOpeningAirportId ? (
         <RouteOpeningModal
           key={routeOpeningAirportId}

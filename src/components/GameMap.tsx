@@ -3,6 +3,8 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { LayerGroup, Map as LeafletMap, TileLayer } from "leaflet";
+import type { VectorBasemap, VectorBasemapFactory } from "@/components/map/providers/OpenFreeMapLayer";
+import { AIRPORT_DETAIL_ZOOM, applyOpenFreeMapLanguage } from "@/components/map/openFreeMapStyle";
 import { aircraftById } from "@/data/aircraft";
 import { airports, airportsById } from "@/data/airports";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -16,7 +18,7 @@ import { getEffectiveGlobeQuality, getGlobeAircraftUpdateInterval, supportsWebGL
 import { MapView } from "@/components/map/MapView";
 import { GlobeErrorBoundary } from "@/components/map/GlobeErrorBoundary";
 import { GlobeLoadingFallback } from "@/components/map/GlobeLoadingFallback";
-import { LEAFLET_2D_MAP_OPTIONS, LEAFLET_2D_TILE_OPTIONS, PRIMARY_WORLD_BOUNDS } from "@/components/map/providers/LeafletMapProvider";
+import { LEAFLET_2D_MAP_OPTIONS, LEAFLET_2D_TILE_OPTIONS } from "@/components/map/providers/LeafletMapProvider";
 import type { MapLibreGlobeProviderProps } from "@/components/map/providers/MapLibreGlobeProvider";
 import type { GlobeQuality, MapAircraftMarker, MapAirportMarker, MapEngine, MapGlobeFailureReason, MapProviderType, MapRouteLine } from "@/components/map/mapTypes";
 import type { AircraftInstance, AircraftModel, Route } from "@/types/game";
@@ -36,7 +38,9 @@ type LeafletTileDiagnostics = {
   tileGeneration: number;
   isCurrent: () => boolean;
   onTileLoaded: () => void;
+  onVectorUnavailable?: () => void;
 };
+type LeafletBasemap = TileLayer | VectorBasemap;
 type MapTransitionState = "idle" | "preparing-2d" | "preparing-3d";
 type LeafletTileReadiness = {
   ready: boolean;
@@ -65,6 +69,7 @@ type Props = {
   onSelectAirport: (airportId: string) => void;
   onSelectRoute: (routeId: string) => void;
   onSelectFlight: (flightId: string) => void;
+  focusBaseRequest?: number;
 };
 
 type AirportPopupLabels = {
@@ -89,15 +94,11 @@ type GlobeRouteDataInput = Pick<Props, "routes" | "selectedRouteId" | "displayMo
 type GlobeAircraftDataInput = Pick<Props, "fleet" | "displayMode">;
 type NetworkAirportInput = Pick<Props, "baseAirportId" | "baseAirportIds" | "routes">;
 
-declare global {
-  interface Window {
-    google?: any;
-    initAirlineTycoonMap?: () => void;
-  }
-}
-
 export function GameMap(props: Props) {
   const { language, t } = useTranslation();
+  const languageRef = useRef(language);
+  const lastBaseFocusRef = useRef(0);
+  languageRef.current = language;
   const airportPopupLabels = useMemo<AirportPopupLabels>(
     () => ({
       size: t("map.airportSize"),
@@ -116,11 +117,10 @@ export function GameMap(props: Props) {
   );
   const isOnline = useOnlineStatus();
   const mapElementRef = useRef<HTMLDivElement | null>(null);
-  const googleMapRef = useRef<any>(null);
   const leafletMapRef = useRef<any>(null);
-  const googleLayersRef = useRef<any[]>([]);
   const leafletLayersRef = useRef<LayerGroup | null>(null);
-  const leafletBaseLayerRef = useRef<TileLayer | null>(null);
+  const leafletBaseLayerRef = useRef<LeafletBasemap | null>(null);
+  const leafletVectorFactoryRef = useRef<VectorBasemapFactory | null>(null);
   const leafletModuleRef = useRef<typeof import("leaflet") | null>(null);
   const leafletInitialisationRef = useRef<Promise<typeof import("leaflet")> | null>(null);
   const leafletTileErrorCountRef = useRef(0);
@@ -130,7 +130,6 @@ export function GameMap(props: Props) {
   const leafletViewportListenersCleanupRef = useRef<(() => void) | null>(null);
   const leafletOverlayRedrawFrameRef = useRef<number | null>(null);
   const leafletPopupFrameRef = useRef<number | null>(null);
-  const previousTwoDProviderRef = useRef<"google" | "leaflet" | null>(null);
   const latestPropsRef = useRef<MapRenderProps>({ ...props, airportPopupLabels });
   const effectiveMapEngineRef = useRef<MapEngine>("2d");
   const mapSwitchGenerationRef = useRef(0);
@@ -141,14 +140,12 @@ export function GameMap(props: Props) {
   const [webglChecked, setWebglChecked] = useState(false);
   const [webglSupported, setWebglSupported] = useState(false);
   const [leafletBaseTilesUnavailable, setLeafletBaseTilesUnavailable] = useState(false);
+  const [vectorUnavailable, setVectorUnavailable] = useState(false);
   const [mapTransitionState, setMapTransitionState] = useState<MapTransitionState>("idle");
-  const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const selectedMapEngine = props.mapEngine ?? "2d";
   const effectiveGlobeQuality = useMemo(() => getEffectiveGlobeQuality(props.globeQuality ?? "auto"), [props.globeQuality]);
   const effectiveMapEngine = selectedMapEngine === "globe3d" && webglChecked && webglSupported && !globeFailed ? "globe3d" : "2d";
-  const usesGoogleMap = Boolean(googleKey);
-  const twoDProvider: "google" | "leaflet" = usesGoogleMap ? "google" : "leaflet";
-  const mapProvider: MapProviderType = effectiveMapEngine === "globe3d" ? "globe3d" : usesGoogleMap ? "google" : "leaflet2d";
+  const mapProvider: MapProviderType = effectiveMapEngine === "globe3d" ? "globe3d" : "leaflet2d";
   const isGlobeActive = effectiveMapEngine === "globe3d";
   if (isGlobeActive) globeWasActiveRef.current = true;
   const isPreparingTwoD = mapTransitionState === "preparing-2d" || (globeWasActiveRef.current && !isGlobeActive);
@@ -245,25 +242,14 @@ export function GameMap(props: Props) {
   }, [isGlobeActive]);
 
   const drawLatestTwoDMap = useCallback(() => {
-    if (twoDProvider === "google") {
-      drawGoogleLayers(latestPropsRef.current, googleMapRef.current, googleLayersRef);
-      return;
-    }
     if (leafletModuleRef.current && leafletMapRef.current) {
       drawLeafletLayers(latestPropsRef.current, leafletModuleRef.current, leafletMapRef.current, leafletLayersRef, leafletPopupFrameRef);
     }
-  }, [twoDProvider]);
+  }, []);
 
   const cancelLeafletTileReadiness = useCallback(() => {
     leafletTileReadinessCancelRef.current?.();
   }, []);
-
-  useEffect(() => {
-    if (previousTwoDProviderRef.current && previousTwoDProviderRef.current !== twoDProvider) {
-      cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileReadinessCancelRef, leafletTileGenerationRef, leafletTileErrorCountRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef, leafletPopupFrameRef);
-    }
-    previousTwoDProviderRef.current = twoDProvider;
-  }, [twoDProvider]);
 
   useEffect(() => {
     let cancelled = false;
@@ -276,37 +262,44 @@ export function GameMap(props: Props) {
       }
 
       try {
-        if (twoDProvider === "google") {
-          await initGoogleMap(container, googleMapRef);
-        } else {
-          if (!leafletInitialisationRef.current) leafletInitialisationRef.current = import("leaflet");
-          const leaflet = await leafletInitialisationRef.current;
-          if (cancelled || !container.isConnected || leafletMapRef.current) return;
-          leafletModuleRef.current = leaflet;
-          leafletMapRef.current = leaflet.map(container, LEAFLET_2D_MAP_OPTIONS);
-          ensureLeafletBaseLayer(
-            leaflet,
-            leafletMapRef.current,
-            leafletBaseLayerRef,
-            createLeafletTileDiagnostics(
-              leafletTileErrorCountRef,
-              leafletTileErrorUrlsRef,
-              leafletTileGenerationRef,
-              () => setLeafletBaseTilesUnavailable(false)
-            )
-          );
-          attachLeafletViewportListeners(
-            leafletMapRef.current,
-            leaflet,
-            leafletMapRef,
-            leafletModuleRef,
-            latestPropsRef,
-            leafletLayersRef,
-            leafletViewportListenersCleanupRef,
-            leafletOverlayRedrawFrameRef,
-            leafletPopupFrameRef
-          );
+        if (!leafletInitialisationRef.current) leafletInitialisationRef.current = import("leaflet");
+        const leaflet = await leafletInitialisationRef.current;
+        try {
+          if (supportsWebGL()) {
+            const { createOpenFreeMapLayer } = await import("@/components/map/providers/OpenFreeMapLayer");
+            leafletVectorFactoryRef.current = (map, ready, failure) => createOpenFreeMapLayer(map, ready, failure, languageRef.current);
+          }
+          else setVectorUnavailable(true);
+        } catch {
+          setVectorUnavailable(true);
         }
+        if (cancelled || !container.isConnected || leafletMapRef.current) return;
+        leafletModuleRef.current = leaflet;
+        leafletMapRef.current = leaflet.map(container, LEAFLET_2D_MAP_OPTIONS);
+        ensureLeafletBaseLayer(
+          leaflet,
+          leafletMapRef.current,
+          leafletBaseLayerRef,
+          createLeafletTileDiagnostics(
+            leafletTileErrorCountRef,
+            leafletTileErrorUrlsRef,
+            leafletTileGenerationRef,
+            () => setLeafletBaseTilesUnavailable(false),
+            () => { leafletVectorFactoryRef.current = null; setVectorUnavailable(true); }
+          ),
+          leafletVectorFactoryRef.current
+        );
+        attachLeafletViewportListeners(
+          leafletMapRef.current,
+          leaflet,
+          leafletMapRef,
+          leafletModuleRef,
+          latestPropsRef,
+          leafletLayersRef,
+          leafletViewportListenersCleanupRef,
+          leafletOverlayRedrawFrameRef,
+          leafletPopupFrameRef
+        );
         if (!cancelled && effectiveMapEngineRef.current === "2d") drawLatestTwoDMap();
       } catch (error) {
         console.error("[GameMap] 2D map initialisation failed", error);
@@ -317,10 +310,10 @@ export function GameMap(props: Props) {
       cancelled = true;
       if (retryFrame !== null) window.cancelAnimationFrame(retryFrame);
     };
-  }, [drawLatestTwoDMap, twoDProvider]);
+  }, [drawLatestTwoDMap]);
 
   useEffect(() => {
-    return () => cleanupTwoDMaps(googleMapRef, googleLayersRef, leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileReadinessCancelRef, leafletTileGenerationRef, leafletTileErrorCountRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef, leafletPopupFrameRef);
+    return () => cleanupTwoDMaps(leafletMapRef, leafletLayersRef, leafletBaseLayerRef, leafletTileReadinessCancelRef, leafletTileGenerationRef, leafletTileErrorCountRef, leafletTileErrorUrlsRef, leafletViewportListenersCleanupRef, leafletOverlayRedrawFrameRef, leafletPopupFrameRef);
   }, []);
 
   useEffect(() => {
@@ -328,9 +321,27 @@ export function GameMap(props: Props) {
     drawLatestTwoDMap();
   }, [airportPopupLabels, drawLatestTwoDMap, effectiveMapEngine, isPreparingTwoD, props]);
 
+  useEffect(() => {
+    const layer = leafletBaseLayerRef.current;
+    if (!layer || !("getMaplibreMap" in layer)) return;
+    const map = layer.getMaplibreMap();
+    const localize = () => applyOpenFreeMapLanguage(map, language);
+    if (map.isStyleLoaded()) localize();
+    else map.once("style.load", localize);
+    return () => { map.off("style.load", localize); };
+  }, [language, vectorUnavailable]);
+
+  useEffect(() => {
+    if (!props.focusBaseRequest || props.focusBaseRequest === lastBaseFocusRef.current || effectiveMapEngine !== "2d") return;
+    lastBaseFocusRef.current = props.focusBaseRequest;
+    const base = airportsById[props.primaryBaseAirportId ?? props.baseAirportId];
+    if (!base) return;
+    leafletMapRef.current?.flyTo([base.lat, base.lng], AIRPORT_DETAIL_ZOOM, { duration: 0.8 });
+  }, [props.focusBaseRequest, props.primaryBaseAirportId, props.baseAirportId, effectiveMapEngine]);
+
   const restoreLeafletAfterGlobe = useCallback(
     async (generation: number, isCancelled: () => boolean) => {
-      if (isCancelled() || twoDProvider !== "leaflet" || generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return false;
+      if (isCancelled() || generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return false;
       await waitForAnimationFrames(2);
       if (isCancelled() || generation !== mapSwitchGenerationRef.current || effectiveMapEngineRef.current !== "2d") return false;
 
@@ -350,10 +361,20 @@ export function GameMap(props: Props) {
           leafletTileErrorCountRef,
           leafletTileErrorUrlsRef,
           leafletTileGenerationRef,
-          () => setLeafletBaseTilesUnavailable(false)
+          () => setLeafletBaseTilesUnavailable(false),
+          () => { leafletVectorFactoryRef.current = null; setVectorUnavailable(true); }
         );
       let diagnostics = createDiagnostics();
-      let baseLayer = replaceLeafletBaseLayer(leaflet, map, leafletBaseLayerRef, diagnostics);
+      const existing = leafletBaseLayerRef.current;
+      if (existing && "getMaplibreMap" in existing) {
+        existing.getMaplibreMap().resize();
+        const vectorReadiness = await waitForLeafletTiles(map, existing, diagnostics, leafletTileReadinessCancelRef, 4000);
+        if (!isCurrentTransition()) return false;
+        if (vectorReadiness.ready) return true;
+        leafletVectorFactoryRef.current = null;
+        setVectorUnavailable(true);
+      }
+      let baseLayer = replaceLeafletBaseLayer(leaflet, map, leafletBaseLayerRef, diagnostics, leafletVectorFactoryRef.current);
       if (leafletOverlayRedrawFrameRef.current !== null) {
         window.cancelAnimationFrame(leafletOverlayRedrawFrameRef.current);
         leafletOverlayRedrawFrameRef.current = null;
@@ -365,7 +386,7 @@ export function GameMap(props: Props) {
 
       if (!readiness.ready) {
         diagnostics = createDiagnostics();
-        baseLayer = replaceLeafletBaseLayer(leaflet, map, leafletBaseLayerRef, diagnostics);
+        baseLayer = replaceLeafletBaseLayer(leaflet, map, leafletBaseLayerRef, diagnostics, leafletVectorFactoryRef.current);
         readiness = await waitForLeafletTiles(map, baseLayer, diagnostics, leafletTileReadinessCancelRef, 3000);
         if (!isCurrentTransition()) return false;
       }
@@ -396,7 +417,7 @@ export function GameMap(props: Props) {
         );
         const recreatedMap = leafletMapRef.current as LeafletMap;
         diagnostics = createDiagnostics();
-        baseLayer = replaceLeafletBaseLayer(leaflet, recreatedMap, leafletBaseLayerRef, diagnostics);
+        baseLayer = replaceLeafletBaseLayer(leaflet, recreatedMap, leafletBaseLayerRef, diagnostics, leafletVectorFactoryRef.current);
         drawLeafletLayers(latestPropsRef.current, leaflet, recreatedMap, leafletLayersRef, leafletPopupFrameRef);
         readiness = await waitForLeafletTiles(recreatedMap, baseLayer, diagnostics, leafletTileReadinessCancelRef, 3000);
         if (!isCurrentTransition()) return false;
@@ -410,7 +431,7 @@ export function GameMap(props: Props) {
       restoredMap.invalidateSize({ animate: false, pan: false });
       return getVisibleLoadedLeafletTileCount(restoredMap) >= getLeafletVisibleTileThreshold(restoredMap);
     },
-    [twoDProvider]
+    []
   );
 
   useEffect(() => {
@@ -455,10 +476,10 @@ export function GameMap(props: Props) {
       isGlobeActive={isGlobeActive}
       isPreparingTwoD={isPreparingTwoD}
       preparingTwoDLabel={t("map.preparing2d")}
-      engineLabel={effectiveMapEngine === "globe3d" ? t("map.engineGlobe3d") : googleKey ? "Google Maps" : t("map.engine2d")}
+      engineLabel={effectiveMapEngine === "globe3d" ? t("map.engineGlobe3d") : t("map.engine2d")}
       isOffline={!isOnline}
       offlineMessage={t("map.offlineFallback")}
-      baseMapWarning={effectiveMapEngine === "2d" && twoDProvider === "leaflet" && leafletBaseTilesUnavailable ? t("map.baseTilesUnavailable") : null}
+      baseMapWarning={effectiveMapEngine === "2d" ? leafletBaseTilesUnavailable ? t("map.baseTilesUnavailable") : vectorUnavailable ? t("map.vectorFallback") : null : null}
       legendLabels={{ title: t("map.legend"), base: t("map.legendBase"), opened: t("map.legendOpened"), unopened: t("map.legendUnopened") }}
       globeContent={shouldRenderGlobe ? (
         <GlobeErrorBoundary
@@ -517,11 +538,9 @@ export function GameMap(props: Props) {
 }
 
 function cleanupTwoDMaps(
-  googleMapRef: MutableRefObject<any>,
-  googleLayersRef: MutableRefObject<any[]>,
   leafletMapRef: MutableRefObject<any>,
   leafletLayersRef: MutableRefObject<any>,
-  leafletBaseLayerRef: MutableRefObject<TileLayer | null>,
+  leafletBaseLayerRef: MutableRefObject<LeafletBasemap | null>,
   leafletTileReadinessCancelRef: MutableRefObject<(() => void) | null>,
   leafletTileGenerationRef: MutableRefObject<number>,
   leafletTileErrorCountRef: MutableRefObject<number>,
@@ -530,9 +549,6 @@ function cleanupTwoDMaps(
   leafletOverlayRedrawFrameRef: MutableRefObject<number | null>,
   leafletPopupFrameRef: MutableRefObject<number | null>
 ) {
-  googleLayersRef.current.forEach((layer) => layer.setMap?.(null));
-  googleLayersRef.current = [];
-  googleMapRef.current = null;
   leafletTileReadinessCancelRef.current?.();
   leafletTileReadinessCancelRef.current = null;
   leafletTileGenerationRef.current += 1;
@@ -726,7 +742,8 @@ function createLeafletTileDiagnostics(
   errorCountRef: MutableRefObject<number>,
   errorUrlsRef: MutableRefObject<Set<string>>,
   tileGenerationRef: MutableRefObject<number>,
-  onTileLoaded: () => void
+  onTileLoaded: () => void,
+  onVectorUnavailable?: () => void
 ): LeafletTileDiagnostics {
   const tileGeneration = ++tileGenerationRef.current;
   return {
@@ -734,22 +751,40 @@ function createLeafletTileDiagnostics(
     errorUrlsRef,
     tileGeneration,
     isCurrent: () => tileGenerationRef.current === tileGeneration,
-    onTileLoaded
+    onTileLoaded,
+    onVectorUnavailable
   };
 }
 
 function ensureLeafletBaseLayer(
   L: typeof import("leaflet"),
   map: LeafletMap,
-  baseLayerRef: MutableRefObject<TileLayer | null>,
-  diagnostics: LeafletTileDiagnostics
+  baseLayerRef: MutableRefObject<LeafletBasemap | null>,
+  diagnostics: LeafletTileDiagnostics,
+  vectorFactory: VectorBasemapFactory | null = null
 ) {
   const existingLayer = baseLayerRef.current;
   if (existingLayer && map.hasLayer(existingLayer)) return existingLayer;
   if (existingLayer) {
     existingLayer.addTo(map);
-    existingLayer.bringToBack();
+    if ("bringToBack" in existingLayer) existingLayer.bringToBack();
     return existingLayer;
+  }
+
+  if (vectorFactory) {
+    try {
+      const vector = vectorFactory(map, diagnostics.onTileLoaded, () => {
+        if (baseLayerRef.current !== vector) return;
+        detachLeafletLayer(vector);
+        baseLayerRef.current = null;
+        diagnostics.onVectorUnavailable?.();
+        ensureLeafletBaseLayer(L, map, baseLayerRef, diagnostics);
+      });
+      baseLayerRef.current = vector;
+      return vector;
+    } catch {
+      diagnostics.onVectorUnavailable?.();
+    }
   }
 
   const tileLayer = L.tileLayer(LEAFLET_BASE_TILE_URL, { ...LEAFLET_2D_TILE_OPTIONS });
@@ -775,15 +810,16 @@ function ensureLeafletBaseLayer(
 function replaceLeafletBaseLayer(
   L: typeof import("leaflet"),
   map: LeafletMap,
-  baseLayerRef: MutableRefObject<TileLayer | null>,
-  diagnostics: LeafletTileDiagnostics
+  baseLayerRef: MutableRefObject<LeafletBasemap | null>,
+  diagnostics: LeafletTileDiagnostics,
+  vectorFactory: VectorBasemapFactory | null = null
 ) {
   const previousLayer = baseLayerRef.current;
   if (previousLayer) {
     detachLeafletLayer(previousLayer);
   }
   baseLayerRef.current = null;
-  return ensureLeafletBaseLayer(L, map, baseLayerRef, diagnostics);
+  return ensureLeafletBaseLayer(L, map, baseLayerRef, diagnostics, vectorFactory);
 }
 
 const MAX_LEAFLET_WORLD_COPIES = 7;
@@ -858,6 +894,9 @@ function getVisibleLoadedLeafletTileCount(map: LeafletMap) {
   const containerRect = map.getContainer().getBoundingClientRect();
   if (!tilePane || !containerRect.width || !containerRect.height) return 0;
 
+  const vector = tilePane.querySelector<HTMLCanvasElement>('canvas[data-openfreemap-ready="true"]');
+  if (vector && isVisibleLeafletTileRect(vector.getBoundingClientRect(), containerRect)) return getLeafletVisibleTileThreshold(map);
+
   return Array.from(tilePane.querySelectorAll<HTMLImageElement>("img.leaflet-tile-loaded")).filter(
     (tile) => {
       if (!tile.complete || tile.naturalWidth <= 0 || tile.naturalHeight <= 0) return false;
@@ -901,7 +940,7 @@ function waitForAnimationFrames(frameCount: number) {
 
 function waitForLeafletTiles(
   map: LeafletMap,
-  tileLayer: TileLayer,
+  tileLayer: LeafletBasemap,
   diagnostics: LeafletTileDiagnostics,
   cancelRef: MutableRefObject<(() => void) | null>,
   timeoutMs: number
@@ -982,7 +1021,7 @@ function recreateLeafletMap(
   zoom: number,
   mapRef: MutableRefObject<any>,
   layerRef: MutableRefObject<LayerGroup | null>,
-  baseLayerRef: MutableRefObject<TileLayer | null>,
+  baseLayerRef: MutableRefObject<LeafletBasemap | null>,
   moduleRef: MutableRefObject<typeof import("leaflet") | null>,
   latestPropsRef: MutableRefObject<MapRenderProps>,
   viewportCleanupRef: MutableRefObject<(() => void) | null>,
@@ -1140,133 +1179,6 @@ function cancelLeafletPopupFrame(frameRef: MutableRefObject<number | null>) {
   if (frameRef.current === null) return;
   window.cancelAnimationFrame(frameRef.current);
   frameRef.current = null;
-}
-
-async function initGoogleMap(element: HTMLDivElement, mapRef: MutableRefObject<any>) {
-  if (mapRef.current) return;
-  await loadGoogleMapsScript();
-  if (!window.google) return;
-  // TODO: Add custom clustering and richer Google map controls once V1 expands past the seed airport set.
-  mapRef.current = new window.google.maps.Map(element, {
-    center: { lat: 30, lng: 5 },
-    zoom: 2,
-    minZoom: 2,
-    maxZoom: 8,
-    restriction: {
-      latLngBounds: {
-        south: PRIMARY_WORLD_BOUNDS[0][0],
-        west: PRIMARY_WORLD_BOUNDS[0][1],
-        north: PRIMARY_WORLD_BOUNDS[1][0],
-        east: PRIMARY_WORLD_BOUNDS[1][1]
-      },
-      strictBounds: true
-    },
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: false
-  });
-}
-
-function drawGoogleLayers(props: MapRenderProps, map: any, layersRef: MutableRefObject<any[]>) {
-  if (!window.google || !map) return;
-  layersRef.current.forEach((layer) => layer.setMap(null));
-  layersRef.current = [];
-
-  if (shouldShowRoutes(props.displayMode)) {
-    props.routes.forEach((route) => {
-      const origin = airportsById[route.originAirportId];
-      const destination = airportsById[route.destinationAirportId];
-      const active = props.selectedRouteId === route.id;
-      buildRoutePolylineLatLngSegments(origin, destination).forEach((segment) => {
-        const line = new window.google.maps.Polyline({
-          path: segment.map(([lat, lng]) => ({ lat, lng })),
-          geodesic: false,
-          strokeColor: active ? "#d76745" : "#18545c",
-          strokeOpacity: 0.85,
-          strokeWeight: active ? 4 : 2,
-          map
-        });
-        line.addListener("click", () => props.onSelectRoute(route.id));
-        layersRef.current.push(line);
-      });
-    });
-  }
-
-  if (shouldShowAircraft(props.displayMode)) {
-    props.fleet.forEach((aircraft) => {
-      const model = aircraftById[aircraft.modelId];
-      const iconCategory = getAircraftIconCategory(model);
-      aircraft.schedule
-        .filter((item) => item.status === "in-flight")
-        .forEach((item) => {
-          const origin = airportsById[item.originAirportId];
-          const destination = airportsById[item.destinationAirportId];
-          const progress = (props.currentGameTimeMs - item.departureGameTime) / (item.arrivalGameTime - item.departureGameTime);
-          const { position, heading: bearing } = getAircraftPositionAndHeading(origin, destination, progress);
-          const marker = new window.google.maps.Marker({
-            position: { lat: position.lat, lng: normalizeLongitude(position.lng) },
-            map,
-            title: item.flightNumber ? `${item.flightNumber} ${aircraft.registration}` : aircraft.registration,
-            icon: {
-              path: aircraftSymbolPath(iconCategory),
-              fillColor: "#f6c945",
-              fillOpacity: 1,
-              strokeColor: "#102026",
-              strokeWeight: 2,
-              scale: googleAircraftScale(iconCategory),
-              rotation: bearing,
-              anchor: new window.google.maps.Point(12, 12)
-            }
-          });
-          const infoWindow = new window.google.maps.InfoWindow({
-            content: aircraftDetailsHtml(aircraft, model, item, props.currentGameTimeMs)
-          });
-          marker.addListener("click", () => {
-            props.onSelectFlight(item.id);
-            infoWindow.open({ anchor: marker, map });
-          });
-          layersRef.current.push(marker);
-        });
-    });
-  }
-
-  if (shouldShowAirports(props.displayMode)) {
-    const networkAirportIds = getNetworkAirportIds(props);
-    const baseAirportIds = props.baseAirportIds ?? [props.baseAirportId];
-    const primaryBaseAirportId = props.primaryBaseAirportId ?? props.baseAirportId;
-    airports.forEach((airport) => {
-      const isPrimaryBase = airport.id === primaryBaseAirportId;
-      const isSecondaryBase = baseAirportIds.includes(airport.id) && !isPrimaryBase;
-      const isBase = isPrimaryBase || isSecondaryBase;
-      if (props.displayMode === "network" && !networkAirportIds.has(airport.id)) return;
-      if (props.displayMode === "aircraft" && !isBase) return;
-      const isExpanded = props.expandedAirportIds.includes(airport.id);
-      const markerKind = airportMarkerKind(isBase, isExpanded);
-      const infoWindow = new window.google.maps.InfoWindow({
-        content: airportDetailsHtml(airport, isPrimaryBase, isSecondaryBase, isExpanded, props.airportPopupLabels)
-      });
-      const pinScale = isBase ? 1 : isExpanded ? 0.9 : 0.78;
-      const marker = new window.google.maps.Marker({
-        position: { lat: airport.lat, lng: normalizeLongitude(airport.lng) },
-        map,
-        title: `${airport.iata} ${airport.name}`,
-        icon: {
-          path: "M12 2C7.6 2 4 5.6 4 10c0 5.6 8 12 8 12s8-6.4 8-12c0-4.4-3.6-8-8-8Zm0 11.2A3.2 3.2 0 1 1 12 6.8a3.2 3.2 0 0 1 0 6.4Z",
-          fillColor: airportMarkerFill(markerKind),
-          fillOpacity: 1,
-          strokeColor: markerKind === "unopened" ? "#18545c" : "#102026",
-          strokeWeight: 2,
-          scale: pinScale,
-          anchor: new window.google.maps.Point(12, 22)
-        }
-      });
-      marker.addListener("click", () => {
-        props.onSelectAirport(airport.id);
-        infoWindow.open({ anchor: marker, map });
-      });
-      layersRef.current.push(marker);
-    });
-  }
 }
 
 function shouldShowAirports(mode: MapDisplayMode) {
@@ -1438,13 +1350,6 @@ function getAircraftIconAsset(category: AircraftIconCategory) {
   }
 }
 
-function googleAircraftScale(category: AircraftIconCategory) {
-  if (category === "regional") return 1.18;
-  if (category === "narrowBodyTwin") return 1.38;
-  if (category === "wideBodyTwin") return 1.62;
-  return 1.8;
-}
-
 function aircraftSymbolPath(category: AircraftIconCategory) {
   if (category === "regional") {
     return "M12 2.4 14.1 10.3 20.2 13.2 19.3 15.4 13.8 14.2 14.5 20.4 12 21.6 9.5 20.4 10.2 14.2 4.7 15.4 3.8 13.2 9.9 10.3 12 2.4Z";
@@ -1456,23 +1361,4 @@ function aircraftSymbolPath(category: AircraftIconCategory) {
     return "M12 1.1 15.9 9.1 23.2 12.3 22 16.1 15 14.3 16.5 21.4 12 23 7.5 21.4 9 14.3 2 16.1 0.8 12.3 8.1 9.1 12 1.1Z";
   }
   return "M12 2 15 10.2 22 13.5 21 16 14.2 14.4 15.2 21 12 22.4 8.8 21 9.8 14.4 3 16 2 13.5 9 10.2 12 2Z";
-}
-
-function loadGoogleMapsScript() {
-  if (window.google) return Promise.resolve();
-  const existing = document.querySelector<HTMLScriptElement>("script[data-airline-google-maps]");
-  if (existing) {
-    return new Promise<void>((resolve) => existing.addEventListener("load", () => resolve(), { once: true }));
-  }
-
-  return new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.dataset.airlineGoogleMaps = "true";
-    script.async = true;
-    script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Google Maps failed to load"));
-    document.head.appendChild(script);
-  });
 }

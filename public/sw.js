@@ -1,8 +1,9 @@
-const CACHE_VERSION = "airline-tycoon-v1.7.1";
+const CACHE_VERSION = "airline-tycoon-v1.7.2";
 const PRECACHE_URLS = [
   "/",
   "/offline.html",
   "/cabin/seat-products.png",
+  "/cabin/first-class-products-v172.png",
   "/aircraft-icons/regional.png",
   "/aircraft-icons/narrow-body-twin.png",
   "/aircraft-icons/wide-body-twin.png",

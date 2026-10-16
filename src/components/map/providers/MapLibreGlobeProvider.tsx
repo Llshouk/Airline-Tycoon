@@ -4,9 +4,9 @@ import * as maplibregl from "maplibre-gl";
 import type { ExpressionSpecification, SymbolLayerSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Info, LocateFixed, RotateCcw } from "lucide-react";
 import type { FeatureCollection, LineString, Point, Position } from "geojson";
-import { applyDarkGlobeBackdrop, applyGlobeVisualStyle, DARK_GLOBE_BACKDROP, DEFAULT_GLOBE_VISUAL_STYLE } from "@/components/map/maplibreGlobeStyle";
-import { applyBrightSatelliteEarth, applyCountryLabels, applyLightOceanTint, getGlobeSatelliteStyle, updateCountryLabelLanguage } from "@/components/map/maplibreGlobeSatelliteStyle";
+import { AIRPORT_DETAIL_ZOOM, AIRPORT_MAX_ZOOM, applyAirportDetailStyle, applyOpenFreeMapLanguage, DARK_GLOBE_BACKDROP, OPEN_FREE_MAP_STYLE_URL } from "@/components/map/openFreeMapStyle";
 import { classifyMapLibreError, type GlobeMapErrorDiagnostics } from "@/lib/mapLibreErrorPolicy";
 import { normalizeLongitude, splitPolylineAtAntimeridian } from "@/lib/mapRoutePath";
 import type { EffectiveGlobeQuality, MapAircraftMarker, MapAirportMarker, MapGlobeFailureReason, MapRouteLine } from "@/components/map/mapTypes";
@@ -187,11 +187,11 @@ export function MapLibreGlobeProvider({
     try {
       const map = new maplibregl.Map({
         container,
-        style: getGlobeSatelliteStyle(),
+        style: OPEN_FREE_MAP_STYLE_URL,
         center: [0, 20],
-        zoom: 1.35,
+        zoom: overviewZoom(container),
         minZoom: 0.6,
-        maxZoom: 8,
+        maxZoom: AIRPORT_MAX_ZOOM,
         pitch: 0,
         bearing: 0,
         canvasContextAttributes: { antialias: true }
@@ -202,12 +202,7 @@ export function MapLibreGlobeProvider({
       const initialiseOptionalGlobeLayers = () => {
         if (disposed || !coreReadyRef.current) return;
         try {
-          applyLightOceanTint(map);
-        } catch (error) {
-          console.warn("[MapLibre Globe] Ocean tint unavailable; using satellite imagery only", error);
-        }
-        try {
-          applyCountryLabels(map, languageRef.current);
+          applyOpenFreeMapLanguage(map, languageRef.current);
           optionalLabelsReadyRef.current = true;
         } catch (error) {
           optionalLabelsReadyRef.current = false;
@@ -220,9 +215,7 @@ export function MapLibreGlobeProvider({
         void (async () => {
           try {
             map.setProjection({ type: "globe" });
-            applyGlobeVisualStyle(map, DEFAULT_GLOBE_VISUAL_STYLE);
-            applyBrightSatelliteEarth(map);
-            applyDarkGlobeBackdrop(map);
+            applyAirportDetailStyle(map);
             const mapWithFog = map as maplibregl.Map & { setFog?: (fog: Record<string, string | number>) => void };
             try {
               mapWithFog.setFog?.({
@@ -381,7 +374,7 @@ export function MapLibreGlobeProvider({
   useEffect(() => {
     if (!isReady || !mapRef.current || !optionalLabelsReadyRef.current) return;
     try {
-      updateCountryLabelLanguage(mapRef.current, language);
+      applyOpenFreeMapLanguage(mapRef.current, language);
     } catch (error) {
       optionalLabelsReadyRef.current = false;
       console.warn("[MapLibre Globe] Country label language update failed; continuing without labels", error);
@@ -477,13 +470,14 @@ export function MapLibreGlobeProvider({
   }, [isActive]);
 
   const resetView = useCallback(() => {
-    mapRef.current?.flyTo({ center: [0, 20], zoom: 1.35, pitch: 0, bearing: 0, duration: 1000 });
+    const map = mapRef.current;
+    map?.flyTo({ center: [0, 20], zoom: overviewZoom(map.getContainer()), pitch: 0, bearing: 0, duration: 1000 });
   }, []);
 
   const focusBase = useCallback(() => {
     const baseAirport = airportByMapId.get(baseAirportId);
     if (!baseAirport || !isValidCoordinate(baseAirport.lat, baseAirport.lng)) return;
-    mapRef.current?.flyTo({ center: [baseAirport.lng, baseAirport.lat], zoom: 3.5, duration: 1200 });
+    mapRef.current?.flyTo({ center: [baseAirport.lng, baseAirport.lat], zoom: AIRPORT_DETAIL_ZOOM, duration: 1200 });
   }, [airportByMapId, baseAirportId]);
 
   const focusSelectedObject = useCallback(() => {
@@ -513,24 +507,30 @@ export function MapLibreGlobeProvider({
   }, [aircraftByMapId, airportByMapId, routeByMapId, selectedObject]);
 
   return (
-    <div aria-hidden={!isActive} className="airline-maplibre-globe relative h-full min-h-[560px] overflow-hidden" style={{ backgroundColor: DARK_GLOBE_BACKDROP }}>
+    <div aria-hidden={!isActive} className="airline-maplibre-globe relative h-full min-h-0 overflow-hidden" style={{ backgroundColor: DARK_GLOBE_BACKDROP }}>
       <div ref={containerRef} className="h-full w-full" style={{ backgroundColor: DARK_GLOBE_BACKDROP }} />
       <div aria-hidden="true" className="airline-globe-starfield absolute inset-0 pointer-events-none" />
-      {isActive ? <div className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex flex-col items-end gap-2 sm:flex-row">
-        <button type="button" onClick={resetView} className="min-h-11 rounded-md bg-white/95 px-3 py-2 text-xs font-black text-ink shadow-soft outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
-          {labels.resetView}
+      {isActive ? <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
+        <button type="button" onClick={resetView} title={labels.resetView} aria-label={labels.resetView} className="grid h-11 w-11 place-items-center rounded-md bg-white/95 text-ink shadow-soft outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+          <RotateCcw size={20} />
         </button>
-        <button type="button" onClick={focusBase} className="min-h-11 rounded-md bg-white/95 px-3 py-2 text-xs font-black text-ink shadow-soft outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
-          {labels.focusBase}
+        <button type="button" onClick={focusBase} title={labels.focusBase} aria-label={labels.focusBase} className="grid h-11 w-11 place-items-center rounded-md bg-white/95 text-ink shadow-soft outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+          <LocateFixed size={20} />
         </button>
       </div> : null}
-      {isActive ? <div className="pointer-events-none absolute bottom-3 right-16 z-10 hidden max-w-xs rounded-md border border-slate-300/80 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-600 shadow-soft sm:block">
-        {labels.performance}
-      </div> : null}
-      {isActive ? <span title={labels.performance} aria-label={labels.performance} className="absolute bottom-3 left-3 z-10 grid h-10 w-10 place-items-center rounded-full border border-white/30 bg-slate-950/80 text-sm font-black text-white sm:hidden">i</span> : null}
+      {isActive ? <span tabIndex={0} role="img" title={labels.performance} aria-label={labels.performance}
+        className="globe-info">
+        <Info size={20} aria-hidden="true" />
+        <span className="game-tooltip" aria-hidden="true" style={{ left: 0, transform: "none" }}>{labels.performance}</span>
+      </span> : null}
       {isActive ? <GlobeInformationCard selected={selectedObject} airports={airportByMapId} routes={routeByMapId} aircraft={aircraftByMapId} labels={labels.interaction} onFocus={focusSelectedObject} onClose={() => setSelectedObject(null)} /> : null}
     </div>
   );
+}
+
+function overviewZoom(container: HTMLElement) {
+  const diameter = Math.max(200, Math.min(container.clientWidth, container.clientHeight) - 64);
+  return Math.max(0.6, Math.min(2.35, 1.35 + Math.log2(diameter / 380)));
 }
 
 export function buildAirportGeoJson(airports: MapAirportMarker[], selectedAirportId: string | null = null): FeatureCollection<Point> {

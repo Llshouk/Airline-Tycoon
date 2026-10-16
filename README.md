@@ -1,11 +1,14 @@
-# Airline Tycoon V1.7.1
+# Airline Tycoon V1.7.2
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.7.1 - Visual Cabin Designer
+Release: V1.7.2 - Map-first Operations
 
 ## Features
 
+- Full-viewport map with an icon dock, keyboard tooltips and mobile navigation
+- Open operating panels without losing the map camera position
+- Browse aircraft using local aircraft imagery and compare First Class product illustrations
 - Start an airline from a selected base airport
 - Buy and manage aircraft
 - Configure cabins on a draggable aircraft floor plan with seat-product images
@@ -84,6 +87,8 @@ npm run dev
 
 ## Current Status
 
+V1.7.2 makes the map the main play surface, with a compact company HUD, bottom navigation and operating panels. Both map views use free OpenFreeMap vector detail, including airport layouts, with zoom up to level 18 and a Focus Base control. Aircraft catalog and fleet groups use existing local aircraft assets; First Class receives more distinct fictional product illustrations. Economy rules and save schemas are unchanged. Satellite imagery and desktop/mobile packaging remain deferred. See [UI update](docs/ui-v172.md).
+
 V1.7.1 adds a visual cabin designer: adjacent cabin dividers, live whole-row seat maps, seat-product images, pitch controls and model-specific Premium Economy layouts. Existing V1.7.0 aircraft retain their original products and capacity; new purchases use the corrected layouts. See [cabin experience](docs/cabin-experience.md).
 
 Airline Tycoon V1.7.0 adds finite shared route markets, bounded fare elasticity and local-time red-eye demand. Very short and very long routes receive continuous demand adjustments. Bookings lock at departure, and chronological fleet operations settle them once on arrival. Route analysis separates actual recent results from isolated forward forecasts; batch tools preserve independent aircraft and check timetable conflicts. See [shared route market](docs/route-market.md) for the model and its gameplay assumptions.
@@ -96,13 +101,11 @@ Maintenance can start immediately on the ground or after a selected flight lands
 
 ## Map Configuration
 
-The optional MapLibre globe uses NASA GIBS Blue Marble imagery by default with a local starfield backdrop. Country labels and ocean polygons are optional OpenFreeMap vector enhancements, so the satellite globe remains playable if those tiles or glyphs cannot load. The verified OpenFreeMap TileJSON supplies the `water` and `place` layers with Noto Sans glyphs, and includes OpenFreeMap, OpenMapTiles, and OpenStreetMap attribution. OpenFreeMap is MIT-licensed; its map data is sourced from OpenStreetMap. Set the public style URL below only to replace the globe's satellite basemap.
+Both views use the [OpenFreeMap Liberty vector style](https://openfreemap.org/quick_start/), with airport runways, taxiways, aprons, buildings and place labels where mapped. The 2D view keeps the existing Leaflet game overlays through the official MapLibre GL Leaflet adapter. The globe uses the same basemap directly. Both allow zoom to level 18; Focus Base opens the primary airport at level 14. Vector detail can be enlarged beyond the source tile zoom; this is not satellite imagery and does not guarantee survey-grade accuracy or equal airport coverage.
 
-```text
-NEXT_PUBLIC_MAPLIBRE_GLOBE_SATELLITE_STYLE_URL
-```
+No map account or API key is needed. OpenFreeMap permits commercial use of its public service, but offers no SLA; keep OpenFreeMap/OpenMapTiles/OpenStreetMap attribution visible. Failed vector initialization/requests or unavailable WebGL fall back to the standard OSM raster map. The earlier NASA imagery, satellite-style environment override and unused satellite styling helpers have been removed; no paid satellite service is contacted.
 
-Do not put private map provider keys in source control. Remote map styles and tiles are not stored in game saves or precached by the service worker.
+Do not put private provider keys in source control. Remote map styles and tiles are not stored in saves, bulk-downloaded, or precached by the service worker. Adding an airport to the basemap does not add it to the game's operational airport catalog.
 
 The optional globe uses MapLibre 6 and requires WebGL2; the existing 2D fallback remains available. Development and production builds automatically copy the installed module worker, shared module, and license into `public/maplibre-workers/`. These generated assets are ignored by Git and are recreated from the locked dependency; do not remove this build preparation when deploying.
 
