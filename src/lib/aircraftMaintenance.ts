@@ -39,8 +39,9 @@ export function normalizeAircraftLifecycle(aircraft: Pick<AircraftInstance, "lif
     : undefined;
   const plan = raw?.reservation;
   const reservation = plan && (plan.kind === "inspection" || plan.kind === "service") &&
-    typeof plan.afterFlightId === "string" && plan.afterFlightId.length > 0
+    (plan.mode === "home" || (typeof plan.afterFlightId === "string" && plan.afterFlightId.length > 0))
     ? { ...plan, state: plan.state === "blocked" ? "blocked" as const : "scheduled" as const,
+        requestedGameTimeMs: plan.mode === "home" ? Math.min(now, nonnegative(plan.requestedGameTimeMs, now)) : undefined,
         startsAfterGameTimeMs: Number.isFinite(plan.startsAfterGameTimeMs) ? plan.startsAfterGameTimeMs : undefined }
     : undefined;
   const window = raw?.recovery;
@@ -60,7 +61,11 @@ export function normalizeAircraftLifecycle(aircraft: Pick<AircraftInstance, "lif
     totalMaintenanceCashCost: nonnegative(raw?.totalMaintenanceCashCost),
     maintenance,
     reservation,
-    recovery
+    recovery,
+    lastMaintenance: raw?.lastMaintenance && ["service", "inspection"].includes(raw.lastMaintenance.kind) &&
+      Number.isFinite(raw.lastMaintenance.startedGameTimeMs) && Number.isFinite(raw.lastMaintenance.completesGameTimeMs) &&
+      raw.lastMaintenance.completesGameTimeMs > raw.lastMaintenance.startedGameTimeMs && raw.lastMaintenance.completesGameTimeMs <= now
+      ? { ...raw.lastMaintenance } : undefined
   };
 }
 
@@ -107,7 +112,7 @@ export function recordAircraftFlight(lifecycle: AircraftLifecycle, durationMs: n
 }
 
 export function quoteMaintenance(model: AircraftModel, lifecycle: AircraftLifecycle, kind: MaintenanceKind) {
-  // TODO: Add base workshop capacity and model-specific service packages.
+  // TODO: Add model-specific service packages. Workshop capacity is intentionally unlimited.
   const sizeFactor = model.type === "widebody" ? 1.6 : 1;
   const labourCost = Math.round((kind === "inspection" ? 12_000 : 65_000) * sizeFactor);
   const partsCost = Math.round((100 - lifecycle.condition) * (kind === "inspection" ? 200 : 1_800) * sizeFactor);
@@ -153,6 +158,7 @@ export function completeAircraftMaintenance(lifecycle: AircraftLifecycle, now: n
     lastServiceGameTimeMs: task.kind === "service" ? task.completesGameTimeMs : lifecycle.lastServiceGameTimeMs,
     hoursSinceService: task.kind === "service" ? 0 : lifecycle.hoursSinceService,
     cyclesSinceService: task.kind === "service" ? 0 : lifecycle.cyclesSinceService,
+    lastMaintenance: { kind: task.kind, startedGameTimeMs: task.startedGameTimeMs, completesGameTimeMs: task.completesGameTimeMs },
     maintenance: undefined
   };
 }

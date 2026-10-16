@@ -36,8 +36,8 @@ export function AircraftDetailPanel({
   const operatingPreview = getAircraftOperatingPreview(aircraft, game);
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/35 p-4">
-      <section className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-lg border border-slate-200 bg-white shadow-soft">
+    <div className="fixed inset-0 z-[6000] flex items-center justify-center bg-ink/35 p-4">
+      <section role="dialog" aria-modal="true" aria-label={`${t("detail.title")} ${aircraft.registration}`} className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-lg border border-slate-200 bg-white shadow-soft">
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-normal text-coral">{t("detail.title")}</p>
@@ -49,7 +49,8 @@ export function AircraftDetailPanel({
           <button
             type="button"
             onClick={onClose}
-            title="Close"
+            title={t("maintenance.close")}
+            aria-label={t("maintenance.close")}
             className="flex h-9 w-9 items-center justify-center rounded-md bg-runway text-jet transition hover:bg-slate-200"
           >
             <X size={18} />

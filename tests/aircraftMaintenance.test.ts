@@ -3,11 +3,14 @@ import test from "node:test";
 import { aircraftById } from "../src/data/aircraft";
 import { aircraftAgeYears, aircraftReliability, beginAircraftMaintenance, completeAircraftMaintenance, getMaintenanceStatus, normalizeAircraftLifecycle, quoteMaintenance, recordAircraftFlight, technicalDelayMinutes } from "../src/lib/aircraftMaintenance";
 import { advanceAircraftOperations } from "../src/lib/aircraftOperations";
+import { advanceFleetOperations } from "../src/lib/fleetOperations";
+import { nextPostMaintenanceFlight, prepareHomeMaintenance } from "../src/lib/homeMaintenance";
 import { createCompactSaveState, pruneOperationalFlights, restoreGameStateFromCloudSave } from "../src/lib/cloudSave";
 import { flightWaitMs, DAY_MS } from "../src/lib/time";
 import { normalizeGame, useGameStore } from "../src/store/gameStore";
 import { calculateDashboardStats } from "../src/lib/stats";
 import { maintenancePreview } from "../src/lib/maintenancePlanning";
+import { routeAircraftAvailability } from "../src/lib/routeScheduling";
 import { airportLocalMinutes, flightAirportIssues, nightPassengerDemandMultiplier, weeklyAirportIssues } from "../src/lib/airportOperations";
 import { estimateFlightFinancials, estimateScheduleFinancials } from "../src/lib/economy";
 import { calculateScheduledCapacityForRoute } from "../src/lib/routeDemand";
@@ -17,6 +20,229 @@ import type { AircraftInstance, GameState, ScheduleItem } from "../src/types/gam
 const now = Date.UTC(2026, 0, 1, 6);
 const hour = 3_600_000;
 const model = aircraftById["a220-300"];
+
+test("one-click full maintenance starts 100 independent aircraft at base with no workshop limit", () => {
+  const game = fixture();
+  game.money = 1e9;
+  const source = game.fleet[0];
+  game.fleet = Array.from({ length: 100 }, (_, index) => ({ ...source, id: `home-${index}`, registration: `G-H${index}`,
+    lifecycle: { ...source.lifecycle!, condition: 20 } }));
+  useGameStore.setState({ game });
+  assert.equal(useGameStore.getState().requestFullMaintenance(game.fleet.map((aircraft) => aircraft.id)).ok, true);
+  const started = useGameStore.getState().game!;
+  assert.ok(started.fleet.every((aircraft) => aircraft.lifecycle?.maintenance?.startedGameTimeMs === now));
+  assert.equal(started.money, game.money - 100 * quoteMaintenance(model, game.fleet[0].lifecycle!, "service").cashCost);
+  assert.equal(useGameStore.getState().requestFullMaintenance(["home-0"]).error, "busy");
+  assert.equal(useGameStore.getState().game!.money, started.money);
+  const finished = advanceFleetOperations(started, now, now + 8 * hour).game;
+  assert.ok(finished.fleet.every((aircraft) => !aircraft.lifecycle?.maintenance && aircraft.lifecycle?.condition === 100));
+  assert.equal(finished.money, started.money);
+  assert.equal(new Set(finished.fleet.map((aircraft) => aircraft.registration)).size, 100);
+});
+
+function homeReturnFixture() {
+  const game = fixture();
+  const current = { ...flight(game, "current", now - hour / 4), status: "in-flight" as const };
+  const back = { ...flight(game, "return", now + 3 * hour), originAirportId: "cdg", destinationAirportId: "lhr" };
+  const start = back.readyGameTime;
+  game.fleet[0] = { ...game.fleet[0], status: "in-flight", schedule: [current, back,
+    flight(game, "during-home-service", start + hour),
+    { ...flight(game, "wrong-after-service", start + 9 * hour), originAirportId: "cdg", destinationAirportId: "lhr" },
+    flight(game, "original-resume", start + 10 * hour)] };
+  return game;
+}
+
+test("full maintenance finishes the current leg, uses the existing home return, then resumes the original next eligible flight", () => {
+  const game = homeReturnFixture();
+  useGameStore.setState({ game });
+  assert.equal(useGameStore.getState().requestFullMaintenance(["plane-1"]).ok, true);
+  const queued = useGameStore.getState().game!;
+  assert.equal(queued.fleet[0].lifecycle!.maintenance, undefined);
+  assert.equal(queued.fleet[0].lifecycle!.reservation!.afterFlightId, "return");
+  assert.equal(routeAircraftAvailability(queued, queued.routes[0])[0].status, "maintenance");
+  assert.ok(!queued.fleet[0].schedule.some((flight) => flight.isMaintenanceFerry));
+  const start = game.fleet[0].schedule[1].readyGameTime;
+  const active = advanceFleetOperations(queued, now, start).game;
+  assert.equal(active.fleet[0].currentAirportId, "lhr");
+  assert.equal(active.fleet[0].lifecycle!.maintenance!.startedGameTimeMs, start);
+  assert.equal(active.fleet[0].schedule.find((flight) => flight.id === "during-home-service")!.status, "cancelled");
+  assert.equal(nextPostMaintenanceFlight(active.fleet[0], start)!.id, "original-resume");
+  const finished = advanceFleetOperations(active, start, start + 20 * hour).game;
+  assert.ok(finished.flightLog.some((flight) => flight.id === "original-resume"));
+  assert.equal(finished.fleet[0].schedule.find((flight) => flight.id === "wrong-after-service")!.cancellationReason, "position");
+  assert.equal(finished.fleet[0].lifecycle!.maintenance, undefined);
+  assert.equal(finished.fleet[0].lifecycle!.recovery, undefined);
+  assert.equal(finished.fleet[0].lifecycle!.lastMaintenance!.completesGameTimeMs, start + 8 * hour);
+});
+
+test("missing return creates one real empty ferry after the current leg, with costs but no market or contract flight", () => {
+  const game = homeReturnFixture();
+  game.fleet[0].schedule = game.fleet[0].schedule.slice(0, 1);
+  useGameStore.setState({ game });
+  useGameStore.getState().requestFullMaintenance(["plane-1"]);
+  const queued = useGameStore.getState().game!;
+  const ferry = queued.fleet[0].schedule.find((flight) => flight.isMaintenanceFerry)!;
+  assert.ok(ferry);
+  assert.equal(ferry.originAirportId, "cdg");
+  assert.equal(ferry.destinationAirportId, "lhr");
+  assert.equal(ferry.departureGameTime, game.fleet[0].schedule[0].readyGameTime);
+  const inFlight = advanceFleetOperations(queued, now, ferry.departureGameTime + 1).game;
+  assert.equal(inFlight.fleet[0].status, "in-flight");
+  assert.equal(inFlight.fleet[0].currentAirportId, "cdg");
+  assert.equal(inFlight.fleet[0].lifecycle!.maintenance, undefined);
+  const restored = normalizeGame(restoreGameStateFromCloudSave(JSON.parse(JSON.stringify(createCompactSaveState(inFlight)))))!;
+  const active = advanceFleetOperations(restored, inFlight.currentGameTimeMs, ferry.readyGameTime).game;
+  const completed = active.fleet[0].schedule.find((flight) => flight.id === ferry.id)!;
+  assert.equal(completed.revenue, 0);
+  assert.equal(completed.passengerCount, 0);
+  assert.equal(completed.cargoTons, 0);
+  assert.ok(completed.cost! > 0);
+  assert.equal(completed.profit, -completed.cost!);
+  assert.equal(active.completedFlights, 1);
+  assert.equal(active.companyGrowth!.progress.flights, 1);
+  assert.equal(active.fleet[0].lifecycle!.flightCycles, 2);
+  assert.equal(active.fleet[0].currentAirportId, "lhr");
+  assert.equal(active.fleet[0].lifecycle!.maintenance!.startedGameTimeMs, ferry.readyGameTime);
+  assert.deepEqual(active.routes, game.routes);
+  assert.ok(active.routeMarket!.windows.every((window) => !window.bookedFlightIds.includes(ferry.id)));
+  assert.equal(active.fleet[0].schedule.filter((flight) => flight.isMaintenanceFerry).length, 1);
+});
+
+test("grounded-away aircraft can request an empty recovery ferry without executing passenger flights", () => {
+  const game = fixture();
+  game.fleet[0].currentAirportId = "cdg";
+  game.fleet[0].lifecycle!.condition = 20;
+  game.fleet[0].lifecycle!.reservation = { kind: "service", afterFlightId: "missing", state: "blocked", error: "grounded" };
+  game.fleet[0].schedule = [flight(game, "should-not-fly", now + hour)];
+  useGameStore.setState({ game });
+  assert.equal(useGameStore.getState().requestFullMaintenance(["plane-1"]).ok, true);
+  const queued = useGameStore.getState().game!;
+  assert.equal(queued.fleet[0].status, "in-flight");
+  const ferry = queued.fleet[0].schedule.find((flight) => flight.isMaintenanceFerry)!;
+  const finished = advanceFleetOperations(queued, now, ferry.readyGameTime + 8 * hour).game;
+  assert.equal(finished.fleet[0].lifecycle!.condition, 100);
+  assert.equal(finished.fleet[0].currentAirportId, "lhr");
+  assert.equal(finished.completedFlights, 0);
+  assert.equal(finished.passengerCount, 0);
+  assert.equal(finished.cargoTransportedTons, 0);
+  assert.equal(finished.fleet[0].schedule.find((flight) => flight.id === "should-not-fly")!.status, "cancelled");
+  const repeated = advanceFleetOperations(finished, finished.currentGameTimeMs, finished.currentGameTimeMs).game;
+  assert.equal(repeated.money, finished.money);
+  assert.equal(repeated.fleet[0].lifecycle!.totalMaintenanceCashCost, finished.fleet[0].lifecycle!.totalMaintenanceCashCost);
+});
+
+test("insufficient maintenance funds wait at home and restart at funding time without backdating or duplicate charges", () => {
+  const game = fixture();
+  game.money = 0;
+  game.fleet[0].lifecycle!.condition = 20;
+  useGameStore.setState({ game });
+  useGameStore.getState().requestFullMaintenance(["plane-1"]);
+  const waiting = useGameStore.getState().game!;
+  assert.equal(waiting.money, 0);
+  assert.equal(waiting.fleet[0].lifecycle!.reservation!.error, "cash");
+  const funded = { ...waiting, money: 1e6, currentGameTimeMs: now + 2 * hour };
+  const started = advanceFleetOperations(funded, funded.currentGameTimeMs, funded.currentGameTimeMs).game;
+  assert.equal(started.fleet[0].lifecycle!.maintenance!.startedGameTimeMs, now + 2 * hour);
+  assert.ok(started.money < funded.money);
+  assert.equal(started.fleet[0].lifecycle!.reservation, undefined);
+  assert.equal(advanceFleetOperations(started, started.currentGameTimeMs, started.currentGameTimeMs).game.money, started.money);
+});
+
+test("full-maintenance requests are idempotent while returning and cancellation cannot abort an airborne ferry", () => {
+  const game = fixture();
+  game.fleet[0].currentAirportId = "cdg";
+  useGameStore.setState({ game });
+  useGameStore.getState().requestFullMaintenance(["plane-1"]);
+  const first = useGameStore.getState().game!;
+  useGameStore.getState().requestFullMaintenance(["plane-1"]);
+  assert.equal(useGameStore.getState().game!.fleet[0].schedule.filter((flight) => flight.isMaintenanceFerry).length, 1);
+  assert.equal(useGameStore.getState().game!.money, first.money);
+  useGameStore.getState().cancelMaintenanceReservation("plane-1");
+  const cancelled = useGameStore.getState().game!;
+  assert.equal(cancelled.fleet[0].lifecycle!.reservation, undefined);
+  assert.equal(cancelled.fleet[0].schedule.find((flight) => flight.isMaintenanceFerry)!.status, "in-flight");
+});
+
+test("a return outside aircraft range reports a blocked plan rather than teleporting or flying impossible distance", () => {
+  const game = fixture();
+  game.fleet[0].currentAirportId = "syd";
+  const planned = prepareHomeMaintenance({ ...game.fleet[0], lifecycle: { ...game.fleet[0].lifecycle!,
+    reservation: { kind: "service", mode: "home", state: "scheduled", requestedGameTimeMs: now } } }, now);
+  assert.equal(planned.lifecycle!.reservation!.error, "return");
+  assert.ok(!planned.schedule.some((flight) => flight.isMaintenanceFerry));
+  assert.equal(planned.currentAirportId, "syd");
+});
+
+test("return/ferry maintenance has identical stepped and catch-up settlement across a compact reload", () => {
+  const game = homeReturnFixture();
+  game.fleet[0].schedule = [game.fleet[0].schedule[0], game.fleet[0].schedule[4]];
+  useGameStore.setState({ game });
+  useGameStore.getState().requestFullMaintenance(["plane-1"]);
+  const queued = useGameStore.getState().game!;
+  const catchUp = advanceFleetOperations(structuredClone(queued), now, now + 30 * hour).game;
+  let stepped = structuredClone(queued);
+  for (let step = 1; step <= 60; step++) {
+    stepped = advanceFleetOperations(stepped, stepped.currentGameTimeMs, now + step * hour / 2).game;
+    if (step === 10) stepped = normalizeGame(restoreGameStateFromCloudSave(JSON.parse(JSON.stringify(createCompactSaveState(stepped)))))!;
+  }
+  assert.equal(stepped.money, catchUp.money);
+  assert.equal(stepped.totalProfit, catchUp.totalProfit);
+  assert.equal(stepped.completedFlights, catchUp.completedFlights);
+  assert.deepEqual(stepped.fleet[0].lifecycle, catchUp.fleet[0].lifecycle);
+  assert.deepEqual(JSON.parse(JSON.stringify(stepped.flightLog)), JSON.parse(JSON.stringify(catchUp.flightLog)));
+  assert.equal(stepped.fleet[0].currentAirportId, catchUp.fleet[0].currentAirportId);
+});
+
+test("full maintenance preserves the weekly calendar and automatically flies the next day after reload", () => {
+  const game = fixture();
+  game.fleet[0].weeklySchedules = [{ id: "kept-weekly", aircraftId: "plane-1", routeId: game.routes[0].id, outboundFlightNumber: "MA100",
+    returnFlightNumber: "MA101", daysOfWeek: [3, 4], departureTimeLocal: "07:00", isRoundTrip: true, blockMinutes: 180, turnaroundMinutes: 30,
+    recurrenceRule: "weekly", createdGameTime: now, createdAt: new Date(now).toISOString(), updatedAt: new Date(now).toISOString() }];
+  useGameStore.setState({ game });
+  useGameStore.getState().requestFullMaintenance(["plane-1"]);
+  const queued = useGameStore.getState().game!;
+  const weekly = structuredClone(queued.fleet[0].weeklySchedules);
+  assert.ok(queued.fleet[0].schedule.some((flight) => flight.status === "cancelled" && flight.weeklyScheduleId === "kept-weekly"));
+  const restored = normalizeGame(restoreGameStateFromCloudSave(JSON.parse(JSON.stringify(createCompactSaveState(queued)))))!;
+  const finished = advanceFleetOperations(restored, now, now + 30 * hour).game;
+  assert.deepEqual(finished.fleet[0].weeklySchedules, weekly);
+  assert.ok(finished.flightLog.some((flight) => flight.flightNumber === "MA100" && flight.completedGameTime > now + DAY_MS));
+  assert.equal(finished.fleet[0].lifecycle!.maintenance, undefined);
+});
+
+test("automatic return uses the aircraft home base, not the airline primary base", () => {
+  const game = fixture();
+  game.baseAirports = ["lhr", "cdg"];
+  game.fleet[0].homeBaseAirportId = "cdg";
+  useGameStore.setState({ game });
+  useGameStore.getState().requestFullMaintenance(["plane-1"]);
+  const requested = useGameStore.getState().game!;
+  const ferry = requested.fleet[0].schedule.find((flight) => flight.isMaintenanceFerry)!;
+  assert.equal(ferry.destinationAirportId, "cdg");
+  const finished = advanceFleetOperations(requested, now, ferry.readyGameTime + 8 * hour).game;
+  assert.equal(finished.fleet[0].currentAirportId, "cdg");
+  assert.equal(finished.primaryBaseAirport, "lhr");
+  assert.equal(finished.fleet[0].lifecycle!.condition, 100);
+});
+
+test("cancel and rebook while paused cannot duplicate a future ferry id or revive the cancelled leg", () => {
+  const game = homeReturnFixture();
+  game.fleet[0].schedule = game.fleet[0].schedule.slice(0, 1);
+  useGameStore.setState({ game });
+  useGameStore.getState().requestFullMaintenance(["plane-1"]);
+  useGameStore.getState().cancelMaintenanceReservation("plane-1");
+  const cancelled = useGameStore.getState().game!.fleet[0].schedule.find((flight) => flight.isMaintenanceFerry)!;
+  assert.equal(cancelled.status, "cancelled");
+  assert.equal(cancelled.actualDepartureGameTime, undefined);
+  useGameStore.getState().requestFullMaintenance(["plane-1"]);
+  const rebooked = useGameStore.getState().game!;
+  const ferries = rebooked.fleet[0].schedule.filter((flight) => flight.isMaintenanceFerry);
+  assert.equal(new Set(ferries.map((flight) => flight.id)).size, 2);
+  const finished = advanceFleetOperations(rebooked, now, now + 20 * hour).game;
+  assert.equal(finished.fleet[0].schedule.filter((flight) => flight.isMaintenanceFerry && flight.status === "completed").length, 1);
+  assert.equal(finished.fleet[0].schedule.find((flight) => flight.id === cancelled.id)?.status, "cancelled");
+  assert.equal(finished.fleet[0].lifecycle!.flightCycles, 2);
+});
 
 test("cancelled one-off flights do not occupy route capacity or create turnaround blocks", () => {
   const game = fixture();

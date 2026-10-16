@@ -44,7 +44,7 @@ export function routeAircraftAvailability(game: GameState, route: Route): RouteA
     const lifecycle = normalizeAircraftLifecycle(aircraft, game.currentGameTimeMs);
     const maintenance = getMaintenanceStatus(lifecycle, game.currentGameTimeMs);
     if (maintenance === "grounded") return row("grounded");
-    if (lifecycle.maintenance) return row("maintenance");
+    if (lifecycle.maintenance || lifecycle.reservation?.mode === "home") return row("maintenance");
     if (!aircraft.weeklySchedules.length && aircraft.currentAirportId !== route.originAirportId &&
       !aircraft.schedule.some((item) => item.status === "in-flight" && item.destinationAirportId === route.originAirportId)) return row("position");
 

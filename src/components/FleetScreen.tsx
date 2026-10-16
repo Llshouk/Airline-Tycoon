@@ -2,6 +2,7 @@
 
 import { ChevronDown, ChevronRight, Plane, Wrench } from "lucide-react";
 import { MaintenancePlanner } from "@/components/MaintenancePlanner";
+import { AircraftMaintenanceProgress } from "@/components/AircraftMaintenanceProgress";
 import { useEffect, useMemo, useState } from "react";
 import { AircraftDetailPanel } from "@/components/AircraftDetailPanel";
 import { AircraftSideImage } from "@/components/AircraftSideImage";
@@ -34,8 +35,8 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
 
   useEffect(() => {
     if (!selectedAircraftId) return;
-    if (!filteredFleet.some((aircraft) => aircraft.id === selectedAircraftId)) setSelectedAircraftId(null);
-  }, [filteredFleet, selectedAircraftId]);
+    if (!game?.fleet.some((aircraft) => aircraft.id === selectedAircraftId)) setSelectedAircraftId(null);
+  }, [game, selectedAircraftId]);
 
   if (!game) return null;
 
@@ -71,13 +72,13 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
       <div className="flex flex-wrap items-center gap-3 border-y border-slate-200 py-3">
         <label className="flex items-center gap-2 text-sm font-bold text-ink">
           {t("alerts.filter")}
-          <select value={conditionFilter} onChange={(event) => setConditionFilter(event.target.value as FleetAlertFilter)}
+          <select value={conditionFilter} onChange={(event) => { setConditionFilter(event.target.value as FleetAlertFilter); setSelectedAircraftId(null); }}
             className="h-10 max-w-[220px] rounded-md border border-slate-300 bg-white px-2">
             {FLEET_ALERT_FILTERS.map((key) => <option key={key} value={key}>{t(`alerts.${key}`)}</option>)}
           </select>
         </label>
         <label className="flex items-center gap-2 text-sm font-bold text-ink">
-          <input type="checkbox" checked={needsService} onChange={(event) => setNeedsService(event.target.checked)} />
+          <input type="checkbox" checked={needsService} onChange={(event) => { setNeedsService(event.target.checked); setSelectedAircraftId(null); }} />
           {t("maintenance.needsService")}
         </label>
         <button type="button" disabled={!filteredFleet.length} onClick={() => setShowPlanner(true)}
@@ -147,9 +148,10 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
                             <span className="mt-1 block h-1.5 w-24 max-w-full overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
                               <span className="block h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, lifecycle.condition))}%`, backgroundColor: maintenanceStatus === "healthy" ? "#4f9d7e" : "#d76745" }} />
                             </span>
-                            {lifecycle.reservation ? <span className="mt-1 block text-coral">
+                            {lifecycle.reservation?.mode !== "home" && lifecycle.reservation ? <span className="mt-1 block text-coral">
                               {t(lifecycle.reservation.state === "blocked" ? "maintenance.blocked" : "maintenance.reserved")}
                             </span> : null}
+                            <AircraftMaintenanceProgress aircraft={aircraft} game={game} compact />
                           </span>
                         </button>
                       );

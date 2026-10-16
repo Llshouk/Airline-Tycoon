@@ -147,10 +147,12 @@ export interface AircraftMaintenanceTask {
 
 export interface AircraftMaintenanceReservation {
   kind: MaintenanceKind;
-  afterFlightId: string;
+  afterFlightId?: string;
+  mode?: "home";
+  requestedGameTimeMs?: number;
   state: "scheduled" | "blocked";
   startsAfterGameTimeMs?: number;
-  error?: "missing" | "cash" | "grounded";
+  error?: "missing" | "cash" | "grounded" | "return";
 }
 
 export interface AircraftLifecycle {
@@ -167,6 +169,7 @@ export interface AircraftLifecycle {
   maintenance?: AircraftMaintenanceTask;
   reservation?: AircraftMaintenanceReservation;
   recovery?: { startsGameTimeMs: number; completesGameTimeMs: number; airportId: string };
+  lastMaintenance?: Pick<AircraftMaintenanceTask, "kind" | "startedGameTimeMs" | "completesGameTimeMs">;
 }
 
 export interface ScheduleItem {
@@ -193,13 +196,14 @@ export interface ScheduleItem {
   readyGameTime: number;
   status: FlightStatus;
   isRecurring?: boolean;
+  isMaintenanceFerry?: boolean;
   operatingDay?: DayOfWeek;
   revenue?: number;
   cost?: number;
   profit?: number;
   passengerCount?: number;
   cargoTons?: number;
-  cancellationReason?: "maintenance" | "position";
+  cancellationReason?: "maintenance" | "position" | "returnToBase";
   booking?: FlightBooking;
 }
 

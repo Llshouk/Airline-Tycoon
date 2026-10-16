@@ -34,8 +34,10 @@ Release: V1.7.3 - Cabin Product Gallery
 - Compare aircraft operating profit, margin, break-even load factor, and route suitability
 - Track aircraft age, flight hours, cycles, condition, and reliability
 - Inspect and service aircraft, review reserve-funded costs, and recover grounded aircraft
-- Reserve maintenance after a chosen flight and preview conflicting cancellations
-- Book maintenance for multiple independent aircraft and retain weekly timetable templates
+- Request one-click full maintenance after automatic return to the aircraft's home base
+- Use an empty recovery ferry when no scheduled return is available
+- Maintain multiple aircraft simultaneously and retain weekly timetable templates
+- Inspect each aircraft's maintenance percentage, remaining game time and next eligible flight in Fleet
 - Create weekly flight schedules
 - View aircraft movement on a Leaflet 2D map or MapLibre GL 3D globe
 - Evaluate route quality, risk, demand, aircraft fit, and recommended aircraft
@@ -99,7 +101,7 @@ Permanent company development points now unlock passenger charters at 2,500 DP a
 
 The Finance flight log remains capped at 60 records. Reports retain up to 90 simulated UTC days; aircraft/route diagnostics retain seven calendar days including today. Old saves begin reporting when upgraded, without fabricating earlier history; incomplete periods are marked. Flight profit is simplified operating contribution, not audited airline net profit: acquisition is separate investment spending, while depreciation, tax and head-office costs remain deferred. See [financial reports](docs/financial-reports.md) for rules and V1.5.3 balance samples, and [earlier economy balance](docs/economy-balance.md) for V1.5.2 history.
 
-Maintenance can start immediately on the ground or after a selected flight lands and completes turnaround. Night demand is simplified for all passenger routes, with gentler long-haul effects and no cargo red-eye penalty. Airport night planning rules are optional and default off. Workshop capacity, replacement aircraft and more detailed operating rules are deferred. This remains a playable prototype, not an airworthiness simulator. See [maintenance rules](docs/aircraft-maintenance.md) and [code health review](docs/code-health-review.md) for assumptions and follow-up work.
+One-click full maintenance returns each aircraft to its own home base, using an empty ferry when needed. Multiple aircraft can be maintained simultaneously without workshop limits. Fleet shows independent progress, and original weekly timetables resume after conflicting dated flights are skipped. Night demand is simplified for all passenger routes, with gentler long-haul effects and no cargo red-eye penalty. Airport night planning rules are optional and default off. Replacement aircraft and more detailed operating rules are deferred. This remains a playable prototype, not an airworthiness simulator. See [maintenance rules](docs/aircraft-maintenance.md) and [code health review](docs/code-health-review.md) for assumptions and follow-up work.
 
 ## Map Configuration
 

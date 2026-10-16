@@ -52,7 +52,7 @@ export function createMarketAllocator(game: GameState) {
     const current = new Set<string>();
     for (const item of aircraft.schedule) {
       const route = routes.get(item.routeId);
-      if (!route || item.status === "cancelled" || item.status === "completed" || item.booking || item.operationalStatus === "grounded") continue;
+      if (!route || item.isMaintenanceFerry || item.status === "cancelled" || item.status === "completed" || item.booking || item.operationalStatus === "grounded") continue;
       current.add(item.id);
       const old = indexed.get(item.id);
       if (old && old.departure === item.departureGameTime && old.layout === aircraft.cabinLayout &&

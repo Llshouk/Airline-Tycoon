@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current working version: `1.7.3`
-- Latest published release / development baseline: V1.7.2 (`589411d83c27fdef4dd845e2cfe0583b34efc371`)
+- Latest published release / development baseline: V1.7.3 (`8fcafb302b2fc4c035f85a0d6a8635ebe32f35fa`)
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
@@ -16,7 +16,7 @@
 - V1.7.0 release baseline: `89310ef7d975d47417926578a5b002bd93d45fe6`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Cabin/route follow-up published checkpoint: `a66f24eae852be4d6e59e1ce8185ffec4ba62f94`
-- Release status: V1.7.3 verified locally; user authorized commit/push to Llshouk/Airline-Tycoon main on 2026-10-16
+- Release status: one-click home maintenance follow-up verified; user authorized commit/push to Llshouk/Airline-Tycoon main on 2026-10-16, version remains 1.7.3
 - Latest focused review date: 2026-10-16
 - Latest successful production build: V1.7.3 `pnpm run build` passed on 2026-10-16 with Next.js 15.5.24
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
@@ -26,20 +26,52 @@
 
 - Current major version: V1
 - Current minor version: V1.7.3
-- Current release objective: realistic Basic/Premium/Luxury concepts for all cabins and focused UI conflict repairs
+- Current release objective: simplify full maintenance into automatic home return, unlimited parallel work, timetable recovery and per-aircraft Fleet progress
 - Completed roadmap systems: airline setup, fleet and aircraft market, routes, schedules, cabin configuration, operating economics, maintenance and reliability, finance basics, local/cloud saves, bilingual UI, Leaflet 2D map, and optional MapLibre globe
-- Simplified maintenance scope: immediate ground work, dated after-flight reservations, conflict cancellation/recovery, and batch booking work; workshop capacity, replacement aircraft and model-specific verified limits remain TODOs
+- Simplified maintenance scope: one-click home return/ferry, unlimited parallel work, dated conflict cancellation/recovery and Fleet progress; replacement aircraft and model-specific verified limits remain TODOs
 - The earlier V1.6.0 reputation plan became Contracts and Company Growth. The user has now approved local development of cabin products and Passenger Experience after V1.7.0; alliances and airline-wide loyalty effects remain deferred.
-- Release-gate status: V1.7.3 has 158 automated tests, typecheck, lint, optimized build, responsive browser acceptance and offline gallery checks passing; no dependencies added
+- Release-gate status: maintenance follow-up has 169 automated tests, typecheck, lint, optimized build and responsive browser acceptance passing; no dependencies added
 
 ## Current Objective
 
-Publish the verified V1.7.3 cabin gallery/UI update to Llshouk/Airline-Tycoon
-main with the user's 2026-10-16 authorization. Preserve gameplay, independent
-aircraft, canonical money, finite markets and save schemas. Leave the separate
-untracked docs/ROADMAP.md discussion draft and ignored local files untouched.
-Verify the remote commit after push. No monitor-off was requested this time;
-local checks and a GitHub push do not verify live Supabase or Vercel deployment.
+Commit and push the verified one-click full maintenance follow-up to
+Llshouk/Airline-Tycoon main with the user's 2026-10-16 authorization. The aircraft
+finishes its current flight, returns to its own home base (empty ferry approved
+if needed), maintains without workshop limits, then resumes its original next
+compatible timetable leg. Preserve canonical money, individual aircraft and
+weekly templates. Version remains 1.7.3; no monitor-off was requested. Keep
+docs/ROADMAP.md and ignored local files intact. Verify the remote commit after
+push; publication does not itself verify Vercel deployment or live Supabase.
+
+## One-Click Home Maintenance Follow-Up (2026-10-16)
+
+- Full maintenance is a direct detail action; batch full maintenance includes
+  idle/grounded/airborne aircraft and automatically chooses their home returns.
+- If no scheduled return exists, create one actual empty ferry, after the active
+  flight's turnaround. A grounded recovery ferry is a deliberate game exception;
+  normal passenger flights still cannot depart grounded or during work.
+- Ferry cost settles once as maintenance spending. It consumes no passenger
+  market, satisfaction, contract delivery or commercial flight count. Real
+  elapsed flight time, position, wear and reserve are retained. Direct range
+  and known airports are checked; automatic multi-stop ferries remain deferred.
+- Existing 8h/12h full service, reserve funding and canonical cash remain.
+  Insufficient cash waits/retries at base without backdating a later start.
+- Dated conflicts are cancelled; weekly templates remain and the next original
+  position-compatible leg resumes automatically. No teleportation or catch-up
+  income from cancelled flights. Latest maintenance completion is bounded to
+  one record per aircraft and survives compact local/cloud saves.
+- Fleet rows and detail show 0% returning/waiting, active percentage, remaining
+  game time, completion time, 100% completion and the next eligible flight.
+  Completion cannot close a detail merely because a live filter removes its row.
+- 169 unit tests pass, including 100 simultaneous aircraft, airborne and grounded
+  return, empty-ferry accounting, no duplicate settlement, cash retry timing,
+  own-base selection, same-time cancel/rebook uniqueness, weekly-template recovery and stepped/catch-up equivalence
+  across compact reload. Development/production UI checks pass EN/ZH at 1440x1000, 390x844,
+  320x740 and 844x390, including real clock progression, pause/reload, batch and
+  filtered-detail completion. Production 390px main UI smoke also passes map
+  camera retention, navigation, board/layers, route modal, purchase and legacy save.
+- Optional acceptance: tests/verifyHomeMaintenance.cjs. Docs:
+  docs/aircraft-maintenance.md. No dependency or database migration required.
 
 ## V1.7.3 Local Development (2026-10-16)
 
@@ -785,11 +817,11 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 ## Next Exact Action
 
-Commit and push verified V1.7.3 to origin/main, then compare the remote hash
-with local HEAD. The user authorized this follow-up; no new gameplay edits or
-monitor-off action are needed. Preserve docs/ROADMAP.md and ignored local files.
-Pre-release baseline is 589411d (V1.7.2). Dev preview remains localhost:3015.
-Distinguish GitHub publication from live Supabase/Vercel verification.
+Commit and push the verified home maintenance follow-up to origin/main, then
+compare the remote hash with local HEAD. The user has authorized this follow-up;
+version remains 1.7.3 and the pre-push baseline is 8fcafb3. Preserve docs/ROADMAP.md
+and ignored local files. Dev preview remains http://localhost:3015. Distinguish
+GitHub publication from live Supabase/Vercel deployment.
 
 ## Recovery Instructions
 

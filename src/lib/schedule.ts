@@ -2,6 +2,7 @@ import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { maintenancePreview } from "@/lib/maintenancePlanning";
 import { quoteMaintenance } from "@/lib/aircraftMaintenance";
+import { maintenanceFerryRoute } from "@/lib/homeMaintenance";
 import { dayOfWeekForGameTime, flightWaitMs, timeOfDayMs } from "@/lib/time";
 import type { AircraftInstance, DayOfWeek, Route, ScheduleItem, WeeklySchedule } from "@/types/game";
 
@@ -200,7 +201,7 @@ export function weeklyEventBlocksFromSchedule(aircraft: AircraftInstance, routes
   aircraft.schedule
     .filter((item) => item.status !== "completed")
     .forEach((item) => {
-      const route = routes.find((candidate) => candidate.id === item.routeId);
+      const route = maintenanceFerryRoute(item) ?? routes.find((candidate) => candidate.id === item.routeId);
       if (!route) return;
       const scheduledDeparture = item.scheduledDepartureGameTime ?? item.departureGameTime;
       const actualDeparture = item.actualDepartureGameTime ?? item.departureGameTime;

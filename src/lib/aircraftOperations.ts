@@ -6,6 +6,7 @@ import { pruneOperationalFlights } from "@/lib/cloudSave";
 import { flightWaitMs, turnaroundWaitMs } from "@/lib/time";
 import { bookingFromFinancials } from "@/lib/routeMarket";
 import { normalizePassengerExperience, recordPassengerExperience } from "@/lib/passengerExperience";
+import { maintenanceFerryRoute, prepareHomeMaintenance } from "@/lib/homeMaintenance";
 import type { FlightBooking } from "@/types/routeMarket";
 import type { FinanceEvent } from "@/types/finance";
 import type { AircraftInstance, FlightLogEntry, Route, ScheduleItem } from "@/types/game";
@@ -25,6 +26,7 @@ function deterministicNoise(seedText: string, salt: number) {
 /** Advances one chronological aircraft timeline. Only newly completed flights produce accounting entries. */
 export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Route[], now: number, difficulty: DifficultyConfig, availableCash = Infinity,
   bookFlight?: (aircraft: AircraftInstance, item: ScheduleItem, route: Route) => FlightBooking) {
+  aircraft = prepareHomeMaintenance(aircraft, now);
   const model = aircraftById[aircraft.modelId];
   let lifecycle = normalizeAircraftLifecycle(aircraft, now);
   let passengerExperience = aircraft.passengerExperience;
@@ -59,7 +61,7 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
     recovering = true;
   }
 
-  if (lifecycle.reservation && !aircraft.schedule.some((item) => item.id === lifecycle.reservation!.afterFlightId && item.status !== "cancelled")) {
+  if (lifecycle.reservation && lifecycle.reservation.mode !== "home" && !aircraft.schedule.some((item) => item.id === lifecycle.reservation!.afterFlightId && item.status !== "cancelled")) {
     lifecycle = { ...lifecycle, reservation: { ...lifecycle.reservation, state: "blocked", error: "missing" } };
   }
 
@@ -77,7 +79,7 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
       schedule.push(original);
       continue;
     }
-    const route = routes.find((candidate) => candidate.id === original.routeId);
+    const route = maintenanceFerryRoute(original) ?? routes.find((candidate) => candidate.id === original.routeId);
     if (!route || !model) {
       schedule.push(original);
       continue;
@@ -88,6 +90,17 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
       const baseDelayMinutes = item.baseDelayMinutes ?? item.delayMinutes ?? 0;
       let departure = Math.max(nominalDeparture + baseDelayMinutes * 60_000, readyGameTime);
       startReservation(departure);
+      const homePlan = lifecycle.reservation;
+      if (homePlan?.mode === "home" && item.id !== homePlan.afterFlightId) {
+        const anchor = aircraft.schedule.find((flight) => flight.id === homePlan.afterFlightId);
+        const heldUntil = anchor?.readyGameTime ?? homePlan.startsAfterGameTimeMs ?? now;
+        schedule.push(nominalDeparture <= now || nominalDeparture < heldUntil ? {
+          ...item, status: "cancelled", operationalStatus: "cancelled", cancellationReason: "returnToBase",
+          actualDepartureGameTime: undefined, actualArrivalGameTime: undefined,
+          revenue: 0, cost: 0, profit: 0, passengerCount: 0, cargoTons: 0, booking: undefined
+        } : item);
+        continue;
+      }
       const recovery = lifecycle.recovery;
       if (recovering && recovery && ((departure >= recovery.startsGameTimeMs && nominalDeparture < recovery.completesGameTimeMs) ||
         (nominalDeparture >= recovery.completesGameTimeMs && item.originAirportId !== timelineAirportId))) {
@@ -103,7 +116,7 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
       const maintenanceDelayMinutes = maintenanceEnd ? Math.max(0, (maintenanceEnd - departure) / 60_000) : (item.maintenanceDelayMinutes ?? 0);
       departure += maintenanceDelayMinutes * 60_000;
       lifecycle = completeAircraftMaintenance(lifecycle, Math.min(now, departure));
-      if (getMaintenanceStatus(lifecycle, Math.min(now, departure)) === "grounded") {
+      if (!item.isMaintenanceFerry && getMaintenanceStatus(lifecycle, Math.min(now, departure)) === "grounded") {
         if (lifecycle.reservation?.state === "scheduled") {
           lifecycle = { ...lifecycle, reservation: { ...lifecycle.reservation, state: "blocked", error: "grounded" } };
         }
@@ -139,13 +152,30 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
     readyGameTime = Math.max(readyGameTime, item.readyGameTime);
     timelineAirportId = item.destinationAirportId;
     if (now >= item.departureGameTime && !item.booking) {
-      const booking = bookFlight ? bookFlight(aircraft, item, route) : bookingFromFinancials(
+      const booking = item.isMaintenanceFerry ? bookingFromFinancials(estimateFlightFinancials(route, model, aircraft,
+        item.departureGameTime + item.arrivalGameTime, difficulty, { allocatedDemand: route.estimatedDemand,
+          departureGameTimeMs: item.departureGameTime, originAirportId: item.originAirportId }), aircraft)
+        : bookFlight ? bookFlight(aircraft, item, route) : bookingFromFinancials(
         estimateFlightFinancials(route, model, aircraft, item.departureGameTime + item.arrivalGameTime, difficulty,
           { departureGameTimeMs: item.departureGameTime, originAirportId: item.originAirportId }), aircraft);
       item = { ...item, booking };
     }
     if (now >= item.arrivalGameTime) {
       const booking = item.booking!;
+      if (item.isMaintenanceFerry) {
+        lifecycle = recordAircraftFlight(lifecycle, item.arrivalGameTime - item.departureGameTime, booking.costs[3]);
+        lifecycle = { ...lifecycle, totalMaintenanceCost: lifecycle.totalMaintenanceCost + booking.cost,
+          totalMaintenanceCashCost: lifecycle.totalMaintenanceCashCost + booking.cost };
+        currentAirportId = item.destinationAirportId;
+        maintenanceCashCost += booking.cost;
+        cash -= booking.cost;
+        financeEvents.push({ kind: "cash", gameTimeMs: item.arrivalGameTime, category: "extraMaintenance", delta: -booking.cost });
+        schedule.push({ ...item, status: "completed", operationalStatus: "arrived", revenue: 0, cost: booking.cost,
+          profit: -booking.cost, passengerCount: 0, cargoTons: 0 });
+        if (lifecycle.reservation?.afterFlightId === item.id) lifecycle = { ...lifecycle,
+          reservation: { ...lifecycle.reservation, startsAfterGameTimeMs: item.readyGameTime } };
+        continue;
+      }
       const experience = recordPassengerExperience(passengerExperience, booking, item.arrivalGameTime, item.delayMinutes ?? 0);
       passengerExperience = experience.history;
       lifecycle = recordAircraftFlight(lifecycle, item.arrivalGameTime - item.departureGameTime, booking.costs[3]);
