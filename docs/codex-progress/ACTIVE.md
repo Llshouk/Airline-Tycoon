@@ -5,7 +5,7 @@
 - Repository: `Llshouk/Airline-Tycoon` (`https://github.com/Llshouk/Airline-Tycoon.git`)
 - Branch: `main`
 - Current working version: `1.7.3`
-- Latest published release / development baseline: V1.7.3 home maintenance (`a8d966cabeedc657317ed4ee7a2a01f99cd39db4`)
+- Latest published release / development baseline: V1.7.3 legacy maintenance recovery (`5a43e1fe53bf42d2fe51f54aa12752385badb103`)
 - V1.3.9 baseline HEAD: `e1a2225b9cce5870be4bee647f823d8f86e69e17`
 - V1.3.9 release HEAD: `e629563`
 - V1.4.0 calculation checkpoint: `eb1a0e6`
@@ -16,7 +16,7 @@
 - V1.7.0 release baseline: `89310ef7d975d47417926578a5b002bd93d45fe6`
 - Audit-start HEAD: `490559e558544438dbc397a6b83e3cf4e08873bf`
 - Cabin/route follow-up published checkpoint: `a66f24eae852be4d6e59e1ce8185ffec4ba62f94`
-- Release status: legacy blocked-maintenance compatibility verified; user authorized commit/push to Llshouk/Airline-Tycoon main on 2026-10-17, version remains 1.7.3
+- Release status: legacy maintenance recovery pushed to main and Vercel deployment verified on 2026-10-17; acceptance timing follow-up only, version remains 1.7.3
 - Latest focused review date: 2026-10-17
 - Latest successful production build: V1.7.3 `pnpm run build` passed on 2026-10-17 with Next.js 15.5.24
 - Package manager: pnpm; `pnpm-lock.yaml` is authoritative and no npm/Yarn lockfile is present
@@ -34,14 +34,34 @@
 
 ## Current Objective
 
-Commit and push the verified legacy blocked-maintenance fix to
-Llshouk/Airline-Tycoon main with the user's 2026-10-17 authorization, then check
-https://airline-tycoon-brown.vercel.app/ for the new build marker. A fresh browser
-currently receives old maintenance code from that domain despite a8d966c being
-on origin/main; do not misdiagnose this solely as browser cache. Preserve cash,
-fleet, weekly templates, valid reservations and paid active work. Version remains
-1.7.3; no monitor-off was requested. Keep docs/ROADMAP.md and ignored local files
-intact. GitHub publication alone does not verify Vercel deployment or Supabase.
+Finish the resumed acceptance follow-up without changing game functionality.
+Commit 5a43e1f is on origin/main, Vercel reports success, and
+https://airline-tycoon-brown.vercel.app/ serves home-return-v2 with the exact
+revision. Isolated live EN/ZH tests now confirm maintenance completion and original
+flight recovery. Keep the one-second persistence debounce in the game; the test
+must flush paused saves before reading them. Preserve docs/ROADMAP.md, ignored
+local files and version 1.7.3. No monitor-off or live account testing was requested.
+
+## Resumed Live Maintenance Acceptance (2026-10-17)
+
+- The final failed assertion read localStorage immediately after pausing; the
+  adapter batches writes for one second. It saw the earlier four-hour snapshot,
+  not a stuck maintenance task. Advancing the paused test clock for 1.1 seconds
+  flushes persistence without advancing game time. Runtime logic is unchanged.
+- Live tests on the user's production domain pass 1440x1000 EN, 390x844 ZH,
+  320x740 EN and 844x390 ZH with isolated disposable browser storage: legacy
+  grounded reservation recovery, one empty ferry, 50/100% progress, pause/reload,
+  independent completion, no second charge and the original next flight.
+- Wait for initial map downloads to settle before fast-forwarding the browser
+  clock; otherwise the synthetic jump can expire Webpack's loading timeout
+  while a real network response is still in flight. No errors after this wait.
+- The shared optional browser verifier now flushes paused saves and waits for
+  initial resources. Live tests start in each language separately: with Supabase
+  configured, changing language during an offline session returns to the login
+  gate because AuthGate resubscribes on translation changes. That independent
+  auth/UI issue is recorded, not fixed or hidden by this maintenance follow-up.
+- No real user's save, Supabase row, environment configuration or game feature
+  was modified by the resumed verification.
 
 ## Legacy Blocked Maintenance Recovery (2026-10-17)
 
@@ -841,12 +861,11 @@ These checks remain useful external acceptance coverage and are not claimed as c
 
 ## Next Exact Action
 
-Commit and push the verified legacy compatibility fix to origin/main, then
-compare the remote hash with local HEAD. The user authorized this on 2026-10-17;
-version remains 1.7.3 and the pre-push baseline is a8d966c. Check the user's public
-domain for home-return-v2 and the new revision; if absent, report deployment as
-unverified rather than asking the user to delete saves. Preserve docs/ROADMAP.md
-and ignored local files. Dev preview remains http://localhost:3015.
+Verify and publish the test/documentation-only acceptance follow-up to main.
+The runtime fix is already deployed as 5a43e1f and live maintenance recovery has
+passed; no further gameplay repair is needed for the failed assertion. Keep
+version 1.7.3 and preserve docs/ROADMAP.md. Offline language-switch session reset
+is a separately recorded issue; authenticated Supabase acceptance remains deferred.
 
 ## Recovery Instructions
 

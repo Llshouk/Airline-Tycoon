@@ -106,6 +106,18 @@ protect paid active work from duplicate service and charges. The page includes
 the public Git revision so deployment can be verified independently of the
 unchanged 1.7.3 title. Local checks do not imply a deployed-site update.
 
+Commit 5a43e1f was subsequently confirmed on origin/main and successfully deployed
+by Vercel. The user's production domain serves home-return-v2 and that exact Git
+revision. Resumed isolated live checks pass at 1440x1000 EN, 390x844 ZH,
+320x740 EN and 844x390 ZH: legacy recovery, one empty ferry, 50/100% progress,
+pause/reload, once-only cash and the original next flight. The earlier completion
+assertion had read the previous localStorage snapshot before the adapter's
+one-second write debounce. The optional verifier now flushes saves while paused
+and waits for initial resource downloads before synthetic clock jumps; no game
+timing or maintenance change was needed. Live checks use each language from
+entry, not a language switch during an offline session; the latter independently
+resets the configured Supabase auth gate and remains a documented follow-up.
+
 The 2026-10-16 one-click follow-up passes 169 automated tests, including 100
 simultaneous home-base services, existing and empty-ferry returns, grounded
 recovery, original weekly departures after reload, cash retry timing,

@@ -46,6 +46,13 @@ async function jump(page, hours, language = "en") {
   await page.getByRole("button", { name: language === "en" ? "Resume simulation" : "继续模拟", exact: true }).click();
   await page.clock.fastForward(hours * hour / 100);
   await page.getByRole("button", { name: language === "en" ? "Pause simulation" : "暂停模拟", exact: true }).click();
+  await flushPausedSave(page);
+}
+
+async function flushPausedSave(page) {
+  // The real save adapter batches writes for one second; a paused clock must flush it.
+  await page.clock.runFor(1100);
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("airline-tycoon-v1")).state.game.isPaused);
 }
 
 async function main() {
@@ -68,6 +75,7 @@ async function main() {
       await page.clock.install();
       await page.goto(process.env.UI_CHECK_URL || "http://localhost:3015", { waitUntil: "networkidle", timeout: 90000 });
       await page.getByRole("button", { name: "Continue Offline", exact: true }).click();
+      await page.waitForLoadState("networkidle");
       if (process.env.LEGACY_MAINTENANCE_CHECK === "1") {
         const restored = await saved(page);
         assert.equal(restored.money, 1e9);
@@ -111,6 +119,7 @@ async function main() {
       await dialog.getByRole("button", { name: "Close", exact: true }).click();
       await page.reload({ waitUntil: "networkidle" });
       await page.getByRole("button", { name: "Continue Offline", exact: true }).click();
+      await page.waitForLoadState("networkidle");
       await navigate(page, "fleet");
       dialog = await openAircraft(page, "G-SVC1");
       assert.equal(Number(await dialog.getByRole("progressbar").getAttribute("value")), percent);
@@ -132,6 +141,7 @@ async function main() {
       assert.equal(await dialog.getByRole("progressbar").getAttribute("value"), "100", "Completion must not close a filtered aircraft detail");
       await dialog.getByRole("button", { name: "关闭", exact: true }).click();
       await page.getByRole("button", { name: "暂停模拟", exact: true }).click();
+      await flushPausedSave(page);
       const completed = await saved(page);
       assert.ok(completed.fleet.every((aircraft) => !aircraft.lifecycle.maintenance && aircraft.lifecycle.lastMaintenance));
       assert.equal(completed.money, middle.money, "Maintenance completion must not charge a second time");
