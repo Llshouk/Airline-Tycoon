@@ -107,7 +107,7 @@ export function RouteOpeningModal({ game, airportId, originId, onClose, onOpen, 
             if (!preview) return;
             const result = onOpen(preview);
             if (!result.ok) setError(result.message);
-          }} className="flex items-center gap-2 rounded-md bg-coral px-4 py-2 text-sm font-black text-white disabled:opacity-40"><Check size={18} />{t("routeOpening.title")}</button>
+          }} className="flex items-center gap-2 rounded-md bg-sign px-4 py-2 text-sm font-black text-apron hover:bg-sign-deep disabled:opacity-40"><Check size={18} />{t("routeOpening.title")}</button>
         </footer>
       </div>
     </section>

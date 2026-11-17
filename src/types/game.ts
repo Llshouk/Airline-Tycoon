@@ -203,7 +203,7 @@ export interface ScheduleItem {
   profit?: number;
   passengerCount?: number;
   cargoTons?: number;
-  cancellationReason?: "maintenance" | "position" | "returnToBase";
+  cancellationReason?: "maintenance" | "position" | "returnToBase" | "grounded";
   booking?: FlightBooking;
 }
 

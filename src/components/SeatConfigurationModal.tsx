@@ -79,7 +79,7 @@ export function SeatConfigurationModal({ model, configuration, registration, rou
       <section ref={panel} role="dialog" aria-modal="true" aria-labelledby="seat-configuration-title"
         className="animate-modal-in flex max-h-[94dvh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-6">
-          <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-normal text-slate-500">{model.manufacturer} / {model.model}</p>
+          <div className="min-w-0"><p className="text-[10px] font-bold text-slate-500">{model.manufacturer} / {model.model}</p>
             <h3 id="seat-configuration-title" className="text-lg font-black text-ink">{t("cabin.title")}</h3></div>
           <button type="button" onClick={onCancel} aria-label={t("cabin.close")} title={t("cabin.close")} className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-runway"><X size={22} /></button>
         </header>

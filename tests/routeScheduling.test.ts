@@ -8,6 +8,9 @@ import { generateWeeklyEvents } from "../src/lib/recurringFlights";
 import { maintenancePreview } from "../src/lib/maintenancePlanning";
 import { createRouteOpeningPreview, routeAircraftAvailability } from "../src/lib/routeScheduling";
 import { prepareWeeklySchedule } from "../src/lib/scheduleActions";
+import { buildRoutePolylinePoints, buildRoutePolylineSegments, interpolateRoutePosition } from "../src/lib/mapRoutePath";
+import { airportsById } from "../src/data/airports";
+import { distanceKm } from "../src/lib/geo";
 import { DAY_MS, WEEK_MS, dayOfWeekForGameTime } from "../src/lib/time";
 import type { DayOfWeek, GameState, WeeklySchedule } from "../src/types/game";
 
@@ -141,4 +144,53 @@ test("100 aircraft stay independent and a full fleet has no available entries", 
   assert.equal(new Set(rows.map((row) => row.aircraft.id)).size, 100);
   assert.equal(JSON.stringify(game), before);
   assert.ok(performance.now() - start < 2500);
+});
+
+test("timetable conflicts are judged on planned times, not on one dated flight's random delay", () => {
+  const base = fixture();
+  base.routes.push({ ...candidate.route, isOpen: true });
+  const first = prepareWeeklySchedule(base, { aircraftId: "plane-0", routeId: "lhr-cdg", daysOfWeek: [1], departureTimeLocal: "08:00",
+    isRoundTrip: true, outboundFlightNumber: "RT101", returnFlightNumber: "RT102" });
+  assert.equal(first.ok, true, first.message);
+  // Push the dated rotation three hours late, as an operational delay does once the engine has processed it.
+  const late = 180 * 60_000;
+  const delayed: GameState = { ...first.game!, fleet: first.game!.fleet.map((aircraft) => ({ ...aircraft,
+    schedule: aircraft.schedule.map((item) => ({ ...item, delayMinutes: 180, departureGameTime: item.departureGameTime + late,
+      arrivalGameTime: item.arrivalGameTime + late, readyGameTime: item.readyGameTime + late })) })) };
+  const second = (time: string) => prepareWeeklySchedule(delayed, { aircraftId: "plane-0", routeId: candidate.route.id, daysOfWeek: [1],
+    departureTimeLocal: time, isRoundTrip: true, outboundFlightNumber: "RT201", returnFlightNumber: "RT202" });
+  assert.equal(second("08:30").ok, false, "a rotation planned inside another one must be rejected even while that one is running late");
+  assert.equal(second("13:00").ok, true, "a rotation planned after the first one is valid; the engine absorbs the delay");
+});
+
+test("map routes follow the great circle, and aircraft stay on the drawn line", () => {
+  const lhr = airportsById.lhr, jfk = airportsById.jfk, hnd = airportsById.hnd, lax = airportsById.lax, syd = airportsById.syd;
+  const atlantic = buildRoutePolylinePoints(lhr, jfk, 96);
+  assert.deepEqual(atlantic[0], { lat: lhr.lat, lng: lhr.lng });
+  assert.ok(Math.abs(atlantic[96].lat - jfk.lat) < 1e-6 && Math.abs(atlantic[96].lng - jfk.lng) < 1e-6);
+  // A real North Atlantic crossing bows north of both airports instead of running straight between them.
+  assert.ok(Math.max(...atlantic.map((point) => point.lat)) > Math.max(lhr.lat, jfk.lat) + 1);
+  // The path is no longer than the direct distance the economy already charges for.
+  const between = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const rad = Math.PI / 180;
+    const h = Math.sin((b.lat - a.lat) * rad / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin((b.lng - a.lng) * rad / 2) ** 2;
+    return 2 * 6371 * Math.asin(Math.sqrt(h));
+  };
+  const length = (points: { lat: number; lng: number }[]) => points.slice(1).reduce((sum, point, index) => sum + between(points[index], point), 0);
+  assert.ok(Math.abs(length(atlantic) - distanceKm(lhr, jfk)) < 5);
+  // Aircraft icons use the same curve as the line.
+  const halfway = interpolateRoutePosition(lhr, jfk, 0.5);
+  assert.ok(Math.abs(halfway.lat - atlantic[48].lat) < 1e-6 && Math.abs(halfway.lng - atlantic[48].lng) < 1e-6);
+  assert.deepEqual(interpolateRoutePosition(lhr, jfk, 0), { lat: lhr.lat, lng: lhr.lng });
+  assert.deepEqual(interpolateRoutePosition(lhr, jfk, 1), { lat: jfk.lat, lng: jfk.lng });
+  // Pacific crossings stay continuous while building and split cleanly at the date line.
+  for (const [from, to] of [[hnd, lax], [lax, syd], [syd, lax]] as const) {
+    const pacific = buildRoutePolylinePoints(from, to, 96);
+    assert.ok(pacific.slice(1).every((point, index) => Math.abs(point.lng - pacific[index].lng) < 20), "no jump between neighbouring points");
+    const segments = buildRoutePolylineSegments(from, to, 96);
+    assert.equal(segments.length, 2);
+    assert.ok(segments.flat().every((point) => point.lng >= -180 && point.lng <= 180 && Number.isFinite(point.lat)));
+    assert.ok(Math.abs(length(segments[0]) + length(segments[1]) - distanceKm(from, to)) < 10);
+  }
+  assert.deepEqual(buildRoutePolylinePoints(lhr, lhr, 4).map((point) => point.lat), Array(5).fill(lhr.lat));
 });

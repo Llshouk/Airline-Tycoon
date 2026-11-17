@@ -27,13 +27,16 @@ const model = aircraftById["737-max-8"];
 test("all cabin classes have distinct local photo atlases with accurate dimensions", () => {
   assert.deepEqual(Object.keys(CABIN_ARTWORK).sort(), [...CABIN_CLASSES].sort());
   assert.equal(new Set(Object.values(CABIN_ARTWORK).map((art) => art.src)).size, 4);
-  assert.equal(CABIN_ARTWORK.first.src, "/cabin/first-class-products-v172.png");
+  assert.equal(CABIN_ARTWORK.first.src, "/cabin/first-class-products-v172.webp");
   for (const art of Object.values(CABIN_ARTWORK)) {
     assert.ok(art.src.startsWith("/cabin/") && !art.src.includes("public/"));
     const bytes = readFileSync(join(process.cwd(), "public", art.src));
-    assert.equal(bytes.subarray(1, 4).toString(), "PNG");
-    assert.equal(bytes.readUInt32BE(16), art.width);
-    assert.equal(bytes.readUInt32BE(20), art.height);
+    // Lossy WebP: RIFF container, "VP8 " chunk, 14-bit little-endian frame size after the start code.
+    assert.equal(bytes.subarray(0, 4).toString(), "RIFF");
+    assert.equal(bytes.subarray(8, 16).toString(), "WEBPVP8 ");
+    assert.equal(bytes.readUInt16LE(26) & 0x3fff, art.width);
+    assert.equal(bytes.readUInt16LE(28) & 0x3fff, art.height);
+    assert.ok(bytes.length < 400_000, "cabin artwork must stay small enough to precache on mobile");
     assert.ok(Math.abs(art.width / (art.height / 3) - 16 / 9) < 0.01);
     for (const [index, [top, bottom]] of (art.frames ?? []).entries()) {
       assert.ok(top >= 0 && bottom > top && bottom <= art.height);

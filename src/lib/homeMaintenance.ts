@@ -5,6 +5,10 @@ import { distanceKm } from "@/lib/geo";
 import { flightWaitMs, turnaroundWaitMs } from "@/lib/time";
 import type { AircraftInstance, Route, ScheduleItem } from "@/types/game";
 
+// A timetabled return is only worth waiting for if it leaves soon; otherwise ferry home now
+// instead of holding the aircraft (and cancelling its other flights) for days.
+const MAX_RETURN_WAIT_MS = 12 * 60 * 60 * 1000;
+
 export function maintenanceFerryRoute(flight: ScheduleItem): Route | undefined {
   if (!flight.isMaintenanceFerry) return;
   const origin = airportsById[flight.originAirportId], destination = airportsById[flight.destinationAirportId];
@@ -25,9 +29,11 @@ export function prepareHomeMaintenance(aircraft: AircraftInstance, now: number):
   const retryCash = plan.state === "blocked" && plan.error === "cash";
   const active = aircraft.schedule.find((flight) => flight.status === "in-flight");
   const atBase = !active && aircraft.currentAirportId === aircraft.homeBaseAirportId;
+  const ready = Math.max(now, active?.readyGameTime ?? 0);
   const previous = aircraft.schedule.find((flight) => flight.id === plan.afterFlightId && flight.status !== "cancelled" &&
     flight.destinationAirportId === aircraft.homeBaseAirportId &&
-    (flight.status !== "scheduled" || flight.isMaintenanceFerry || lifecycle.condition > MAINTENANCE_RULES.groundingCondition));
+    (flight.status !== "scheduled" || flight.isMaintenanceFerry ||
+      (lifecycle.condition > MAINTENANCE_RULES.groundingCondition && flight.departureGameTime <= ready + MAX_RETURN_WAIT_MS)));
   const update = (afterFlightId?: string, startsAfterGameTimeMs?: number, ferry?: ScheduleItem): AircraftInstance => ({
     ...aircraft, schedule: ferry ? [...aircraft.schedule, ferry] : aircraft.schedule,
     lifecycle: { ...lifecycle, reservation: { ...plan, afterFlightId, startsAfterGameTimeMs, state: "scheduled", error: undefined } }
@@ -39,10 +45,10 @@ export function prepareHomeMaintenance(aircraft: AircraftInstance, now: number):
   }
   if (active?.destinationAirportId === aircraft.homeBaseAirportId) return update(active.id);
   const originId = active?.destinationAirportId ?? aircraft.currentAirportId;
-  const ready = Math.max(now, active?.readyGameTime ?? 0);
   const returning = lifecycle.condition > MAINTENANCE_RULES.groundingCondition && aircraft.schedule
     .filter((flight) => flight.status === "scheduled" && !flight.isMaintenanceFerry && flight.originAirportId === originId &&
-      flight.destinationAirportId === aircraft.homeBaseAirportId && flight.departureGameTime >= ready)
+      flight.destinationAirportId === aircraft.homeBaseAirportId && flight.departureGameTime >= ready &&
+      flight.departureGameTime <= ready + MAX_RETURN_WAIT_MS)
     .sort((a, b) => a.departureGameTime - b.departureGameTime)[0];
   if (returning) return update(returning.id);
   const origin = airportsById[originId], base = airportsById[aircraft.homeBaseAirportId];

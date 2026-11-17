@@ -1,6 +1,5 @@
 "use client";
 
-import { Activity, Banknote, CheckCircle2, Gauge, Package, Plane, TrendingUp, Users } from "lucide-react";
 import { useMemo } from "react";
 import { AircraftImage } from "@/components/AircraftImage";
 import { CompanyAge } from "@/components/CompanyAge";
@@ -14,96 +13,119 @@ import { formatGBP } from "@/lib/format";
 import { getRecommendedRouteOpportunities, type RouteGrade } from "@/lib/routeEvaluation";
 import { calculateDashboardStats } from "@/lib/stats";
 import { formatGameDate } from "@/lib/time";
-import { useGameStore } from "@/store/gameStore";
+import { usePanelGame } from "@/hooks/usePanelGame";
 import type { GameState } from "@/types/game";
 
 export function Dashboard({ onOpenAircraft, onOpenGoals }: { onOpenAircraft: (id: string) => void; onOpenGoals?: () => void }) {
   const { t } = useTranslation();
-  const game = useGameStore((state) => state.game);
+  const game = usePanelGame();
   const recommendedRoutes = useMemo(() => (game ? getRecommendedRouteOpportunities(game, 4) : []), [game]);
+  const departures = useMemo(() => (game ? game.fleet.flatMap((aircraft) => aircraft.schedule
+    .filter((item) => item.status === "scheduled" || item.status === "in-flight")
+    .map((item) => ({ item, aircraft })))
+    .sort((left, right) => (left.item.scheduledDepartureGameTime ?? left.item.departureGameTime) - (right.item.scheduledDepartureGameTime ?? right.item.departureGameTime)).slice(0, 8) : []), [game]);
   if (!game) return null;
   const base = airportsById[game.baseAirportId];
   const stats = calculateDashboardStats(game);
-  const nextFlights = game.fleet.flatMap((aircraft) =>
-    aircraft.schedule
-      .filter((item) => item.status === "scheduled" || item.status === "in-flight")
-      .map((item) => ({ item, aircraft }))
-  );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-black text-ink">{t("dashboard.title")}</h2>
-        <p className="text-slate-600">
-          {t("dashboard.base")}: {base.iata} {base.name}, {base.city}
+        <h2 className="screen-title">{t("dashboard.title")}</h2>
+        <p className="text-sm text-slate-600">
+          {t("dashboard.base")}: <span className="font-semibold text-ink">{base.iata} {base.name}, {base.city}</span>
         </p>
         <CompanyAge game={game} />
       </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Stat icon={Banknote} label={t("top.cash")} value={formatGBP.format(stats.cash)} />
-        <Stat icon={Plane} label={t("dashboard.ownedAircraft")} value={String(stats.aircraftOwned)} />
-        <Stat icon={Activity} label={t("dashboard.openRoutes")} value={String(stats.openRoutes)} />
-        <Stat icon={TrendingUp} label="Actual profit" value={formatGBP.format(stats.totalProfit)} />
-        <Stat icon={Users} label={t("dashboard.passengers")} value={stats.passengerCount.toLocaleString("en-GB")} />
-        <Stat icon={Package} label={t("dashboard.cargoMoved")} value={`${stats.cargoTransportedTons.toFixed(1)} t`} />
-        <Stat icon={Gauge} label={t("dashboard.speed")} value={game.isPaused ? "Paused" : `${game.timeMultiplier}x`} />
-        <Stat icon={CheckCircle2} label={t("dashboard.flights")} value={String(stats.completedFlights)} />
-      </div>
+
+      <dl className="figure-strip">
+        <Figure label={t("top.cash")} value={formatGBP.format(stats.cash)} tone={stats.cash < 0 ? "bad" : undefined} wide />
+        <Figure label={t("dashboard.profitToDate")} value={formatGBP.format(stats.totalProfit)} tone={stats.totalProfit < 0 ? "bad" : "good"} wide />
+        <Figure label={t("dashboard.ownedAircraft")} value={String(stats.aircraftOwned)} />
+        <Figure label={t("dashboard.openRoutes")} value={String(stats.openRoutes)} />
+        <Figure label={t("dashboard.flights")} value={stats.completedFlights.toLocaleString("en-GB")} />
+        <Figure label={t("dashboard.passengers")} value={stats.passengerCount.toLocaleString("en-GB")} />
+        <Figure label={t("dashboard.cargoMoved")} value={`${stats.cargoTransportedTons.toLocaleString("en-GB", { maximumFractionDigits: 1 })} t`} />
+      </dl>
+
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="flight-board">
+          <h3>{t("dashboard.departures")}</h3>
+          {departures.length === 0 ? <p className="flight-board-empty">{t("dashboard.noDepartures")}</p> : (
+            <div className="overflow-x-auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("dashboard.colTime")}</th>
+                    <th>{t("dashboard.colFlight")}</th>
+                    <th>{t("dashboard.colRoute")}</th>
+                    <th>{t("dashboard.colAircraft")}</th>
+                    <th>{t("dashboard.colStatus")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {departures.map(({ item, aircraft }) => {
+                    const delay = item.delayMinutes ?? 0;
+                    const state = item.status === "in-flight" ? "airborne" : item.operationalStatus === "grounded" ? "held" : delay > 0 ? "late" : "ontime";
+                    return (
+                      <tr key={item.id}>
+                        <td className="flight-board-time">{formatGameDate(item.scheduledDepartureGameTime ?? item.departureGameTime)}</td>
+                        <td>{item.flightNumber ?? (item.isMaintenanceFerry ? t("dashboard.ferry") : "")}</td>
+                        <td className="flight-board-route">{airportsById[item.originAirportId].iata}<span aria-hidden="true"> – </span><span className="sr-only"> to </span>{airportsById[item.destinationAirportId].iata}</td>
+                        <td>{aircraft.registration}</td>
+                        <td><span className={`flight-board-status is-${state}`}>
+                          {state === "airborne" ? t("status.in-flight") : state === "held" ? t("maintenance.status.grounded")
+                            : state === "late" ? `${t("airport.delayed")} +${delay}${t("maintenance.minuteUnit")}` : t("airport.onTime")}
+                        </span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <RecommendedRoutesPanel opportunities={recommendedRoutes} game={game} />
+      </section>
+
       <FleetAlerts game={game} onOpenAircraft={onOpenAircraft} />
       <PassengerSatisfaction fleet={game.fleet} now={game.currentGameTimeMs} company />
       <CompanyGrowthSummary game={game} onOpen={onOpenGoals} />
-      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-          <div className="mb-3 flex items-center gap-2">
-            <CheckCircle2 size={20} className="text-mint" />
-            <h3 className="font-bold text-ink">Operations snapshot</h3>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <Small label={t("finance.completedFlights")} value={String(stats.completedFlights)} />
-            <Small label="Expanded airports" value={String(game.expandedAirportIds.length)} />
-            <Small label="Current game time" value={formatGameDate(game.currentGameTimeMs)} />
-            <Small label="Active aircraft" value={String(stats.activeAircraft)} />
-            <Small label="Aircraft in flight" value={String(stats.aircraftInFlight)} />
-            <Small label="Scheduled weekly flights" value={String(stats.scheduledWeeklyFlights)} />
-            <Small label="Actual revenue" value={formatGBP.format(stats.totalRevenue)} />
-            <Small label="Actual operating cost" value={formatGBP.format(stats.totalOperatingCost)} />
-            <Small label="Company valuation" value={formatGBP.format(stats.companyValuation)} />
-            <Small label="Estimated weekly revenue" value={formatGBP.format(stats.estimatedWeeklyRevenue)} />
-            <Small label="Estimated weekly cost" value={formatGBP.format(stats.estimatedWeeklyCost)} />
-            <Small label="Estimated weekly profit" value={formatGBP.format(stats.estimatedWeeklyProfit)} />
-          </div>
-          <div className="mt-4 overflow-x-auto rounded-md border border-slate-200">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-normal text-slate-500">
+
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 rounded-lg border border-slate-200 bg-white">
+          <h3 className="px-4 pt-4 text-lg font-bold text-ink">{t("dashboard.fleetStatus")}</h3>
+          <div className="mt-2 overflow-x-auto">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="px-3 py-2">Aircraft</th>
-                  <th className="px-3 py-2">Model</th>
-                  <th className="px-3 py-2">Location</th>
-                  <th className="px-3 py-2">Status</th>
+                  <th>{t("dashboard.colAircraft")}</th>
+                  <th>{t("dashboard.colModel")}</th>
+                  <th>{t("dashboard.colLocation")}</th>
+                  <th>{t("dashboard.colStatus")}</th>
                 </tr>
               </thead>
               <tbody>
                 {game.fleet.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-3 py-5 text-center text-slate-500">
-                      Buy an aircraft to begin operations.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={4} className="py-6 text-center text-slate-500">{t("dashboard.buyFirst")}</td></tr>
                 ) : (
                   game.fleet.map((aircraft) => {
                     const model = aircraftById[aircraft.modelId];
                     const airport = airportsById[aircraft.currentAirportId];
+                    const troubled = aircraft.status === "maintenance" || aircraft.status === "grounded";
                     return (
-                      <tr key={aircraft.id} className="border-t border-slate-100">
-                        <td className="px-3 py-2 font-semibold">
-                          <div className="flex items-center gap-2">
-                            {model ? <AircraftImage model={model} className="h-10 w-16 shrink-0" /> : null}
+                      <tr key={aircraft.id}>
+                        <td>
+                          <button type="button" onClick={() => onOpenAircraft(aircraft.id)} className="flex items-center gap-3 text-left font-semibold text-ink hover:text-jet">
+                            {model ? <AircraftImage model={model} className="h-9 w-16 shrink-0" /> : null}
                             <span>{aircraft.registration}</span>
-                          </div>
+                          </button>
                         </td>
-                        <td className="px-3 py-2">{model?.manufacturer} {model?.model}</td>
-                        <td className="px-3 py-2">{airport?.iata}</td>
-                        <td className="px-3 py-2">{aircraft.status === "maintenance" || aircraft.status === "grounded" ? t(`maintenance.status.${aircraft.status}`) : t(`status.${aircraft.status}`)}</td>
+                        <td>{model?.manufacturer} {model?.model}</td>
+                        <td>{airport?.iata}</td>
+                        <td className={aircraft.status === "grounded" ? "font-semibold text-coral" : aircraft.status === "maintenance" ? "font-semibold text-caution" : ""}>
+                          {troubled ? t(`maintenance.status.${aircraft.status as "maintenance" | "grounded"}`) : t(`status.${aircraft.status as "idle" | "scheduled" | "in-flight"}`)}
+                        </td>
                       </tr>
                     );
                   })
@@ -112,27 +134,20 @@ export function Dashboard({ onOpenAircraft, onOpenGoals }: { onOpenAircraft: (id
             </table>
           </div>
         </div>
-        <div className="space-y-4">
-          <RecommendedRoutesPanel opportunities={recommendedRoutes} game={game} />
-          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-            <h3 className="font-bold text-ink">Upcoming flights</h3>
-            <div className="mt-3 space-y-3">
-              {nextFlights.length === 0 ? (
-                <p className="text-sm text-slate-500">No scheduled flights yet.</p>
-              ) : (
-                nextFlights.slice(0, 5).map(({ item, aircraft }) => (
-                  <div key={item.id} className="rounded-md border border-slate-200 p-3">
-                    <p className="font-semibold text-ink">
-                      {airportsById[item.originAirportId].iata} to {airportsById[item.destinationAirportId].iata}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {aircraft.registration} departs {formatGameDate(item.departureGameTime)}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <h3 className="text-lg font-bold text-ink">{t("dashboard.figures")}</h3>
+          <dl className="ledger mt-2">
+            <Ledger label={t("dashboard.revenueToDate")} value={formatGBP.format(stats.totalRevenue)} />
+            <Ledger label={t("dashboard.costToDate")} value={formatGBP.format(stats.totalOperatingCost)} />
+            <Ledger label={t("dashboard.valuation")} value={formatGBP.format(stats.companyValuation)} />
+            <Ledger label={t("dashboard.weeklyRevenue")} value={formatGBP.format(stats.estimatedWeeklyRevenue)} />
+            <Ledger label={t("dashboard.weeklyCost")} value={formatGBP.format(stats.estimatedWeeklyCost)} />
+            <Ledger label={t("dashboard.weeklyProfit")} value={formatGBP.format(stats.estimatedWeeklyProfit)} />
+            <Ledger label={t("dashboard.weeklyFlights")} value={String(stats.scheduledWeeklyFlights)} />
+            <Ledger label={t("dashboard.activeAircraft")} value={`${stats.activeAircraft} / ${stats.aircraftOwned}`} />
+            <Ledger label={t("dashboard.inFlight")} value={String(stats.aircraftInFlight)} />
+            <Ledger label={t("dashboard.airportsServed")} value={String(game.expandedAirportIds.length)} />
+          </dl>
         </div>
       </section>
     </div>
@@ -142,9 +157,9 @@ export function Dashboard({ onOpenAircraft, onOpenGoals }: { onOpenAircraft: (id
 function RecommendedRoutesPanel({ opportunities, game }: { opportunities: ReturnType<typeof getRecommendedRouteOpportunities>; game: GameState }) {
   const { t } = useTranslation();
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-      <h3 className="font-bold text-ink">{t("dashboard.recommendedRoutes")}</h3>
-      <div className="mt-3 space-y-3">
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <h3 className="text-lg font-bold text-ink">{t("dashboard.recommendedRoutes")}</h3>
+      <div className="mt-2 divide-y divide-slate-200">
         {opportunities.length === 0 ? (
           <p className="text-sm text-slate-500">{t("dashboard.noRecommendedRoutes")}</p>
         ) : (
@@ -153,14 +168,14 @@ function RecommendedRoutesPanel({ opportunities, game }: { opportunities: Return
             const destination = airportsById[route.destinationAirportId];
             const aircraft = evaluation.recommendedAircraftIds[0] ? opportunitiesAircraftLabel(evaluation.recommendedAircraftIds[0], game) : null;
             return (
-              <div key={route.id} className="rounded-md border border-slate-200 p-3">
+              <div key={route.id} className="py-3">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold text-ink">
-                    {origin.iata} to {destination.iata}
+                  <p className="font-display text-lg font-semibold text-ink">
+                    {origin.iata}<span aria-hidden="true"> – </span><span className="sr-only"> to </span>{destination.iata}
                   </p>
                   <span className={`rounded px-2 py-1 text-xs font-black ${gradeClass(evaluation.overallGrade)}`}>{evaluation.overallGrade} / {evaluation.overallScore}</span>
                 </div>
-                <p className="mt-1 text-sm font-bold text-mint">{formatGBP.format(evaluation.estimatedWeeklyRevenue)}/week</p>
+                <p className="mt-1 text-sm font-bold text-mint">{formatGBP.format(evaluation.estimatedWeeklyRevenue)}{t("dashboard.perWeek")}</p>
                 <p className="text-xs font-semibold text-slate-500">{t("routeEvaluation.bestAircraft")}: {aircraft ?? t("routeEvaluation.noSuitableAircraft")}</p>
               </div>
             );
@@ -184,21 +199,15 @@ function gradeClass(grade: RouteGrade) {
   return "bg-coral/10 text-coral";
 }
 
-function Stat({ icon: Icon, label, value }: { icon: typeof Banknote; label: string; value: string }) {
+function Figure({ label, value, tone, wide = false }: { label: string; value: string; tone?: "good" | "bad"; wide?: boolean }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:border-mint">
-      <Icon size={22} className="text-coral" />
-      <p className="mt-3 text-sm font-semibold text-slate-500">{label}</p>
-      <p key={value} className="animate-slide-in truncate text-2xl font-black text-ink">{value}</p>
+    <div className={wide ? "is-wide" : undefined}>
+      <dt>{label}</dt>
+      <dd className={tone === "bad" ? "text-coral" : tone === "good" ? "text-mint" : undefined}>{value}</dd>
     </div>
   );
 }
 
-function Small({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-runway p-3">
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="font-bold text-ink">{value}</p>
-    </div>
-  );
+function Ledger({ label, value }: { label: string; value: string }) {
+  return <div><dt>{label}</dt><dd>{value}</dd></div>;
 }

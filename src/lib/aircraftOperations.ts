@@ -102,7 +102,9 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
         continue;
       }
       const recovery = lifecycle.recovery;
-      if (recovering && recovery && ((departure >= recovery.startsGameTimeMs && nominalDeparture < recovery.completesGameTimeMs) ||
+      // Work has begun, so any departure still pending from before its end cannot fly: that includes
+      // stale legs held while the aircraft was grounded, which must not run as a backlog afterwards.
+      if (recovering && recovery && (nominalDeparture < recovery.completesGameTimeMs ||
         (nominalDeparture >= recovery.completesGameTimeMs && item.originAirportId !== timelineAirportId))) {
         schedule.push({
           ...item, status: "cancelled", operationalStatus: "cancelled",
@@ -120,7 +122,24 @@ export function advanceAircraftOperations(aircraft: AircraftInstance, routes: Ro
         if (lifecycle.reservation?.state === "scheduled") {
           lifecycle = { ...lifecycle, reservation: { ...lifecycle.reservation, state: "blocked", error: "grounded" } };
         }
+        if (now >= departure) {
+          // A grounded leg whose time has passed is lost, not postponed until after repair.
+          schedule.push({ ...item, status: "cancelled", operationalStatus: "cancelled", cancellationReason: "grounded",
+            actualDepartureGameTime: undefined, actualArrivalGameTime: undefined,
+            revenue: 0, cost: 0, profit: 0, passengerCount: 0, cargoTons: 0, booking: undefined });
+          continue;
+        }
+        // Still in the future: keep the rotation intact so its return leg survives a repair made in time.
+        timelineAirportId = item.destinationAirportId;
         schedule.push({ ...item, operationalStatus: "grounded", actualDepartureGameTime: undefined, actualArrivalGameTime: undefined });
+        continue;
+      }
+      // A return leg can only leave from where its outbound leg ended. If that outbound was lost
+      // (grounded, maintenance, return to base) the aircraft is not there, so the return is lost too.
+      if (item.legType === "return" && now >= departure && item.originAirportId !== timelineAirportId) {
+        schedule.push({ ...item, status: "cancelled", operationalStatus: "cancelled", cancellationReason: "position",
+          actualDepartureGameTime: undefined, actualArrivalGameTime: undefined,
+          revenue: 0, cost: 0, profit: 0, passengerCount: 0, cargoTons: 0, booking: undefined });
         continue;
       }
       const shouldCheckTechnical = !item.technicalChecked && now >= departure;

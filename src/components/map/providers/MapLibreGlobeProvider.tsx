@@ -625,7 +625,7 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     filter: ["!=", ["get", "selected"], true],
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
-      "line-color": "#062832",
+      "line-color": "#4a0832",
       "line-width": ["interpolate", ["linear"], ["zoom"], 0, 4.4, 2, 4.8, 4, 5.4, 7, 6],
       "line-opacity": 0.5,
       "line-blur": 0.5
@@ -638,7 +638,7 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     filter: ["!=", ["get", "selected"], true],
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
-      "line-color": "#45a9c2",
+      "line-color": "#d0399a",
       "line-width": ["interpolate", ["linear"], ["zoom"], 0, 2.4, 2, 2.6, 4, 3, 7, 3.4],
       "line-opacity": 0.96
     }
@@ -650,7 +650,7 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     filter: ["==", ["get", "selected"], true],
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
-      "line-color": "#5b3a0c",
+      "line-color": "#0d2137",
       "line-width": ["interpolate", ["linear"], ["zoom"], 0, 6.4, 2, 6.8, 4, 7.4, 7, 8],
       "line-opacity": 0.55
     }
@@ -662,7 +662,7 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     filter: ["==", ["get", "selected"], true],
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
-      "line-color": "#f0a52b",
+      "line-color": "#ffc629",
       "line-width": ["interpolate", ["linear"], ["zoom"], 0, 4.4, 2, 4.6, 4, 4.8, 7, 5.2],
       "line-opacity": 1
     }
@@ -675,15 +675,15 @@ function addAirlineSourcesAndLayers(map: maplibregl.Map) {
     paint: { "line-color": "#000000", "line-width": 14, "line-opacity": 0.01 }
   });
 
-  addAirportHaloLayer(map, "airport-base-halo-layer", "base", "#f27a56", BASE_AIRPORT_HALO_RADIUS, 0.22);
-  addAirportHaloLayer(map, "airport-opened-halo-layer", "opened", "#65c49c", OPENED_AIRPORT_HALO_RADIUS, 0.18);
-  addAirportLayer(map, "airport-base-layer", "base", "#d76745", "#351811", 2.5, BASE_AIRPORT_RADIUS, false);
-  addAirportLayer(map, "airport-opened-layer", "opened", "#4f9d7e", "#102d25", 2.5, OPENED_AIRPORT_RADIUS, false);
-  addAirportLayer(map, "airport-unopened-layer", "unopened", "#ffffff", "#15242a", 2, UNOPENED_AIRPORT_RADIUS, false);
+  addAirportHaloLayer(map, "airport-base-halo-layer", "base", "#ffc629", BASE_AIRPORT_HALO_RADIUS, 0.22);
+  addAirportHaloLayer(map, "airport-opened-halo-layer", "opened", "#7fb2e5", OPENED_AIRPORT_HALO_RADIUS, 0.18);
+  addAirportLayer(map, "airport-base-layer", "base", "#ffc629", "#0d2137", 2.5, BASE_AIRPORT_RADIUS, false);
+  addAirportLayer(map, "airport-opened-layer", "opened", "#1b4f8f", "#ffffff", 2.5, OPENED_AIRPORT_RADIUS, false);
+  addAirportLayer(map, "airport-unopened-layer", "unopened", "#ffffff", "#0d2137", 2, UNOPENED_AIRPORT_RADIUS, false);
   addSelectedAirportHaloLayer(map);
-  addAirportLayer(map, "airport-selected-base-layer", "base", "#d76745", "#351811", 2.5, BASE_AIRPORT_RADIUS, true);
-  addAirportLayer(map, "airport-selected-opened-layer", "opened", "#4f9d7e", "#102d25", 2.5, OPENED_AIRPORT_RADIUS, true);
-  addAirportLayer(map, "airport-selected-unopened-layer", "unopened", "#ffffff", "#15242a", 2, UNOPENED_AIRPORT_RADIUS, true);
+  addAirportLayer(map, "airport-selected-base-layer", "base", "#ffc629", "#0d2137", 2.5, BASE_AIRPORT_RADIUS, true);
+  addAirportLayer(map, "airport-selected-opened-layer", "opened", "#1b4f8f", "#ffffff", 2.5, OPENED_AIRPORT_RADIUS, true);
+  addAirportLayer(map, "airport-selected-unopened-layer", "unopened", "#ffffff", "#0d2137", 2, UNOPENED_AIRPORT_RADIUS, true);
   addAirportIataLabels(map);
 }
 

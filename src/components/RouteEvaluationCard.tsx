@@ -31,7 +31,7 @@ export function RouteEvaluationCard({ evaluation, game, compact = false }: Props
     <section className="mt-4 min-w-0 overflow-hidden rounded-md border border-slate-200 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-black uppercase tracking-normal text-coral">{t("routeEvaluation.title")}</p>
+          <p className="text-xs font-semibold text-slate-500">{t("routeEvaluation.title")}</p>
           <p className="mt-1 text-sm font-semibold text-slate-500">{gradeDescription(evaluation.overallGrade, t)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -74,7 +74,7 @@ export function RouteEvaluationCard({ evaluation, game, compact = false }: Props
       {compact ? null : <CabinDemandPanel evaluation={evaluation} />}
 
       <div className="mt-3">
-        <p className="text-xs font-black uppercase tracking-normal text-slate-500">{t("routeEvaluation.recommendedAircraft")}</p>
+        <p className="text-xs font-black text-slate-500">{t("routeEvaluation.recommendedAircraft")}</p>
         {recommendedAircraft.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-2">
             {recommendedAircraft.map((label) => (
@@ -107,7 +107,7 @@ function AircraftEconomicsComparison({ comparisons }: { comparisons: RouteAircra
   const { t } = useTranslation();
   return (
     <div className="mt-3 overflow-hidden border-y border-slate-200">
-      <p className="bg-white px-3 py-2 text-xs font-black uppercase tracking-normal text-slate-500">{t("economics.aircraftComparison")}</p>
+      <p className="bg-white px-3 py-2 text-xs font-black text-slate-500">{t("economics.aircraftComparison")}</p>
       <div className="overflow-x-auto">
         <div className="min-w-[620px]">
           {comparisons.map((comparison) => (
@@ -211,7 +211,7 @@ function NoticeList({ title, items, tone, compact = false }: { title: string; it
   const color = tone === "warning" ? "bg-amber-50 text-amber-700" : tone === "success" ? "bg-mint/10 text-mint" : "bg-runway text-slate-700";
   return (
     <div className="mt-3">
-      <p className="text-xs font-black uppercase tracking-normal text-slate-500">{title}</p>
+      <p className="text-xs font-black text-slate-500">{title}</p>
       <div className="mt-2 space-y-1">
         {visibleItems.map((item) => (
           <p key={item} className={`rounded-md px-3 py-2 text-xs font-bold ${color}`}>- {item}</p>

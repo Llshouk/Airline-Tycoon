@@ -14,7 +14,7 @@ export function FleetAlerts({ game, onOpenAircraft }: { game: GameState; onOpenA
   const exceptions = alerts.filter((alert) => alert.kinds.some((kind) => kind !== "arranged"))
     .sort((a, b) => Number(b.kinds.includes("urgent")) - Number(a.kinds.includes("urgent")));
   return (
-    <section className="border-y border-slate-200 bg-white py-4">
+    <section className="rounded-lg border border-slate-200 bg-white p-4">
       <h3 className="flex items-center gap-2 font-bold text-ink"><AlertTriangle size={18} className="text-coral" />{t("alerts.title")}</h3>
       <div className="my-3 flex flex-wrap gap-x-5 gap-y-2 text-sm">
         {FLEET_ALERT_FILTERS.filter((key) => key !== "all").map((key) =>

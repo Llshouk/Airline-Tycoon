@@ -3,16 +3,59 @@ import { ROUTE_MARKET, hourlyPassengerPreference } from "@/config/routeMarket";
 import { DAY_MS, WEEK_MS, flightWaitMs, timeOfDayMs, turnaroundWaitMs, weekStartMs } from "@/lib/time";
 import type { AircraftModel, DayOfWeek, Route } from "@/types/game";
 
-const formatters = new Map<string, Intl.DateTimeFormat>();
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>();
+const zoneOffsets = new Map<string, Map<number, number | null>>();
+
+function measureZoneOffsetMinutes(zone: string, time: number) {
+  if (!zoneFormatters.has(zone)) zoneFormatters.set(zone, new Intl.DateTimeFormat("en-GB", {
+    timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+  }));
+  const parts: Record<string, number> = {};
+  for (const part of zoneFormatters.get(zone)!.formatToParts(time)) if (part.type !== "literal") parts[part.type] = Number(part.value);
+  const local = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return Math.round((local - Math.floor(time / 1000) * 1000) / 60_000);
+}
+
+/**
+ * Minutes to add to UTC for an IANA zone. Intl formatting is far too slow for the simulation loop,
+ * which asks this for every pending flight, so the offset is measured once per zone and UTC day.
+ * A day containing a clock change is not cached and is measured exactly each time.
+ */
+export function zoneOffsetMinutes(zone: string, time: number) {
+  if (zone === "UTC") return 0;
+  const day = Math.floor(time / DAY_MS);
+  let days = zoneOffsets.get(zone);
+  if (!days) zoneOffsets.set(zone, days = new Map());
+  let cached = days.get(day);
+  if (cached === undefined) {
+    if (days.size > 4000) days.clear();
+    const start = measureZoneOffsetMinutes(zone, day * DAY_MS);
+    cached = start === measureZoneOffsetMinutes(zone, (day + 1) * DAY_MS - 1) ? start : null;
+    days.set(day, cached);
+  }
+  return cached ?? measureZoneOffsetMinutes(zone, time);
+}
+
+export function airportTimeZone(airportId: string) {
+  return airportsById[airportId]?.timeZone ?? "UTC";
+}
+
 export function airportLocalMinutes(airportId: string, time: number) {
   if (!Number.isFinite(time)) return NaN;
-  const zone = airportsById[airportId]?.timeZone ?? "UTC";
-  if (!formatters.has(zone)) formatters.set(zone, new Intl.DateTimeFormat("en-GB", {
-    timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23"
-  }));
-  const parts = formatters.get(zone)!.formatToParts(time);
-  return Number(parts.find((part) => part.type === "hour")?.value) * 60 +
-    Number(parts.find((part) => part.type === "minute")?.value);
+  const local = time + zoneOffsetMinutes(airportTimeZone(airportId), time) * 60_000;
+  return Math.floor((((local % DAY_MS) + DAY_MS) % DAY_MS) / 60_000);
+}
+
+const localDateTexts = new Map<number, string>();
+/** Local calendar date as YYYY-MM-DD. Saved route-market window keys contain this exact text. */
+export function airportLocalDate(airportId: string, time: number) {
+  const day = Math.floor((time + zoneOffsetMinutes(airportTimeZone(airportId), time) * 60_000) / DAY_MS);
+  let text = localDateTexts.get(day);
+  if (text === undefined) {
+    if (localDateTexts.size > 4000) localDateTexts.clear();
+    localDateTexts.set(day, text = new Date(day * DAY_MS).toISOString().slice(0, 10));
+  }
+  return text;
 }
 
 export function nightPassengerDemandMultiplier(distanceKm: number, airportId: string, departure?: number) {

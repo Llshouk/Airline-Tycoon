@@ -9,7 +9,7 @@ import { useTranslation, type TranslationKey } from "@/i18n";
 import { getCurrentCash } from "@/lib/cash";
 import { FLIGHT_LOG_SORT_KEYS, sortFlightLog, type FlightLogSortKey, type SortDirection } from "@/lib/finance";
 import { formatGBP } from "@/lib/format";
-import { useGameStore } from "@/store/gameStore";
+import { usePanelGame } from "@/hooks/usePanelGame";
 
 const sortLabels: Record<FlightLogSortKey, TranslationKey> = {
   completedGameTime: "finance.completed",
@@ -23,7 +23,7 @@ const sortLabels: Record<FlightLogSortKey, TranslationKey> = {
 
 export function FinanceScreen() {
   const { language, t } = useTranslation();
-  const game = useGameStore((state) => state.game);
+  const game = usePanelGame();
   const [sortKey, setSortKey] = useState<FlightLogSortKey>("completedGameTime");
   const [view, setView] = useState<"log" | "daily" | "weekly">("log");
   const [direction, setDirection] = useState<SortDirection>("desc");
@@ -50,7 +50,7 @@ export function FinanceScreen() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-black text-ink">{t("finance.title")}</h2>
+        <h2 className="screen-title">{t("finance.title")}</h2>
         <p className="text-slate-600">{t("finance.subtitle")}</p>
         <CompanyAge game={game} />
       </div>
@@ -91,7 +91,7 @@ export function FinanceScreen() {
         </div>
         <div className="overflow-x-auto rounded-md border border-slate-200">
           <table className="w-full min-w-[960px] whitespace-nowrap text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-normal text-slate-500">
+            <thead className="bg-slate-50 text-xs text-slate-500">
               <tr>
                 {sortHeading("completedGameTime")}
                 {sortHeading("flightNumber")}

@@ -1,8 +1,8 @@
-# Airline Tycoon V1.7.3
+# Airline Tycoon V1.8.0
 
 A browser-based airline management simulation game where players build and manage their own airline network.
 
-Release: V1.7.3 - Cabin Product Gallery
+Release: V1.8.0 - Interface refresh, maintenance fixes and faster simulation
 
 ## Features
 
@@ -89,6 +89,8 @@ npm run dev
 
 ## Current Status
 
+V1.8.0 redesigns the interface around airport wayfinding (navy chrome, signal-yellow navigation, a departures board on the dashboard), draws routes and aircraft along great circles, repairs 87 garbled Chinese strings, fixes several maintenance and timetable bugs, and makes the simulation loop about six times cheaper for large fleets. Saves are unchanged. See [release notes](docs/release-v180.md).
+
 V1.7.3 extends the realistic seat-product gallery to Business, Premium Economy and Economy, each with Basic, Premium and Luxury concepts. First Class keeps its existing artwork. Compact layouts separate collapsed cabin dividers and keep the price and Apply button readable. Images are fictional concepts; actual arrangements, capacity, comfort and costs still come from the existing aircraft rules. See [cabin gallery](docs/cabin-gallery-v173.md).
 
 V1.7.2 makes the map the main play surface, with a compact company HUD, bottom navigation and operating panels. Both map views use free OpenFreeMap vector detail, including airport layouts, with zoom up to level 18 and a Focus Base control. Aircraft catalog and fleet groups use existing local aircraft assets; First Class receives more distinct fictional product illustrations. Economy rules and save schemas are unchanged. Satellite imagery and desktop/mobile packaging remain deferred. See [UI update](docs/ui-v172.md).
@@ -123,6 +125,8 @@ Required environment variables:
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 ```
+
+Optional: `NEXT_PUBLIC_ADMIN_EMAILS` is a comma-separated list of accounts allowed to open the testing console. It is empty by default.
 
 Do not commit `.env.local` or any Supabase keys.
 

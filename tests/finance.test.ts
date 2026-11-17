@@ -72,7 +72,9 @@ test("pause and speed act through the canonical clock; company age survives a co
   wallClock += 2 * DAY_MS;
   useGameStore.getState().tickSimulation();
   assert.deepEqual(companyAge(useGameStore.getState().game!), { days: 0, hours: 0, minutes: 0 });
-  useGameStore.setState({ game: { ...useGameStore.getState().game!, isPaused: false, timeMultiplier: 20 } });
+  // Resume the way the player does: the pause control owns resetting the tick clock.
+  useGameStore.getState().togglePause();
+  useGameStore.setState({ game: { ...useGameStore.getState().game!, timeMultiplier: 20 } });
   wallClock += 3 * 60_000;
   useGameStore.getState().tickSimulation();
   const advanced = useGameStore.getState().game!;

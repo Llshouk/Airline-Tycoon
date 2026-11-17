@@ -3,8 +3,8 @@ import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistratio
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Airline Tycoon V1.7.3",
-  description: "A browser-based airline management simulation MVP.",
+  title: "Airline Tycoon",
+  description: "Build and run your own airline: buy aircraft, open routes, plan timetables and keep the fleet flying.",
   other: {
     "airline-tycoon-maintenance": "home-return-v2",
     ...(process.env.VERCEL_GIT_COMMIT_SHA ? { "airline-tycoon-revision": process.env.VERCEL_GIT_COMMIT_SHA } : {})

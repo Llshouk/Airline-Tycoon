@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 import { aircraftById } from "@/data/aircraft";
 import { getDifficultyConfig, type GameDifficulty } from "@/config/difficulty";
 import { airports, airportsById } from "@/data/airports";
@@ -102,6 +102,27 @@ type GameStore = {
   ) => { ok: boolean; message: string };
   deleteWeeklySchedule: (aircraftId: string, weeklyScheduleId: string) => void;
   tickSimulation: () => void;
+};
+
+// True only while the per-second tick is writing state, so its save can be deferred.
+let backgroundSave = false;
+
+/** Lets subscribers tell clock-only progress apart from a change the player made. */
+export function isBackgroundTick() {
+  return backgroundSave;
+}
+
+type PersistedGameSlice = { game: GameState | null; notice: null };
+const lazyGameStorage: PersistStorage<PersistedGameSlice> = {
+  getItem: async (name) => {
+    const text = await gameSaveStorage.getItem(name);
+    return text === null ? null : JSON.parse(text) as StorageValue<PersistedGameSlice>;
+  },
+  setItem: (name, value) => gameSaveStorage.setItemLazy(name, () => JSON.stringify({
+    ...value,
+    state: { game: value.state.game ? createCompactSaveState(withUpdatedAt(normalizeGame(value.state.game))!) : null, notice: null }
+  }), backgroundSave),
+  removeItem: (name) => gameSaveStorage.removeItem(name)
 };
 
 export const useGameStore = create<GameStore>()(
@@ -688,19 +709,24 @@ export const useGameStore = create<GameStore>()(
       },
       tickSimulation: () => {
         const game = get().game;
-        if (!game) return;
-        advanceSimulation(set, normalizeGame(game), Date.now());
+        // Nothing moves while paused, and togglePause resets the tick clock itself before resuming.
+        if (!game || game.isPaused) return;
+        // Stored state is already normalised by every load and action, so the per-second tick skips that pass.
+        backgroundSave = true;
+        try {
+          advanceSimulation(set, game, Date.now());
+        } finally {
+          backgroundSave = false;
+        }
       }
     }),
     {
       name: "airline-tycoon-v1",
       version: 4,
-      storage: createJSONStorage(() => gameSaveStorage),
-      partialize: (state) => ({
-        game: state.game ? createCompactSaveState(withUpdatedAt(normalizeGame(state.game))!) : null,
-        notice: null
-      }),
-      migrate: (persisted) => persisted as Partial<GameStore>,
+      storage: lazyGameStorage,
+      // The compact save is built inside the storage adapter, only when a write is really due.
+      partialize: (state) => ({ game: state.game, notice: null }),
+      migrate: (persisted) => persisted as PersistedGameSlice,
       merge: (persisted, current) => {
         const state = persisted as Partial<GameStore>;
         return {
@@ -733,7 +759,10 @@ function advanceSimulation(set: (partial: Partial<GameStore>) => void, game: Gam
   const completedNotice = beforeBankruptcyGame.completedFlights > nextGame.completedFlights ? "Flight completed. Finance log updated." : null;
   const finalGame = applyBankruptcyRules(beforeBankruptcyGame);
   const bankruptcyNotice = bankruptcyMessage(beforeBankruptcyGame, finalGame);
-  updateLeaderboard(finalGame);
+  // The leaderboard entry reads and rewrites localStorage; do it only when its inputs moved.
+  if (finalGame.completedFlights !== game.completedFlights || finalGame.money !== game.money || finalGame.gameStatus !== game.gameStatus) {
+    updateLeaderboard(finalGame);
+  }
   set({ game: finalGame, notice: bankruptcyNotice ?? completedNotice });
 }
 
@@ -744,7 +773,8 @@ function instantiateRecurringFlights(game: GameState, fromGameTime = game.curren
     fleet: game.fleet.map((aircraft) => {
       const merged = mergeGeneratedEvents(
         aircraft.schedule,
-        generateWeeklyEvents(aircraft, game.routes, aircraft.operationsThroughGameTimeMs ?? fromGameTime - DAY_MS, horizonEnd)
+        generateWeeklyEvents(aircraft, game.routes, aircraft.operationsThroughGameTimeMs ?? fromGameTime - DAY_MS, horizonEnd,
+          new Set(aircraft.schedule.map((item) => item.id)))
           .filter((item) => aircraft.operationsThroughGameTimeMs === undefined || item.departureGameTime > aircraft.operationsThroughGameTimeMs)
       );
       return {

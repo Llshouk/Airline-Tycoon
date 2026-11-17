@@ -49,17 +49,17 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
         )}
         <span className="sr-only">{engineLabel}</span>
         {!isOffline ? null : (
-          <div className="absolute bottom-3 left-3 right-3 z-20 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:right-auto md:max-w-md">
+          <div className="absolute bottom-14 left-3 right-3 z-20 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:right-auto md:max-w-md">
             {offlineMessage}
           </div>
         )}
         {!baseMapWarning ? null : (
-          <div role="status" className={`absolute left-3 right-3 z-20 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:left-auto md:max-w-md ${isOffline ? "bottom-14" : "bottom-3"}`}>
+          <div role="status" className={`absolute left-3 right-3 z-20 rounded-md border border-amber-200 bg-amber-50/95 px-3 py-2 text-xs font-bold text-amber-900 shadow-soft md:left-auto md:max-w-md ${isOffline ? "bottom-28 md:bottom-14" : "bottom-14"}`}>
             {baseMapWarning}
           </div>
         )}
+        <MapLegend labels={legendLabels} />
       </div>
-      <MapLegend labels={legendLabels} />
     </div>
   );
 });
@@ -68,8 +68,8 @@ function MapLegend({ labels }: { labels: MapLegendLabels }) {
   return (
     <div className="map-legend">
       <span className="sr-only">{labels.title}:</span>
-      <LegendRow color="#d76745" label={labels.base} />
-      <LegendRow color="#4f9d7e" label={labels.opened} />
+      <LegendRow color="#ffc629" label={labels.base} />
+      <LegendRow color="#1b4f8f" label={labels.opened} />
       <LegendRow color="#ffffff" label={labels.unopened} bordered />
     </div>
   );
@@ -78,7 +78,7 @@ function MapLegend({ labels }: { labels: MapLegendLabels }) {
 function LegendRow({ color, label, bordered = false }: { color: string; label: string; bordered?: boolean }) {
   return (
     <span className="flex items-center gap-2 whitespace-nowrap py-0.5">
-      <span className={`h-3 w-3 rounded-full ${bordered ? "border border-slate-400" : "border border-ink/20"}`} style={{ backgroundColor: color }} />
+      <span className={`h-3 w-3 rounded-full border ${bordered ? "border-slate-500" : "border-ink"}`} style={{ backgroundColor: color }} />
       <span>{label}</span>
     </span>
   );

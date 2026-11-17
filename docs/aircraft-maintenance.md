@@ -46,6 +46,16 @@ Maintenance uses game time and simplified gameplay assumptions, not certified ai
 - No database migration, new package or unrelated economy change is included.
   The public version remains 1.7.3 pending a separately requested release.
 
+## V1.8.0 Corrections
+
+- A grounded flight is held only until its departure time; after that it is cancelled with the
+  reason "Aircraft grounded". Earlier builds kept it scheduled and flew the whole backlog after repair.
+- When work starts, every flight still pending from before the work ends is cancelled, not delayed.
+- Future flights of a still-grounded aircraft keep their rotations whole, so a later full service
+  finds both legs. A return leg never departs from an airport the aircraft did not reach.
+- Full maintenance waits for a timetabled return home only if it leaves within 12 hours of the
+  aircraft being ready; otherwise it ferries.
+
 ## Ownership and Persistence
 
 - `AircraftInstance.lifecycle` owns hours, cycles, condition, reserve, service counters, costs, and an optional active maintenance task for one registered aircraft.

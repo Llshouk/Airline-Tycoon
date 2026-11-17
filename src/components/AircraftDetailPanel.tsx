@@ -40,7 +40,7 @@ export function AircraftDetailPanel({
       <section role="dialog" aria-modal="true" aria-label={`${t("detail.title")} ${aircraft.registration}`} className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-lg border border-slate-200 bg-white shadow-soft">
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-normal text-coral">{t("detail.title")}</p>
+            <p className="text-xs font-semibold text-slate-500">{t("detail.title")}</p>
             <h3 className="text-xl font-black text-ink">{aircraft.registration}</h3>
             <p className="text-sm font-semibold text-slate-500">
               {model.manufacturer} {model.model}
@@ -89,7 +89,7 @@ export function AircraftDetailPanel({
                         setIsEditingRegistration(false);
                         setRegistrationError(null);
                       }}
-                      className="rounded-md bg-coral px-3 py-2 text-sm font-bold text-white hover:bg-coral/90"
+                      className="rounded-md bg-sign px-3 py-2 text-sm font-bold text-apron hover:bg-sign-deep"
                     >
                       {t("fleet.saveRegistration")}
                     </button>

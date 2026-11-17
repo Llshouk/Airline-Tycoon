@@ -9,6 +9,7 @@ import { forecastOperations } from "@/lib/operationForecast";
 import { formatGBP } from "@/lib/format";
 import { DAY_MS, formatGameDate } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
+import { usePanelGame } from "@/hooks/usePanelGame";
 import type { CompanyContract, CompanyGrowth } from "@/types/companyGrowth";
 import type { GameState } from "@/types/game";
 
@@ -17,7 +18,7 @@ const icons = { commuter: Plane, cargo: Package, network: Route, charter: Plane,
 
 export function CompanyGoalsScreen({ onNavigate }: { onNavigate: (screen: Destination) => void }) {
   const { t } = useTranslation();
-  const game = useGameStore((state) => state.game);
+  const game = usePanelGame();
   const accept = useGameStore((state) => state.acceptContract);
   const abandon = useGameStore((state) => state.abandonContract);
   const [tab, setTab] = useState<"offers" | "active" | "company">("offers");
@@ -35,7 +36,7 @@ export function CompanyGoalsScreen({ onNavigate }: { onNavigate: (screen: Destin
   const refreshTime = game.baseGameTimeMs + (growth.boardCycle + 1) * 3 * DAY_MS;
   return <div className="min-w-0 space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <h2 className="text-2xl font-black text-ink">{t("growth.title")}</h2>
+      <h2 className="screen-title">{t("growth.title")}</h2>
       <span className="text-sm font-bold text-slate-600">{t("growth.slots")}: {growth.active.length} / 2</span>
     </div>
     <CompanyGrowthSummary game={game} />
@@ -101,7 +102,7 @@ export function CompanyGrowthSummary({ game, onOpen }: { game: GameState; onOpen
   const threshold = COMPANY_LEVELS[level].threshold;
   return <section className="border-y border-slate-200 py-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-3"><Trophy className="shrink-0 text-coral" size={24} /><div>
+      <div className="flex items-center gap-3"><Trophy className="shrink-0 text-slate-400" size={24} /><div>
         <h3 className="font-bold text-ink">{t(`growth.${COMPANY_LEVELS[level].id}`)}</h3>
         <p className="text-sm text-slate-600">{t("growth.points")}: <strong>{points.toLocaleString()}</strong> DP <span className="text-xs">({t("growth.permanent")})</span></p>
       </div></div>
@@ -177,7 +178,7 @@ function CompanyGrowthDetails({ growth }: { growth: CompanyGrowth }) {
       <td className="pr-3">{value.threshold.toLocaleString()} DP</td><td className="pr-3">{Number.isFinite(value.maxDistanceKm) ? `${value.maxDistanceKm.toLocaleString()} km` : t("growth.unlimited")}</td>
       <td>{[t("growth.commuter"), index >= 1 ? t("growth.cargo") : "", index >= 2 ? t("growth.network") : "", index >= 3 ? t("growth.charter") : "", index >= 4 ? t("growth.longTerm") : ""].filter(Boolean).join(" / ")}</td>
     </tr>)}</tbody></table></div>
-    <h3 className="flex items-center gap-2 font-bold text-ink"><Flag size={18} className="text-coral" />{t("growth.milestones")}</h3>
+    <h3 className="flex items-center gap-2 font-bold text-ink"><Flag size={18} className="text-slate-400" />{t("growth.milestones")}</h3>
     <div className="divide-y divide-slate-200">{MILESTONES.map((milestone) => <div key={milestone.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
       <div><h4 className="font-bold">{t(`growth.${milestone.id}`)}</h4><p className="text-xs text-slate-500">{Math.min(milestone.required, growth.progress[milestone.metric]).toLocaleString()} / {milestone.required}</p></div>
       <div className="text-right"><p className="font-bold">+{milestone.points} DP · {formatGBP.format(milestone.cash)}</p>

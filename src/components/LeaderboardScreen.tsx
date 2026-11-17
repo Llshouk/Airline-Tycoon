@@ -25,7 +25,7 @@ export function LeaderboardScreen() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-black text-ink">{t("leaderboard.title")}</h2>
+        <h2 className="screen-title">{t("leaderboard.title")}</h2>
         <p className="text-slate-600">Local company rankings with mock AI competitors for V1.</p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -42,7 +42,7 @@ export function LeaderboardScreen() {
       </div>
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-normal text-slate-500">
+          <thead className="bg-slate-50 text-xs text-slate-500">
             <tr>
               <th className="px-3 py-3">Rank</th>
               <th className="px-3 py-3">Airline</th>

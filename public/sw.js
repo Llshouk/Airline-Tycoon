@@ -1,11 +1,11 @@
-const CACHE_VERSION = "airline-tycoon-v1.7.3";
+const CACHE_VERSION = "airline-tycoon-v1.8.0";
 const PRECACHE_URLS = [
   "/",
   "/offline.html",
-  "/cabin/first-class-products-v172.png",
-  "/cabin/business-products-v173.png",
-  "/cabin/premium-economy-products-v173.png",
-  "/cabin/economy-products-v173.png",
+  "/cabin/first-class-products-v172.webp",
+  "/cabin/business-products-v173.webp",
+  "/cabin/premium-economy-products-v173.webp",
+  "/cabin/economy-products-v173.webp",
   "/aircraft-icons/regional.png",
   "/aircraft-icons/narrow-body-twin.png",
   "/aircraft-icons/wide-body-twin.png",

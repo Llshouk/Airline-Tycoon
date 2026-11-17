@@ -15,6 +15,7 @@ import { estimateExpectedFlightProfit } from "@/lib/economy";
 import { formatGBP, formatNumber } from "@/lib/format";
 import { createRegistration } from "@/lib/ids";
 import { useGameStore } from "@/store/gameStore";
+import { usePanelGame } from "@/hooks/usePanelGame";
 import type { AircraftModel } from "@/types/game";
 import type { CabinConfiguration } from "@/types/cabin";
 
@@ -23,7 +24,7 @@ type RouteFilter = "all" | "short-haul" | "medium-haul" | "long-haul";
 
 export function AircraftMarketScreen() {
   const { t } = useTranslation();
-  const game = useGameStore((state) => state.game);
+  const game = usePanelGame();
   const buyAircraft = useGameStore((state) => state.buyAircraft);
   const manufacturers = Array.from(new Set(aircraftModels.map((model) => model.manufacturer))).sort();
   const [manufacturer, setManufacturer] = useState("all");
@@ -117,7 +118,7 @@ export function AircraftMarketScreen() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-black text-ink">{t("fleet.market")}</h2>
+        <h2 className="screen-title">{t("fleet.market")}</h2>
       </div>
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
         <div ref={catalog} className="min-w-0 space-y-4">
@@ -130,7 +131,7 @@ export function AircraftMarketScreen() {
             <section key={group.family} className="border-b border-slate-200 pb-5">
               <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-normal text-slate-500">{t("market.aircraftFamily")}</p>
+                  <p className="text-xs font-black text-slate-500">{t("market.aircraftFamily")}</p>
                   <h3 className="font-black text-ink">{group.familyDisplayName}</h3>
                 </div>
                 <span className="rounded-md bg-runway px-2 py-1 text-xs font-bold text-jet">
@@ -165,7 +166,7 @@ export function AircraftMarketScreen() {
             className="mb-3 flex min-h-11 items-center gap-2 text-sm font-bold text-jet xl:hidden"><ArrowLeft size={18} />{t("market.aircraftFamily")}</button>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-normal text-slate-500">{selectedModel.manufacturer}</p>
+              <p className="text-xs font-semibold text-slate-500">{selectedModel.manufacturer}</p>
               <h3 className="font-black text-ink">{selectedModel.model} cabin</h3>
             </div>
             <button type="button" onClick={resetLayout} className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-jet">
@@ -277,7 +278,7 @@ export function AircraftMarketScreen() {
               setRegistration(createRegistration(game.fleet.length + 1));
             }}
             disabled={!validation.isValid || !affordable || Boolean(registrationError) || !hasOwnedBase || !selectedBaseAirportId}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-coral px-3 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-sign px-3 py-3 font-bold text-apron hover:bg-sign-deep disabled:cursor-not-allowed disabled:text-white disabled:bg-slate-300"
           >
             <ShoppingCart size={18} />
             {t("fleet.buyAircraft")} {formatGBP.format(validation.purchasePriceGBP)}

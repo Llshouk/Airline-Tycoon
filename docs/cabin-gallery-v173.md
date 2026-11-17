@@ -33,10 +33,10 @@ No aircraft data, economic coefficient or save schema changes are included.
 
 ## Assets And Offline Support
 
-- `/cabin/first-class-products-v172.png` (unchanged)
-- `/cabin/business-products-v173.png`
-- `/cabin/premium-economy-products-v173.png`
-- `/cabin/economy-products-v173.png`
+- `/cabin/first-class-products-v172.webp` (unchanged)
+- `/cabin/business-products-v173.webp`
+- `/cabin/premium-economy-products-v173.webp`
+- `/cabin/economy-products-v173.webp`
 
 The V1.7.3 service-worker cache precaches these four atlases. The unused old
 `seat-products.png` remains as a historical asset but is no longer precached.

@@ -1,5 +1,6 @@
 "use client";
 
+import { Plane } from "lucide-react";
 import type { Session, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -18,6 +19,7 @@ import {
   type LocalSaveMetadata
 } from "@/lib/cloudSave";
 import { formatGBP } from "@/lib/format";
+import { EntryBackdrop } from "@/components/EntryBackdrop";
 import { isAdminUser } from "@/lib/admin";
 import { supabase } from "@/lib/supabaseClient";
 import { safeGetLocalStorage, safeGetSessionStorage, safeRemoveLocalStorage, safeRemoveSessionStorage, safeSetLocalStorage, safeSetSessionStorage } from "@/lib/gameSaveStorage";
@@ -317,11 +319,11 @@ function LoginScreen({
         <div className="grid gap-3">
           <label className="text-sm font-semibold text-slate-600">
             {t("cloud.email")}
-            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-ink outline-none focus:border-mint" />
+            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-ink outline-none focus:border-jet" />
           </label>
           <label className="text-sm font-semibold text-slate-600">
             {t("cloud.password")}
-            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-ink outline-none focus:border-mint" />
+            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-ink outline-none focus:border-jet" />
           </label>
           <div className="grid gap-2 sm:grid-cols-2">
             <AuthButton disabled={isBusy || !isOnline || !email || !password} onClick={() => runAuth(async () => {
@@ -460,11 +462,12 @@ function bankruptcyLabel(difficulty: GameDifficulty, t: ReturnType<typeof useTra
 
 function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children?: ReactNode }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-runway px-4 py-10">
-      <div className="w-full max-w-6xl text-center">
-        <p className="text-xs font-black uppercase tracking-normal text-coral">Airline Tycoon V1.7.3</p>
-        <h1 className="mt-2 text-4xl font-black text-ink">{title}</h1>
-        <p className="mx-auto mt-3 max-w-2xl text-sm font-semibold text-slate-600">{subtitle}</p>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-apron px-4 py-10">
+      <EntryBackdrop />
+      <div className="relative w-full max-w-6xl text-center">
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded bg-sign text-apron"><Plane size={26} aria-hidden="true" /></span>
+        <h1 className="mt-4 text-5xl font-bold text-white sm:text-6xl">{title}</h1>
+        <p className="mx-auto mt-3 max-w-xl text-base text-slate-300">{subtitle}</p>
         {children}
       </div>
     </main>
@@ -473,7 +476,7 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
 
 function AuthButton({ children, disabled, onClick, variant = "primary" }: { children: ReactNode; disabled?: boolean; onClick: () => void; variant?: "primary" | "secondary" }) {
   return (
-    <button type="button" disabled={disabled} onClick={onClick} className={`min-h-10 rounded-md px-3 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${variant === "primary" ? "bg-jet text-white hover:bg-ink" : "bg-runway text-slate-700 hover:bg-slate-100"}`}>
+    <button type="button" disabled={disabled} onClick={onClick} className={`min-h-10 rounded-md px-3 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${variant === "primary" ? "bg-apron text-white hover:bg-apron-light" : "bg-runway text-slate-700 hover:bg-slate-200"}`}>
       {children}
     </button>
   );
