@@ -68,7 +68,7 @@ export function GameConsole({ onClose }: { onClose?: () => void }) {
     <section className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-normal text-amber-700">{t("console.testingOnly")}</p>
+          <p className="text-xs font-black text-amber-700">{t("console.testingOnly")}</p>
           <h3 className="font-black text-ink">{t("console.gameConsole")}</h3>
           <p className="text-sm text-slate-600">Fast local testing controls. These changes persist to localStorage.</p>
         </div>
@@ -114,7 +114,7 @@ export function GameConsole({ onClose }: { onClose?: () => void }) {
                 setConsoleMoney(amount);
                 setMessage(`Money set to ${amount.toLocaleString("en-GB")}.`);
               }}
-              className="rounded-md bg-coral px-3 py-2 text-sm font-bold text-white transition hover:bg-coral/90"
+              className="rounded-md bg-sign px-3 py-2 text-sm font-bold text-apron transition hover:bg-sign-deep"
             >
               {t("console.setMoney")}
             </button>

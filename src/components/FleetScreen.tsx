@@ -9,14 +9,14 @@ import { AircraftSideImage } from "@/components/AircraftSideImage";
 import { aircraftById } from "@/data/aircraft";
 import { airportsById } from "@/data/airports";
 import { useTranslation } from "@/i18n";
-import { useGameStore } from "@/store/gameStore";
+import { usePanelGame } from "@/hooks/usePanelGame";
 import { getMaintenanceStatus, normalizeAircraftLifecycle } from "@/lib/aircraftMaintenance";
 import { FLEET_ALERT_FILTERS, fleetAlerts, type FleetAlertFilter } from "@/lib/fleetAlerts";
 import type { AircraftInstance } from "@/types/game";
 
 export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelectedAircraftId?: string | null }) {
   const { t } = useTranslation();
-  const game = useGameStore((state) => state.game);
+  const game = usePanelGame();
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(initialSelectedAircraftId);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [baseFilter, setBaseFilter] = useState("all");
@@ -42,11 +42,9 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-black text-ink">{t("fleet.title")}</h2>
-      </div>
-      <section className="border-y border-slate-200 py-3">
-        <label className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-600">
+      <h2 className="screen-title">{t("fleet.title")}</h2>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-slate-200 bg-white p-3">
+        <label className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600">
           {t("fleet.baseFilter")}
           <select
             value={baseFilter}
@@ -55,7 +53,7 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
               setSelectedAircraftId(null);
               setExpandedGroups({});
             }}
-            className="min-h-11 min-w-0 max-w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-jet"
+            className="h-10 min-w-0 max-w-full rounded-md border border-slate-300 bg-white px-2 font-semibold text-ink"
           >
             <option value="all">{t("fleet.allBases")}</option>
             {game.baseAirports.map((airportId) => {
@@ -68,29 +66,27 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
             })}
           </select>
         </label>
-      </section>
-      <div className="flex flex-wrap items-center gap-3 border-y border-slate-200 py-3">
-        <label className="flex items-center gap-2 text-sm font-bold text-ink">
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
           {t("alerts.filter")}
           <select value={conditionFilter} onChange={(event) => { setConditionFilter(event.target.value as FleetAlertFilter); setSelectedAircraftId(null); }}
-            className="h-10 max-w-[220px] rounded-md border border-slate-300 bg-white px-2">
+            className="h-10 max-w-[220px] rounded-md border border-slate-300 bg-white px-2 font-semibold text-ink">
             {FLEET_ALERT_FILTERS.map((key) => <option key={key} value={key}>{t(`alerts.${key}`)}</option>)}
           </select>
         </label>
-        <label className="flex items-center gap-2 text-sm font-bold text-ink">
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink">
           <input type="checkbox" checked={needsService} onChange={(event) => { setNeedsService(event.target.checked); setSelectedAircraftId(null); }} />
           {t("maintenance.needsService")}
         </label>
         <button type="button" disabled={!filteredFleet.length} onClick={() => setShowPlanner(true)}
-          className="flex min-h-10 items-center gap-2 rounded-md bg-jet px-3 py-2 text-sm font-bold text-white disabled:opacity-40">
+          className="flex min-h-10 items-center gap-2 rounded-md bg-apron px-4 py-2 text-sm font-bold text-white hover:bg-apron-light disabled:opacity-40 sm:ml-auto">
           <Wrench size={16} />{t("maintenance.batch")}
         </button>
       </div>
       {game.fleet.length === 0 ? (
         <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-soft">
-          <Plane className="mx-auto text-coral" size={36} />
+          <Plane className="mx-auto text-slate-400" size={36} />
           <p className="mt-3 font-bold text-ink">{t("fleet.empty")}</p>
-          <p className="text-sm text-slate-500">Buy aircraft from the Aircraft Market to build your fleet.</p>
+          <p className="text-sm text-slate-500">{t("dashboard.buyFirst")}</p>
         </div>
       ) : (
         <div>
@@ -100,20 +96,19 @@ export function FleetScreen({ initialSelectedAircraftId = null }: { initialSelec
             const isExpanded = expandedGroups[group.modelId] ?? false;
             const Icon = isExpanded ? ChevronDown : ChevronRight;
             return (
-              <article key={group.modelId} className="rounded-lg border border-slate-200 bg-white shadow-soft transition duration-200 hover:border-mint">
+              <article key={group.modelId} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
                 <button
                   type="button"
                   onClick={() => setExpandedGroups((current) => ({ ...current, [group.modelId]: !isExpanded }))}
                   aria-expanded={isExpanded}
-                  className="grid w-full grid-cols-[100px_minmax(0,1fr)_24px] items-center gap-3 px-3 py-3 text-left sm:grid-cols-[180px_minmax(0,1fr)_24px] sm:px-4"
+                  className="grid w-full grid-cols-[96px_minmax(0,1fr)_auto_24px] items-center gap-4 px-3 py-2 text-left hover:bg-slate-50 sm:grid-cols-[150px_minmax(0,1fr)_auto_24px] sm:px-4"
                 >
-                  <AircraftSideImage src={group.model.sideImageUrl} alt={group.model.sideImageAlt} size="small" className="border-0 sm:!h-24" />
+                  <AircraftSideImage src={group.model.sideImageUrl} alt={group.model.sideImageAlt} size="small" className="border-0 sm:!h-16" />
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-normal text-coral">{group.model.manufacturer}</p>
-                    <h3 className="flex items-center gap-2 text-base font-black text-ink">
-                      {group.model.model} x {group.aircraft.length}
-                    </h3>
+                    <p className="text-xs font-semibold text-slate-500">{group.model.manufacturer}</p>
+                    <h3 className="text-xl font-bold text-ink">{group.model.model}</h3>
                   </div>
+                  <span className="font-display text-xl font-semibold text-slate-500" aria-label={`${group.aircraft.length} ${t("top.aircraft")}`}>× {group.aircraft.length}</span>
                   <Icon size={20} aria-hidden="true" className="text-jet" />
                 </button>
 

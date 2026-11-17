@@ -34,6 +34,7 @@ import { calculateRemainingDemandForSchedulePreview, type ScheduleDemandPreview 
 import { evaluateRoute } from "@/lib/routeEvaluation";
 import { formatDuration } from "@/lib/time";
 import { useGameStore } from "@/store/gameStore";
+import { usePanelGame } from "@/hooks/usePanelGame";
 import type { AircraftInstance, DayOfWeek, Route, WeeklySchedule } from "@/types/game";
 
 const SCHEDULE_HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, "0"));
@@ -41,7 +42,7 @@ const SCHEDULE_MINUTE_OPTIONS = ALLOWED_SCHEDULE_MINUTES.map((minute) => String(
 
 export function ScheduleScreen() {
   const { t } = useTranslation();
-  const game = useGameStore((state) => state.game);
+  const game = usePanelGame();
   const createWeeklySchedule = useGameStore((state) => state.createWeeklySchedule);
   const deleteWeeklySchedule = useGameStore((state) => state.deleteWeeklySchedule);
   const [selectedScheduleBaseId, setSelectedScheduleBaseId] = useState("");
@@ -347,7 +348,7 @@ export function ScheduleScreen() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-black text-ink">{t("schedule.title")}</h2>
+        <h2 className="screen-title">{t("schedule.title")}</h2>
         <p className="text-slate-600">Build recurring services by day of week, departure time, flight number, and route pattern.</p>
       </div>
 
@@ -383,7 +384,7 @@ export function ScheduleScreen() {
       <section className="grid min-w-0 gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
         <form onSubmit={onSubmit} className="min-w-0 rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
           <div className="flex items-center gap-2">
-            <CalendarPlus size={20} className="text-coral" />
+            <CalendarPlus size={20} className="text-slate-400" />
             <h3 className="font-bold text-ink">{editingScheduleId ? "Edit timetable" : t("schedule.create")}</h3>
           </div>
           <label className="mt-4 block">
@@ -533,7 +534,7 @@ export function ScheduleScreen() {
                 setIsRoundTrip(false);
                 if (!hasUserEditedDepartureTime) setDepartureTimeLocal(recommendedDepartureTime);
               }}
-              className={`rounded-md px-3 py-2 text-sm font-bold transition ${!isRoundTrip ? "bg-mint text-white" : "bg-white text-slate-600"}`}
+              className={`rounded-md px-3 py-2 text-sm font-bold transition ${!isRoundTrip ? "bg-apron text-white" : "bg-white text-slate-600"}`}
             >
               {t("schedule.oneWay")}
             </button>
@@ -543,7 +544,7 @@ export function ScheduleScreen() {
                 setIsRoundTrip(true);
                 if (!hasUserEditedDepartureTime) setDepartureTimeLocal(recommendedDepartureTime);
               }}
-              className={`rounded-md px-3 py-2 text-sm font-bold transition ${isRoundTrip ? "bg-mint text-white" : "bg-white text-slate-600"}`}
+              className={`rounded-md px-3 py-2 text-sm font-bold transition ${isRoundTrip ? "bg-apron text-white" : "bg-white text-slate-600"}`}
             >
               {t("schedule.roundTrip")}
             </button>
@@ -582,7 +583,7 @@ export function ScheduleScreen() {
           <button
             type="submit"
             disabled={false}
-            className="mt-4 w-full rounded-md bg-coral px-4 py-3 font-bold text-white transition hover:bg-coral/90 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="mt-4 w-full rounded-md bg-sign px-4 py-3 font-bold text-apron transition hover:bg-sign-deep disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {t("schedule.save")}
           </button>
@@ -875,7 +876,7 @@ function RemainingDemandPreview({ summary }: { summary: ScheduleDemandPreview })
         <p className="text-xs font-semibold text-slate-500">Updates from the selected route and draft timetable</p>
       </div>
       <div className="mt-3 overflow-x-auto rounded-md border border-slate-100">
-        <div className="grid min-w-[460px] grid-cols-[1fr_repeat(4,78px)] gap-2 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-normal text-slate-500">
+        <div className="grid min-w-[460px] grid-cols-[1fr_repeat(4,78px)] gap-2 bg-slate-50 px-3 py-2 text-xs font-black text-slate-500">
           <span>Cabin</span>
           <span>Total</span>
           <span>Used</span>

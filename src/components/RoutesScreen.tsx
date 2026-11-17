@@ -13,12 +13,13 @@ import { calculateRemainingDemand } from "@/lib/routeDemand";
 import { evaluateRoute } from "@/lib/routeEvaluation";
 import { formatScheduleFlightNumbers } from "@/lib/schedule";
 import { useGameStore } from "@/store/gameStore";
+import { usePanelGame } from "@/hooks/usePanelGame";
 import type { CabinDemand, GameState, Route } from "@/types/game";
 
 type Sort = "distance" | "profit" | "revenue";
 export function RoutesScreen({ onSchedule }: { onSchedule?: () => void }) {
   const { t } = useTranslation();
-  const game = useGameStore((state) => state.game);
+  const game = usePanelGame();
   const batchPricing = useGameStore((state) => state.batchRoutePricing);
   const [baseFilter, setBaseFilter] = useState("all");
   const [sort, setSort] = useState<Sort>("profit");
@@ -35,7 +36,7 @@ export function RoutesScreen({ onSchedule }: { onSchedule?: () => void }) {
   const selectedRoutes = game.routes.filter((item) => checked.includes(item.id));
   const validPercent = Number.isFinite(percent) && percent >= 1 && percent <= 1000;
   return <div className="min-w-0 space-y-5">
-    <h2 className="text-2xl font-black text-ink">{t("routes.openedRoutes")}</h2>
+    <h2 className="screen-title">{t("routes.openedRoutes")}</h2>
     <div className="flex flex-wrap gap-3 border-y border-slate-200 bg-white py-3">
       <label className="min-w-0 text-sm font-bold text-slate-600">{t("routes.originBase")}
         <select value={baseFilter} onChange={(event) => setBaseFilter(event.target.value)} className="ml-2 max-w-full rounded-md border border-slate-300 p-2">

@@ -14,6 +14,7 @@ import { GameConsole } from "@/components/GameConsole";
 import { GameNavigation, gameNavigation, type GameScreen } from "@/components/GameNavigation";
 import { MapScreen } from "@/components/MapScreen";
 import { RoutesScreen } from "@/components/RoutesScreen";
+import { SaveFilePanel } from "@/components/SaveFilePanel";
 import { ScheduleScreen } from "@/components/ScheduleScreen";
 import { getCurrentCash } from "@/lib/cash";
 import { formatGBP } from "@/lib/format";
@@ -21,6 +22,7 @@ import { formatGameDate, GAME_SPEED_OPTIONS } from "@/lib/time";
 import { useCloudAutoSave } from "@/hooks/useCloudAutoSave";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useTranslation } from "@/i18n";
+import { APP_VERSION } from "@/config/appVersion";
 import { useGameStore } from "@/store/gameStore";
 import type { GameState, TimeMultiplier } from "@/types/game";
 
@@ -30,13 +32,16 @@ export function AppShell() {
   const [screen, setScreen] = useState<GameScreen>("map");
   const [fleetSelection, setFleetSelection] = useState<string | null>(null);
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
-  const game = useGameStore((state) => state.game);
+  const hasGame = useGameStore((state) => Boolean(state.game));
+  const gameStatus = useGameStore((state) => state.game?.gameStatus ?? "active");
+  const timeMultiplier = useGameStore((state) => state.game?.timeMultiplier ?? 1);
+  const isPaused = useGameStore((state) => state.game?.isPaused ?? false);
   const notice = useGameStore((state) => state.notice);
   const clearNotice = useGameStore((state) => state.clearNotice);
   const resetGame = useGameStore((state) => state.resetGame);
   const setTimeMultiplier = useGameStore((state) => state.setTimeMultiplier);
   const togglePause = useGameStore((state) => state.togglePause);
-  const autoSaveStatus = useCloudAutoSave(game, user);
+  const autoSaveStatus = useCloudAutoSave(user);
   const isOnline = useOnlineStatus();
   const workspaceTitle = useRef<HTMLHeadingElement>(null);
 
@@ -54,42 +59,12 @@ export function AppShell() {
     document.querySelector<HTMLButtonElement>('[data-screen="map"]')?.focus();
   }
 
-  if (!game) return null;
-  const cash = getCurrentCash(game);
+  if (!hasGame) return null;
 
   return (
     <main className="simulation-shell">
-      <header className="game-hud">
-        <div className="hud-airline">
-          <Plane size={24} aria-hidden="true" className="shrink-0 text-jet" />
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-500">Airline Tycoon V1.7.3</p>
-            <h1 className="truncate text-base font-black text-ink">{game.airlineName}</h1>
-          </div>
-        </div>
-        <div className="hud-cash"><HeaderStat label={t("top.cash")} value={formatGBP.format(cash)} icon={Wallet}
-          onClick={isAdmin ? () => setIsConsoleOpen(true) : undefined} title={isAdmin ? t("shell.console") : undefined} /></div>
-        <div className="hud-time"><HeaderStat label={t("top.gameTime")} value={formatGameDate(game.currentGameTimeMs)} icon={CalendarClock} /></div>
-        <div className="hud-network" aria-label={`${t("top.aircraft")}: ${game.fleet.length}; ${t("top.routes")}: ${game.routes.length}`}>
-          <Plane size={16} aria-hidden="true" /><span>{game.fleet.length}</span><Route size={16} aria-hidden="true" /><span>{game.routes.length}</span>
-        </div>
-        <div className="hud-controls">
-          <button type="button" onClick={() => navigate("settings")} className="hud-icon-button hud-connectivity"
-            aria-label={`${isOnline ? t("top.online") : t("top.offlineMode")}. ${formatAutoSaveStatus(autoSaveStatus, t) ?? ""}`}>
-            {isOnline ? <Cloud size={19} className={autoSaveStatus.state === "failed" ? "text-coral" : "text-mint"} /> : <CloudOff size={19} className="text-slate-500" />}
-            <span className="game-tooltip" aria-hidden="true">{formatAutoSaveStatus(autoSaveStatus, t) ?? (isOnline ? t("top.online") : t("top.offlineMode"))}</span>
-          </button>
-          <button type="button" aria-label={game.isPaused ? t("top.resume") : t("top.pause")} onClick={togglePause}
-            className={`hud-icon-button ${game.isPaused ? "text-coral" : "text-jet"}`}>
-            {game.isPaused ? <Play size={20} /> : <Pause size={20} />}
-            <span className="game-tooltip" aria-hidden="true">{game.isPaused ? t("top.resume") : t("top.pause")}</span>
-          </button>
-          <select aria-label={t("settings.timeSpeed")} value={game.timeMultiplier} onChange={(event) => setTimeMultiplier(Number(event.target.value) as TimeMultiplier)}
-            className="hud-speed">
-            {GAME_SPEED_OPTIONS.map((speed) => <option key={speed} value={speed}>{speed}x</option>)}
-          </select>
-        </div>
-      </header>
+      <GameHud isAdmin={isAdmin} isOnline={isOnline} autoSaveStatus={autoSaveStatus}
+        onOpenConsole={() => setIsConsoleOpen(true)} onOpenSettings={() => navigate("settings")} />
 
       <div className="game-stage">
         <div className="absolute inset-0" inert={screen !== "map"} aria-hidden={screen !== "map"} style={{ visibility: screen === "map" ? "visible" : "hidden" }}>
@@ -101,11 +76,11 @@ export function AppShell() {
               <button type="button" onClick={clearNotice} aria-label={t("common.dismiss")} className="hud-icon-button shrink-0"><X size={18} /></button>
             </div>
           ) : null}
-        {game.gameStatus !== "active" ? <div className="game-over-overlay"><GameOverPanel gameStatus={game.gameStatus} resetGame={resetGame} /></div> : null}
+        {gameStatus !== "active" ? <div className="game-over-overlay"><GameOverPanel gameStatus={gameStatus} resetGame={resetGame} /></div> : null}
         {screen !== "map" ? <section className="game-workspace" aria-labelledby="workspace-title" key={screen}>
           <header className="workspace-header animate-slide-in">
-            <h2 id="workspace-title" ref={workspaceTitle} tabIndex={-1} className="flex items-center gap-2 text-sm font-black text-ink outline-none">
-              {(() => { const item = gameNavigation.find((entry) => entry.id === screen)!; const Icon = item.icon; return <><Icon size={20} className="text-jet" aria-hidden="true" />{t(item.labelKey)}</>; })()}
+            <h2 id="workspace-title" ref={workspaceTitle} tabIndex={-1} className="flex items-center gap-3 text-ink outline-none">
+              {(() => { const item = gameNavigation.find((entry) => entry.id === screen)!; const Icon = item.icon; return <><span className="workspace-mark"><Icon size={18} aria-hidden="true" /></span>{t(item.labelKey)}</>; })()}
             </h2>
             <button type="button" onClick={returnToMap} aria-label={t("shell.backToMap")} className="hud-icon-button"><X size={20} />
               <span className="game-tooltip" aria-hidden="true">{t("shell.backToMap")}</span>
@@ -124,8 +99,8 @@ export function AppShell() {
             <SettingsPanel
               language={language}
               setLanguage={setLanguage}
-              timeMultiplier={game.timeMultiplier}
-              isPaused={game.isPaused}
+              timeMultiplier={timeMultiplier}
+              isPaused={isPaused}
               isOnline={isOnline}
               autoSaveStatus={autoSaveStatus}
               setTimeMultiplier={setTimeMultiplier}
@@ -152,18 +127,63 @@ export function AppShell() {
   );
 }
 
-function HeaderStat({ label, value, icon: Icon, onClick, title }: { label: string; value: string; icon: typeof Wallet; onClick?: () => void; title?: string }) {
+/** The status board subscribes to the live game on its own, so the clock ticking never re-renders the workspace. */
+function GameHud({ isAdmin, isOnline, autoSaveStatus, onOpenConsole, onOpenSettings }: {
+  isAdmin: boolean; isOnline: boolean; autoSaveStatus: ReturnType<typeof useCloudAutoSave>; onOpenConsole: () => void; onOpenSettings: () => void;
+}) {
+  const { t } = useTranslation();
+  const game = useGameStore((state) => state.game);
+  const setTimeMultiplier = useGameStore((state) => state.setTimeMultiplier);
+  const togglePause = useGameStore((state) => state.togglePause);
+  if (!game) return null;
+  const cash = getCurrentCash(game);
+  const saveLabel = formatAutoSaveStatus(autoSaveStatus, t) ?? (isOnline ? t("top.online") : t("top.offlineMode"));
+  return (
+    <header className="game-hud">
+      <div className="hud-airline">
+        <span className="hud-mark"><Plane size={19} aria-hidden="true" /></span>
+        <div className="min-w-0">
+          <h1>{game.airlineName}</h1>
+          <p>Airline Tycoon {APP_VERSION}</p>
+        </div>
+      </div>
+      <div className="hud-cash"><HeaderStat label={t("top.cash")} value={formatGBP.format(cash)} icon={Wallet} negative={cash < 0}
+        onClick={isAdmin ? onOpenConsole : undefined} title={isAdmin ? t("shell.console") : undefined} /></div>
+      <div className="hud-time"><HeaderStat label={t("top.gameTime")} value={formatGameDate(game.currentGameTimeMs)} icon={CalendarClock} /></div>
+      <div className="hud-network" aria-label={`${t("top.aircraft")}: ${game.fleet.length}; ${t("top.routes")}: ${game.routes.length}`}>
+        <Plane size={16} aria-hidden="true" /><span>{game.fleet.length}</span><Route size={16} aria-hidden="true" /><span>{game.routes.length}</span>
+      </div>
+      <div className="hud-controls">
+        <button type="button" onClick={onOpenSettings} className={`hud-icon-button hud-connectivity ${autoSaveStatus.state === "failed" ? "is-warning" : ""}`}
+          aria-label={`${isOnline ? t("top.online") : t("top.offlineMode")}. ${formatAutoSaveStatus(autoSaveStatus, t) ?? ""}`}>
+          {isOnline ? <Cloud size={19} /> : <CloudOff size={19} />}
+          <span className="game-tooltip" aria-hidden="true">{saveLabel}</span>
+        </button>
+        <button type="button" aria-label={game.isPaused ? t("top.resume") : t("top.pause")} onClick={togglePause}
+          className={`hud-icon-button ${game.isPaused ? "is-paused" : ""}`}>
+          {game.isPaused ? <Play size={20} /> : <Pause size={20} />}
+          <span className="game-tooltip" aria-hidden="true">{game.isPaused ? t("top.resume") : t("top.pause")}</span>
+        </button>
+        <select aria-label={t("settings.timeSpeed")} value={game.timeMultiplier} onChange={(event) => setTimeMultiplier(Number(event.target.value) as TimeMultiplier)}
+          className="hud-speed">
+          {GAME_SPEED_OPTIONS.map((speed) => <option key={speed} value={speed}>{speed}x</option>)}
+        </select>
+      </div>
+    </header>
+  );
+}
+
+function HeaderStat({ label, value, icon: Icon, onClick, title, negative = false }: {
+  label: string; value: string; icon: typeof Wallet; onClick?: () => void; title?: string; negative?: boolean;
+}) {
   const Component = onClick ? "button" : "div";
   return (
-    <Component
-      type={onClick ? "button" : undefined}
-      onClick={onClick}
-      title={title}
-      className={`hud-stat ${onClick ? "hover:bg-slate-50" : ""}`}
-    >
-      <Icon size={19} className="shrink-0 text-jet" aria-hidden="true" />
-      <div className="min-w-0"><p className="text-[10px] font-semibold text-slate-500">{label}</p>
-      <p className="break-words text-xs font-bold tabular-nums text-ink sm:text-sm">{value}</p></div>
+    <Component type={onClick ? "button" : undefined} onClick={onClick} title={title} className="hud-stat">
+      <Icon size={18} className="shrink-0" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="hud-stat-label">{label}</p>
+        <p className={`hud-stat-value ${negative ? "is-negative" : ""}`}>{value}</p>
+      </div>
     </Component>
   );
 }
@@ -172,7 +192,7 @@ function GameOverPanel({ gameStatus, resetGame }: { gameStatus: GameState["gameS
   const { t } = useTranslation();
   return (
     <section className="mb-4 rounded-lg border border-coral/30 bg-white p-5 shadow-soft">
-      <p className="text-xs font-black uppercase tracking-normal text-coral">{t("difficulty.airlineBankrupt")}</p>
+      <p className="text-xs font-semibold text-slate-500">{t("difficulty.airlineBankrupt")}</p>
       <h2 className="mt-1 text-2xl font-black text-ink">
         {gameStatus === "gameOver" ? t("difficulty.gameOver") : t("difficulty.airlineBankrupt")}
       </h2>
@@ -234,18 +254,18 @@ function SettingsPanel({
   return (
     <div className="max-w-3xl space-y-4">
       <div>
-        <h2 className="text-2xl font-black text-ink">{t("nav.settings")}</h2>
+        <h2 className="screen-title">{t("nav.settings")}</h2>
       </div>
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
         <div className="mb-3 flex items-center gap-2">
-          <Gauge size={20} className="text-coral" />
+          <Gauge size={20} className="text-slate-400" />
           <h3 className="font-bold text-ink">{t("shell.simulation")}</h3>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={togglePause}
-            className={`flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-black ${isPaused ? "bg-coral text-white" : "bg-jet text-white"}`}
+            className={`flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-black ${isPaused ? "bg-sign text-apron" : "bg-apron text-white"}`}
           >
             {isPaused ? <Play size={17} /> : <Pause size={17} />}
             <span>{t(isPaused ? "top.resume" : "top.pause")}</span>
@@ -287,6 +307,7 @@ function SettingsPanel({
           {autoSaveStatus.message ? <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">{autoSaveStatus.message}</p> : null}
         </div>
       </section>
+      <SaveFilePanel />
       {showCloudSave ? (
         <CloudSavePanel />
       ) : (
@@ -339,7 +360,7 @@ function SpeedSelector({
           aria-pressed={value === speed}
           onClick={() => onChange(speed)}
           className={`h-11 min-w-0 rounded px-2 text-xs font-black transition ${
-            value === speed ? "bg-mint text-white" : "text-slate-600 hover:bg-slate-100"
+            value === speed ? "bg-apron text-white" : "text-slate-600 hover:bg-slate-100"
           }`}
         >
           {speed}x

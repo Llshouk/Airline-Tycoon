@@ -1,6 +1,9 @@
 import type { User } from "@supabase/supabase-js";
 
-export const ADMIN_EMAILS = ["hateuum00100@gmail.com"];
+// Admin accounts come from the environment, never from source control:
+// NEXT_PUBLIC_ADMIN_EMAILS="first@example.com,second@example.com"
+export const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? "")
+  .split(",").map((email) => email.trim().toLowerCase()).filter(Boolean);
 
 // Prototype-only client-side guard. Real production admin tools should also be
 // enforced server-side or through Supabase RLS / backend authorization.

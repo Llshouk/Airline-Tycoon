@@ -1075,9 +1075,9 @@ function drawLeafletLayers(
       const canonicalSegments = buildRoutePolylineLatLngSegments(origin, destination);
       worldOffsets.forEach((longitudeOffset) => {
         L.polyline(shiftRouteSegments(canonicalSegments, longitudeOffset), {
-          color: active ? "#d76745" : "#18545c",
+          color: active ? "#0d2137" : "#b7127b",
           weight: active ? 4 : 2,
-          opacity: 0.85
+          opacity: active ? 1 : 0.8
         })
           .on("click", () => props.onSelectRoute(route.id))
           .addTo(layer);
@@ -1334,8 +1334,8 @@ function airportMarkerKind(isBase: boolean, isExpanded: boolean): AirportMarkerK
 }
 
 function airportMarkerFill(kind: AirportMarkerKind) {
-  if (kind === "base") return "#d76745";
-  if (kind === "opened") return "#4f9d7e";
+  if (kind === "base") return "#ffc629";
+  if (kind === "opened") return "#1b4f8f";
   return "#ffffff";
 }
 

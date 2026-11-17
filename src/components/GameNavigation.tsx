@@ -6,17 +6,17 @@ import { useTranslation, type TranslationKey } from "@/i18n";
 
 export type GameScreen = "dashboard" | "map" | "fleet" | "market" | "routes" | "schedule" | "finance" | "growth" | "leaderboard" | "settings";
 
-export const gameNavigation: { id: GameScreen; labelKey: TranslationKey; icon: LucideIcon; accent: string }[] = [
-  { id: "map", labelKey: "nav.map", icon: Map, accent: "#7dc8e5" },
-  { id: "fleet", labelKey: "nav.fleet", icon: Plane, accent: "#f1d470" },
-  { id: "market", labelKey: "nav.market", icon: Store, accent: "#ee9a80" },
-  { id: "routes", labelKey: "nav.routes", icon: Route, accent: "#87d6b0" },
-  { id: "schedule", labelKey: "nav.schedule", icon: CalendarClock, accent: "#a7c9f2" },
-  { id: "finance", labelKey: "nav.finance", icon: CircleDollarSign, accent: "#87d6b0" },
-  { id: "dashboard", labelKey: "nav.dashboard", icon: BarChart3, accent: "#7dc8e5" },
-  { id: "growth", labelKey: "nav.growth", icon: Flag, accent: "#f1d470" },
-  { id: "leaderboard", labelKey: "nav.leaderboard", icon: Trophy, accent: "#ee9a80" },
-  { id: "settings", labelKey: "nav.settings", icon: Settings, accent: "#cad7da" }
+export const gameNavigation: { id: GameScreen; labelKey: TranslationKey; icon: LucideIcon }[] = [
+  { id: "map", labelKey: "nav.map", icon: Map },
+  { id: "fleet", labelKey: "nav.fleet", icon: Plane },
+  { id: "market", labelKey: "nav.market", icon: Store },
+  { id: "routes", labelKey: "nav.routes", icon: Route },
+  { id: "schedule", labelKey: "nav.schedule", icon: CalendarClock },
+  { id: "finance", labelKey: "nav.finance", icon: CircleDollarSign },
+  { id: "dashboard", labelKey: "nav.dashboard", icon: BarChart3 },
+  { id: "growth", labelKey: "nav.growth", icon: Flag },
+  { id: "leaderboard", labelKey: "nav.leaderboard", icon: Trophy },
+  { id: "settings", labelKey: "nav.settings", icon: Settings }
 ];
 
 export function GameNavigation({ screen, onNavigate }: { screen: GameScreen; onNavigate: (screen: GameScreen) => void }) {
@@ -60,23 +60,23 @@ export function GameNavigation({ screen, onNavigate }: { screen: GameScreen; onN
             <button key={item.id} type="button" aria-label={label} aria-current={screen === item.id ? "page" : undefined}
               onClick={() => navigate(item.id)} data-screen={item.id}
               className={`game-dock-button ${index >= 5 ? "dock-secondary" : ""} ${screen === item.id ? "is-active" : ""}`}>
-              <Icon size={23} style={{ color: item.accent }} aria-hidden="true" />
+              <Icon size={21} aria-hidden="true" />
               <span className="game-tooltip" aria-hidden="true">{label}</span>
-              <span className="dock-label" aria-hidden="true">{item.id === "market" ? t("shell.marketShort") : label}</span>
+              <span className="dock-label" aria-hidden="true">{item.id === "market" ? t("shell.marketShort") : item.id === "growth" ? t("shell.growthShort") : label}</span>
             </button>
           );
         })}
         <div ref={more} className="dock-more">
           <button ref={moreButton} type="button" aria-label={t("shell.more")} aria-expanded={moreOpen} aria-controls="game-more-navigation"
             onClick={() => setMoreOpen((open) => !open)} className={`game-dock-button ${gameNavigation.findIndex((item) => item.id === screen) >= 5 ? "is-active" : ""}`}>
-            <MoreHorizontal size={24} aria-hidden="true" />
+            <MoreHorizontal size={21} aria-hidden="true" />
             <span className="dock-label" aria-hidden="true">{t("shell.more")}</span>
           </button>
           {moreOpen ? <div id="game-more-navigation" className="dock-more-menu" aria-label={t("shell.more")}>
             {gameNavigation.slice(5).map((item) => {
               const Icon = item.icon;
               return <button key={item.id} type="button" data-screen={item.id} aria-current={screen === item.id ? "page" : undefined} onClick={() => navigate(item.id)}>
-                <Icon size={20} style={{ color: item.accent }} aria-hidden="true" /><span>{t(item.labelKey)}</span>
+                <Icon size={20} aria-hidden="true" /><span>{t(item.labelKey)}</span>
               </button>;
             })}
           </div> : null}

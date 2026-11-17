@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Globe2, Layers, List, LocateFixed, Map, MapPin, Plane, Route as RouteIcon, X } from "lucide-react";
 import { GameMap, type MapDisplayMode } from "@/components/GameMap";
 import type { GlobeQuality, MapEngine } from "@/components/map/mapTypes";
@@ -19,7 +19,11 @@ export function MapScreen({ active = true, onSelectAircraft, onViewRoutes }: {
   active?: boolean; onSelectAircraft?: (aircraftId: string) => void; onViewRoutes?: () => void;
 }) {
   const { t } = useTranslation();
-  const game = useGameStore((state) => state.game);
+  // While a workspace covers the map, hold the last state instead of redrawing a hidden map every tick.
+  const liveGame = useGameStore((state) => (active ? state.game : undefined));
+  const heldGame = useRef<GameState | null>(null);
+  if (liveGame !== undefined) heldGame.current = liveGame;
+  const game = heldGame.current;
   const openRoute = useGameStore((state) => state.openRoute);
   const buyBaseAirport = useGameStore((state) => state.buyBaseAirport);
   const setPrimaryBaseAirport = useGameStore((state) => state.setPrimaryBaseAirport);
@@ -337,7 +341,7 @@ function BaseAirportBoardPanel({
     <section className="rounded-lg border border-slate-800 bg-ink p-4 text-white shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/15 pb-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-normal text-amber-200">{t("base.baseAirportBoard")}</p>
+          <p className="text-xs font-black text-amber-200">{t("base.baseAirportBoard")}</p>
           <h3 className="mt-1 font-black">{selectedAirport ? `${selectedAirport.iata} ${selectedAirport.city}` : t("base.noBaseSelected")}</h3>
           <p className="mt-1 text-xs font-semibold text-slate-300">{formatGameDate(game.currentGameTimeMs)}</p>
         </div>
@@ -385,7 +389,7 @@ function BasePurchaseConfirmModal({
   return (
     <div className="fixed inset-0 z-[6250] flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-soft animate-modal-in">
-        <p className="text-xs font-black uppercase tracking-normal text-coral">{t("base.buyAsBase")}</p>
+        <p className="text-xs font-semibold text-slate-500">{t("base.buyAsBase")}</p>
         <h3 className="mt-1 text-2xl font-black text-ink">
           {airport.iata} {airport.name}
         </h3>
@@ -395,7 +399,7 @@ function BasePurchaseConfirmModal({
           <button type="button" onClick={onCancel} className="rounded-md border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-runway">
             {t("common.close")}
           </button>
-          <button type="button" onClick={onConfirm} disabled={!canAfford} className="rounded-md bg-coral px-4 py-2 font-black text-white hover:bg-coral/90 disabled:cursor-not-allowed disabled:bg-slate-300">
+          <button type="button" onClick={onConfirm} disabled={!canAfford} className="rounded-md bg-sign px-4 py-2 font-black text-apron hover:bg-sign-deep disabled:cursor-not-allowed disabled:bg-slate-300">
             {t("base.buyAsBase")}
           </button>
         </div>
@@ -442,7 +446,7 @@ function AirportActionModal({
   return (
     <div className="fixed inset-0 z-[6100] flex items-center justify-center bg-ink/45 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-soft animate-modal-in">
-        <p className="text-xs font-black uppercase tracking-normal text-coral">{t("airport.actions")}</p>
+        <p className="text-xs font-semibold text-slate-500">{t("airport.actions")}</p>
         <h3 className="mt-1 text-2xl font-black text-ink">
           {airport.iata} {airport.name}
         </h3>
@@ -460,7 +464,7 @@ function AirportActionModal({
           </button>
           {baseAirportIds.some((airportId) => airportId !== airport.id) ? (
             <label className="rounded-md border border-slate-200 bg-runway px-3 py-2 text-sm font-bold text-slate-700">
-              <span className="mb-1 block text-xs font-black uppercase tracking-normal text-slate-500">{t("base.selectBase")}</span>
+              <span className="mb-1 block text-xs font-black text-slate-500">{t("base.selectBase")}</span>
               <select value={routeOriginAirportId} onChange={(event) => onRouteOriginChange(event.target.value)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 font-bold text-jet">
                 {baseAirportIds
                   .filter((airportId) => airportId !== airport.id)
@@ -480,7 +484,7 @@ function AirportActionModal({
               {t("map.viewRoute")}
             </button>
           ) : null}
-          <button type="button" onClick={() => onOpenRoute(openingPreview)} className="rounded-md bg-coral px-4 py-3 text-sm font-black text-white hover:bg-coral/90">
+          <button type="button" onClick={() => onOpenRoute(openingPreview)} className="rounded-md bg-sign px-4 py-3 text-sm font-black text-apron hover:bg-sign-deep">
             {t("map.openRoute")}
           </button>
           {isOwnedBase ? (
@@ -517,7 +521,7 @@ function AirportBoardModal({ airportId, game, onClose }: { airportId: string; ga
       <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-slate-800 bg-ink p-5 text-white shadow-soft animate-modal-in">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/15 pb-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-normal text-amber-200">{t("airport.viewBoard")}</p>
+            <p className="text-xs font-black text-amber-200">{t("airport.viewBoard")}</p>
             <h3 className="mt-1 text-2xl font-black">
               {airport.iata} {airport.city}
             </h3>
@@ -572,7 +576,7 @@ function BoardTab({ active, label, count, onClick }: { active: boolean; label: s
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center justify-between gap-2 rounded px-3 py-2 text-xs font-black uppercase tracking-normal transition ${
+      className={`flex items-center justify-between gap-2 rounded px-3 py-2 text-xs font-black transition ${
         active ? "bg-amber-300 text-slate-950 shadow-sm" : "text-slate-300 hover:bg-white/10 hover:text-white"
       }`}
     >
@@ -596,7 +600,7 @@ function FlightBoardColumn({
   const { t } = useTranslation();
   return (
     <div className="p-2">
-      <div className="mb-2 hidden grid-cols-[64px_72px_1fr_92px_92px] gap-2 border-b border-white/10 px-2 pb-2 text-[10px] font-black uppercase tracking-normal text-slate-400 md:grid">
+      <div className="mb-2 hidden grid-cols-[64px_72px_1fr_92px_92px] gap-2 border-b border-white/10 px-2 pb-2 text-[10px] font-black text-slate-400 md:grid">
         <span>{t("airport.scheduled")}</span>
         <span>{t("airport.flight")}</span>
         <span>{type === "departure" ? t("airport.destination") : t("airport.origin")}</span>
@@ -621,7 +625,7 @@ function FlightBoardColumn({
                 {!compact ? <span className="ml-2 text-slate-500">{row.aircraftModel}</span> : null}
               </span>
               {!compact ? <span className="truncate font-mono font-bold text-slate-300">{row.aircraft.registration}</span> : null}
-              <span className={`justify-self-end rounded px-2 py-1 text-[10px] font-black uppercase tracking-normal ${row.isDelayed ? "bg-amber-300 text-slate-950" : "bg-white/10 text-slate-100"}`}>
+              <span className={`justify-self-end rounded px-2 py-1 text-[10px] font-black ${row.isDelayed ? "bg-amber-300 text-slate-950" : "bg-white/10 text-slate-100"}`}>
                 {row.item.status === "cancelled" ? t("airport.cancelled") : row.item.operationalStatus === "grounded" ? t("maintenance.status.grounded") : row.isDelayed ? `${t("airport.delayed")} ${formatBoardTime(row.actualTime)}` : airportStatusLabel(row.statusKey, t)}
               </span>
             </div>

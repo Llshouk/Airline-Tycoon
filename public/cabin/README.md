@@ -16,8 +16,8 @@ airline product photographs. Actual seat arrangements remain model-driven.
 
 ### Business
 
-Saved asset: `public/cabin/business-products-v173.png` (965 x 1629 PNG).
-Runtime URL: `/cabin/business-products-v173.png`.
+Saved asset: `public/cabin/business-products-v173.webp` (965 x 1629 WebP).
+Runtime URL: `/cabin/business-products-v173.webp`.
 
 Full generation prompt:
 
@@ -25,8 +25,8 @@ Full generation prompt:
 
 ### Premium Economy
 
-Saved asset: `public/cabin/premium-economy-products-v173.png` (965 x 1629 PNG).
-Runtime URL: `/cabin/premium-economy-products-v173.png`.
+Saved asset: `public/cabin/premium-economy-products-v173.webp` (965 x 1629 WebP).
+Runtime URL: `/cabin/premium-economy-products-v173.webp`.
 
 Full generation prompt:
 
@@ -34,8 +34,8 @@ Full generation prompt:
 
 ### Economy
 
-Saved asset: `public/cabin/economy-products-v173.png` (965 x 1629 PNG).
-Runtime URL: `/cabin/economy-products-v173.png`.
+Saved asset: `public/cabin/economy-products-v173.webp` (965 x 1629 WebP).
+Runtime URL: `/cabin/economy-products-v173.webp`.
 
 Full generation prompt:
 
@@ -61,7 +61,7 @@ seat with generous margins inside its equal tile.
 
 ## V1.7.2 First Class
 
-Runtime asset: `/cabin/first-class-products-v172.png`.
+Runtime asset: `/cabin/first-class-products-v172.webp`.
 
 Generated with the built-in image tool in generate mode, without reference
 images. The original 966-by-1628 PNG contains three equal-height vertical

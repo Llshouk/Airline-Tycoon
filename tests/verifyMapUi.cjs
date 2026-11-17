@@ -64,7 +64,7 @@ async function main() {
       let expectedImageFailure = false;
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("console", (message) => {
-        if (expectedImageFailure && message.location().url.endsWith("/cabin/first-class-products-v172.png")) return;
+        if (expectedImageFailure && message.location().url.endsWith("/cabin/first-class-products-v172.webp")) return;
         if (message.type() === "error" && !message.location().url.endsWith("/favicon.ico")) errors.push(message.text());
       });
       await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 90000 });
@@ -120,7 +120,7 @@ async function main() {
       await dialog.getByRole("tab", { name: /First Class/ }).click();
       await dialog.getByRole("radio", { name: "First Class luxury", exact: true }).click();
       await page.waitForFunction(() => [...document.querySelectorAll('.cabin-product img')].every((image) => image.complete && image.naturalWidth > 0));
-      assert.ok((await dialog.locator(".cabin-product img").first().getAttribute("src")).includes("first-class-products-v172.png"));
+      assert.ok((await dialog.locator(".cabin-product img").first().getAttribute("src")).includes("first-class-products-v172.webp"));
       await page.waitForTimeout(200);
       await page.screenshot({ path: path.join(output, `ui-v172-${width}-first-class.png`) });
       await dialog.getByRole("button", { name: "Apply configuration", exact: true }).click();
@@ -135,7 +135,7 @@ async function main() {
       assert.deepEqual(after.fleet.find((aircraft) => aircraft.id === "legacy"), before.fleet[0]);
       if (width === 390) {
         expectedImageFailure = true;
-        await context.route("**/cabin/first-class-products-v172.png", (route) => route.abort());
+        await context.route("**/cabin/first-class-products-v172.webp", (route) => route.abort());
         await page.emulateMedia({ reducedMotion: "reduce" });
         await page.getByRole("button", { name: "Seat Configuration", exact: true }).click();
         await page.getByRole("dialog").getByRole("tab", { name: /First Class/ }).click();
@@ -143,7 +143,7 @@ async function main() {
         assert.equal(await page.getByRole("dialog").locator(".cabin-product [role=img]").count(), 3);
         assert.equal(await page.getByRole("dialog").evaluate((element) => getComputedStyle(element).animationName), "none");
         await page.keyboard.press("Escape");
-        await context.unroute("**/cabin/first-class-products-v172.png");
+        await context.unroute("**/cabin/first-class-products-v172.webp");
         expectedImageFailure = false;
       }
       await navigate(page, "fleet");

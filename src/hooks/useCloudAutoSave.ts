@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { getCloudSaveErrorDetails, isSupabaseConfigured, saveGameToCloud } from "@/lib/cloudSave";
 import { useTranslation } from "@/i18n";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import type { GameState } from "@/types/game";
+import { useGameStore } from "@/store/gameStore";
 import { safeGetLocalStorage, safeRemoveLocalStorage, safeSetLocalStorage } from "@/lib/gameSaveStorage";
 
 const AUTO_SAVE_INTERVAL_MS = 60_000;
@@ -17,22 +17,18 @@ export type CloudAutoSaveStatus = {
   message: string | null;
 };
 
-export function useCloudAutoSave(gameState: GameState | null, user: User | null): CloudAutoSaveStatus {
+export function useCloudAutoSave(user: User | null): CloudAutoSaveStatus {
   const { t } = useTranslation();
   const isOnline = useOnlineStatus();
-  const latestGameRef = useRef<GameState | null>(gameState);
   const isSavingRef = useRef(false);
   const syncPromptedRef = useRef(false);
-  const hasGame = Boolean(gameState);
+  // Read the game only when a save is due, so the shell does not re-render on every simulation tick.
+  const hasGame = useGameStore((state) => Boolean(state.game));
   const [status, setStatus] = useState<CloudAutoSaveStatus>({
     state: "disabled",
     lastSavedAt: null,
     message: null
   });
-
-  useEffect(() => {
-    latestGameRef.current = gameState;
-  }, [gameState]);
 
   useEffect(() => {
     if (!user || !hasGame || !isSupabaseConfigured()) {
@@ -54,7 +50,7 @@ export function useCloudAutoSave(gameState: GameState | null, user: User | null)
     }));
 
     const save = async () => {
-      const latestGame = latestGameRef.current;
+      const latestGame = useGameStore.getState().game;
       if (!latestGame || isSavingRef.current) return;
       isSavingRef.current = true;
       setStatus((current) => ({ ...current, state: "saving", message: null }));
@@ -87,7 +83,7 @@ export function useCloudAutoSave(gameState: GameState | null, user: User | null)
     syncPromptedRef.current = true;
     if (!window.confirm(t("cloud.syncNowPrompt"))) return;
 
-    const latestGame = latestGameRef.current;
+    const latestGame = useGameStore.getState().game;
     if (!latestGame) return;
 
     isSavingRef.current = true;
