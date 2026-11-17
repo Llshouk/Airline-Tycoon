@@ -1,6 +1,5 @@
 import { ROUTE_MARKET, hourlyPassengerPreference } from "@/config/routeMarket";
-import { airportsById } from "@/data/airports";
-import { airportLocalMinutes } from "@/lib/airportOperations";
+import { airportLocalDate, airportLocalMinutes } from "@/lib/airportOperations";
 import type { CabinDemand, CabinPrices, Route, RoutePricing } from "@/types/game";
 
 export const DEMAND_KEYS = ["first", "business", "premiumEconomy", "economy", "cargoTons"] as const;
@@ -15,14 +14,12 @@ export function priceDemandMultiplier(reference: number, actual: number, cabin: 
     Math.exp(-Math.max(0, ratio - 2) * 0.7);
 }
 
-const localDates = new Map<string, Intl.DateTimeFormat>();
 export function marketWindow(route: Route, originId: string, departure: number) {
-  const zone = airportsById[originId]?.timeZone ?? "UTC";
-  if (!localDates.has(zone)) localDates.set(zone, new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }));
   const minute = airportLocalMinutes(originId, departure);
   const slot = Math.floor(minute / (ROUTE_MARKET.windowHours * 60));
-  const pair = [route.originAirportId, route.destinationAirportId].sort().join(":");
-  return { key: `${pair}:${originId}:${localDates.get(zone)!.format(departure)}:${slot}`, slot,
+  const pair = route.originAirportId < route.destinationAirportId
+    ? `${route.originAirportId}:${route.destinationAirportId}` : `${route.destinationAirportId}:${route.originAirportId}`;
+  return { key: `${pair}:${originId}:${airportLocalDate(originId, departure)}:${slot}`, slot,
     endsGameTimeMs: departure + ((slot + 1) * ROUTE_MARKET.windowHours * 60 - minute + 60) * 60000 };
 }
 

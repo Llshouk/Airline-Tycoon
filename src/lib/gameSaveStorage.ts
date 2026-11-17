@@ -2,6 +2,8 @@ const GAME_SAVE_DB = "airline-tycoon-game-saves";
 const GAME_SAVE_STORE = "saves";
 const GAME_SAVE_METADATA_KEY = "airline-tycoon-v1-meta";
 const SAVE_DEBOUNCE_MS = 1000;
+// Clock-only progress can always be replayed from the last tick time, so it is written less often.
+const BACKGROUND_SAVE_INTERVAL_MS = 5000;
 
 export type StorageWriteResult =
   | { ok: true; sizeBytes: number }
@@ -10,9 +12,10 @@ export type StorageWriteResult =
 type SaveMetadata = { hasSave: boolean; updatedAt: string | null };
 
 let legacySavePendingMigration = false;
-let queuedWrite: { key: string; value: string } | null = null;
+let queuedWrite: { key: string; value: string | (() => string) } | null = null;
 let queuedResolvers: Array<() => void> = [];
 let queuedTimer: number | null = null;
+let queuedDueAt = 0;
 let storageWarning: StorageWriteResult | null = null;
 let skipNextPersistedWrite = false;
 
@@ -115,26 +118,16 @@ export const gameSaveStorage = {
   },
 
   async setItem(key: string, value: string): Promise<void> {
-    if (skipNextPersistedWrite) {
-      skipNextPersistedWrite = false;
-      return;
-    }
+    return queueGameSave(key, value, false);
+  },
 
-    return new Promise((resolve) => {
-      queuedWrite = { key, value };
-      queuedResolvers.push(resolve);
-      if (queuedTimer !== null) return;
-
-      queuedTimer = window.setTimeout(async () => {
-        const write = queuedWrite;
-        const resolvers = queuedResolvers;
-        queuedWrite = null;
-        queuedResolvers = [];
-        queuedTimer = null;
-        if (write) await writeGameSave(write.key, write.value);
-        resolvers.forEach((done) => done());
-      }, SAVE_DEBOUNCE_MS);
-    });
+  /**
+   * Queues a save whose text is only built when the write actually happens. Building the compact
+   * save and serialising it is the expensive part, and the simulation updates state every second.
+   * `background` marks clock-only progress, which may wait longer; a player action never does.
+   */
+  async setItemLazy(key: string, produce: () => string, background = false): Promise<void> {
+    return queueGameSave(key, produce, background);
   },
 
   async removeItem(key: string): Promise<void> {
@@ -143,6 +136,43 @@ export const gameSaveStorage = {
     safeRemoveLocalStorage(GAME_SAVE_METADATA_KEY);
   }
 };
+
+function queueGameSave(key: string, value: string | (() => string), background: boolean): Promise<void> {
+  if (skipNextPersistedWrite) {
+    skipNextPersistedWrite = false;
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    queuedWrite = { key, value };
+    queuedResolvers.push(resolve);
+    const delay = background ? BACKGROUND_SAVE_INTERVAL_MS : SAVE_DEBOUNCE_MS;
+    const dueAt = Date.now() + delay;
+    if (queuedTimer !== null) {
+      // An urgent write must not wait behind a slower background timer.
+      if (dueAt >= queuedDueAt) return;
+      window.clearTimeout(queuedTimer);
+    }
+    queuedDueAt = dueAt;
+    queuedTimer = window.setTimeout(async () => {
+      const write = queuedWrite;
+      const resolvers = queuedResolvers;
+      queuedWrite = null;
+      queuedResolvers = [];
+      queuedTimer = null;
+      if (write) {
+        let text: string | null = null;
+        try {
+          text = typeof write.value === "function" ? write.value() : write.value;
+        } catch (error) {
+          reportStorageWarning({ ok: false, reason: "unknown", error });
+        }
+        if (text !== null) await writeGameSave(write.key, text);
+      }
+      resolvers.forEach((done) => done());
+    }, delay);
+  });
+}
 
 async function writeGameSave(key: string, value: string) {
   const indexed = await writeToIndexedDb(key, value);

@@ -193,7 +193,9 @@ test("pause, faster multi-day settlement, subsidy and repeated reload preserve o
   wall += DAY_MS;
   useGameStore.getState().tickSimulation();
   assert.equal(useGameStore.getState().game!.financialHistory!.days.length, 0);
-  useGameStore.setState({ game: { ...useGameStore.getState().game!, isPaused: false, timeMultiplier: 100 } });
+  // Resume the way the player does: the pause control owns resetting the tick clock.
+  useGameStore.getState().togglePause();
+  useGameStore.setState({ game: { ...useGameStore.getState().game!, timeMultiplier: 100 } });
   wall += DAY_MS / 100 * 2;
   useGameStore.getState().tickSimulation();
   const settled = useGameStore.getState().game!;

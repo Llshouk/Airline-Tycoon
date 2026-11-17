@@ -139,9 +139,11 @@ export function prepareWeeklySchedule(game: GameState | null, input: WeeklySched
   return { ok: true, message: "Timetable saved.", game: updatedGame };
 }
 
+/** Timetables are checked on planned times: a random delay on one dated flight must neither hide nor invent a conflict. */
 function findScheduleConflict(items: ScheduleItem[], startingAirportId: string) {
+  const planned = (item: ScheduleItem) => item.scheduledDepartureGameTime ?? item.departureGameTime;
   const future = items.filter((item) => item.status === "scheduled" || item.status === "in-flight")
-    .sort((a, b) => a.departureGameTime - b.departureGameTime);
+    .sort((a, b) => planned(a) - planned(b));
   let expectedAirportId = startingAirportId;
   let readyGameTime = 0;
 
@@ -149,11 +151,11 @@ function findScheduleConflict(items: ScheduleItem[], startingAirportId: string) 
     if (item.originAirportId !== expectedAirportId) {
       return `Schedule conflict: ${airportsById[item.originAirportId].iata} departure requires the aircraft, but it is expected at ${airportsById[expectedAirportId]?.iata ?? "another airport"}.`;
     }
-    if (item.departureGameTime < readyGameTime) {
+    if (planned(item) < readyGameTime) {
       return `Schedule conflict: ${airportsById[item.originAirportId].iata} departure overlaps a previous flight and turnaround.`;
     }
     expectedAirportId = item.destinationAirportId;
-    readyGameTime = item.readyGameTime;
+    readyGameTime = item.readyGameTime - (item.departureGameTime - planned(item));
   }
   return null;
 }

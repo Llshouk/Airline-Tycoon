@@ -55,8 +55,12 @@ export function createMarketAllocator(game: GameState) {
       if (!route || item.isMaintenanceFerry || item.status === "cancelled" || item.status === "completed" || item.booking || item.operationalStatus === "grounded") continue;
       current.add(item.id);
       const old = indexed.get(item.id);
-      if (old && old.departure === item.departureGameTime && old.layout === aircraft.cabinLayout &&
-        old.aircraft.cabinConfiguration === aircraft.cabinConfiguration && old.aircraft.passengerExperience === aircraft.passengerExperience) continue;
+      if (old && old.departure === item.departureGameTime) {
+        // Same flight, same window: refresh the aircraft snapshot without recomputing the window key.
+        old.aircraft = aircraft;
+        old.layout = aircraft.cabinLayout;
+        continue;
+      }
       if (old) supply.get(old.key)?.delete(item.id);
       const value = { aircraftId: aircraft.id, modelId: aircraft.modelId, aircraft, departure: item.departureGameTime,
         key: marketWindow(route, item.originAirportId, item.departureGameTime).key, layout: aircraft.cabinLayout };

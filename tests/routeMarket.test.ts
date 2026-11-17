@@ -10,6 +10,10 @@ import { forecastOperations } from "../src/lib/operationForecast";
 import { copyWeeklySchedules, prepareWeeklySchedule } from "../src/lib/scheduleActions";
 import { recentOperatingTotals } from "../src/lib/financialReports";
 import { DAY_MS } from "../src/lib/time";
+import { airports } from "../src/data/airports";
+import { airportLocalMinutes } from "../src/lib/airportOperations";
+import { ROUTE_MARKET } from "../src/config/routeMarket";
+import type { Route } from "../src/types/game";
 import { normalizeGame, useGameStore } from "../src/store/gameStore";
 
 const hour = 3600000;
@@ -236,4 +240,30 @@ test("100 aircraft share demand across multi-day recurring service with bounded 
   assert.equal(forecast.game.flightLog.length, 60);
   assert.equal(JSON.stringify(game), before);
   assert.ok(JSON.stringify(createCompactSaveState(forecast.game)).length < 900000);
+});
+
+test("cached airport local time and market-window keys match the Intl reference, including clock changes", () => {
+  const route = { originAirportId: "lhr", destinationAirportId: "jfk" } as Route;
+  const reference = (zone: string, time: number) => {
+    const clock = new Intl.DateTimeFormat("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(time);
+    return { minute: Number(clock.find((part) => part.type === "hour")!.value) * 60 + Number(clock.find((part) => part.type === "minute")!.value),
+      date: new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(time) };
+  };
+  // Hourly-ish steps through 2026 clock changes in Europe, North America, Australia and Brazil-era zones, plus odd minutes.
+  const starts = [Date.UTC(2026, 0, 1), Date.UTC(2026, 2, 7), Date.UTC(2026, 2, 28), Date.UTC(2026, 3, 4), Date.UTC(2026, 9, 3),
+    Date.UTC(2026, 9, 24), Date.UTC(2026, 9, 31), Date.UTC(2027, 11, 30)];
+  let checked = 0;
+  for (const airport of airports) {
+    const zone = airport.timeZone ?? "UTC";
+    for (const start of starts) for (let step = 0; step < 60; step += 1) {
+      const time = start + step * 47 * 60_000 + 17_000;
+      const expected = reference(zone, time);
+      assert.equal(airportLocalMinutes(airport.id, time), expected.minute, `${airport.id} minute at ${new Date(time).toISOString()}`);
+      const slot = Math.floor(expected.minute / (ROUTE_MARKET.windowHours * 60));
+      assert.equal(marketWindow(route, airport.id, time).key, `jfk:lhr:${airport.id}:${expected.date}:${slot}`);
+      checked += 1;
+    }
+  }
+  assert.ok(checked > 10_000);
+  assert.ok(Number.isNaN(airportLocalMinutes("lhr", NaN)));
 });

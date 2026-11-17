@@ -701,15 +701,103 @@ test("condition and malformed lifecycle numbers remain finite and bounded", () =
   assert.ok(recordAircraftFlight(restored, NaN, Infinity).condition <= 100);
 });
 
-test("grounded aircraft retain scheduled flights and produce no revenue or wear", () => {
+test("grounded aircraft hold future flights, cancel missed ones and produce no revenue or wear", () => {
   const game = fixture();
   const aircraft = { ...game.fleet[0], schedule: [flight(game)], lifecycle: { ...game.fleet[0].lifecycle!, condition: 25 } };
-  const advanced = advanceAircraftOperations(aircraft, game.routes, now + 48 * hour, game.difficultyConfig);
+  const waiting = advanceAircraftOperations(aircraft, game.routes, now, game.difficultyConfig);
+  assert.equal(waiting.aircraft.status, "grounded");
+  assert.equal(waiting.aircraft.schedule[0].status, "scheduled");
+  assert.equal(waiting.aircraft.schedule[0].operationalStatus, "grounded");
+  const advanced = advanceAircraftOperations(waiting.aircraft, game.routes, now + 2 * hour, game.difficultyConfig);
   assert.equal(advanced.entries.length, 0);
   assert.equal(advanced.aircraft.status, "grounded");
-  assert.equal(advanced.aircraft.schedule[0].status, "scheduled");
-  assert.equal(advanced.aircraft.schedule[0].operationalStatus, "grounded");
+  assert.equal(advanced.aircraft.schedule[0].status, "cancelled");
+  assert.equal(advanced.aircraft.schedule[0].cancellationReason, "grounded");
   assert.equal(advanced.aircraft.lifecycle!.flightCycles, 0);
+});
+
+test("flights missed while grounded are not flown as a backlog after an inspection lifts the grounding", () => {
+  const game = fixture();
+  const duration = flightWaitMs(game.routes[0].distanceKm, model.cruiseSpeedKmh);
+  const legs = [0, 1, 2, 3].flatMap((day) => {
+    const out = flight(game, `out-${day}`, now + hour + day * DAY_MS);
+    return [out, { ...flight(game, `back-${day}`, out.readyGameTime), originAirportId: "cdg", destinationAirportId: "lhr",
+      arrivalGameTime: out.readyGameTime + duration, scheduledArrivalGameTime: out.readyGameTime + duration }];
+  });
+  game.money = 10_000_000;
+  game.fleet[0] = { ...game.fleet[0], schedule: legs, lifecycle: { ...game.fleet[0].lifecycle!, condition: 25 } };
+  // Two missed days on the ground, as left behind by saves from before this fix.
+  const heldLegacy = { ...game, fleet: [{ ...game.fleet[0], schedule: legs.map((leg) => ({ ...leg, operationalStatus: "grounded" as const })) }] };
+  for (const start of [advanceFleetOperations(game, now, now + 2 * DAY_MS + 12 * hour).game, { ...heldLegacy, currentGameTimeMs: now + 2 * DAY_MS + 12 * hour }]) {
+    useGameStore.setState({ game: { ...start, isPaused: true } });
+    assert.equal(useGameStore.getState().startAircraftMaintenance("plane-1", "inspection").ok, true);
+    const inspected = useGameStore.getState().game!;
+    const end = advanceFleetOperations(inspected, inspected.currentGameTimeMs, now + 3 * DAY_MS + 12 * hour).game;
+    const flown = end.fleet[0].schedule.filter((leg) => leg.status === "completed").map((leg) => leg.id);
+    assert.deepEqual(flown, ["out-3", "back-3"], "only the rotation scheduled after the inspection may fly");
+    assert.equal(end.completedFlights, 2);
+    assert.equal(end.fleet[0].currentAirportId, "lhr");
+    assert.ok(end.fleet[0].schedule.filter((leg) => leg.id.endsWith("-0") || leg.id.endsWith("-1") || leg.id.endsWith("-2"))
+      .every((leg) => leg.status === "cancelled"));
+  }
+});
+
+test("an inspection that leaves the aircraft grounded keeps future rotations whole for a later full service", () => {
+  const game = fixture();
+  const duration = flightWaitMs(game.routes[0].distanceKm, model.cruiseSpeedKmh);
+  const out = flight(game, "out", now + 2 * DAY_MS);
+  const back = { ...flight(game, "back", out.readyGameTime), originAirportId: "cdg", destinationAirportId: "lhr",
+    arrivalGameTime: out.readyGameTime + duration, scheduledArrivalGameTime: out.readyGameTime + duration };
+  game.money = 10_000_000;
+  game.fleet[0] = { ...game.fleet[0], schedule: [out, back], lifecycle: { ...game.fleet[0].lifecycle!, condition: 10 } };
+  useGameStore.setState({ game: { ...game, isPaused: true } });
+  assert.equal(useGameStore.getState().startAircraftMaintenance("plane-1", "inspection").ok, true);
+  const inspected = advanceFleetOperations(useGameStore.getState().game!, now, now + 4 * hour).game;
+  assert.equal(inspected.fleet[0].status, "grounded");
+  assert.deepEqual(inspected.fleet[0].schedule.map((leg) => leg.status), ["scheduled", "scheduled"],
+    "the return leg must not be cancelled for position while its outbound is only held");
+  useGameStore.setState({ game: { ...inspected, isPaused: true } });
+  assert.equal(useGameStore.getState().requestFullMaintenance(["plane-1"]).ok, true);
+  const end = advanceFleetOperations(useGameStore.getState().game!, now + 4 * hour, now + 3 * DAY_MS).game;
+  assert.deepEqual(end.fleet[0].schedule.filter((leg) => leg.status === "completed").map((leg) => leg.id), ["out", "back"]);
+  assert.equal(end.fleet[0].currentAirportId, "lhr");
+});
+
+test("a return leg never departs from an airport the aircraft did not reach", () => {
+  const game = fixture();
+  const duration = flightWaitMs(game.routes[0].distanceKm, model.cruiseSpeedKmh);
+  const legs = [0, 1].flatMap((day) => {
+    const out = { ...flight(game, `out-${day}`, now + hour + day * DAY_MS), legType: "outbound" as const };
+    return [out, { ...flight(game, `back-${day}`, out.readyGameTime), legType: "return" as const, originAirportId: "cdg", destinationAirportId: "lhr",
+      arrivalGameTime: out.readyGameTime + duration, scheduledArrivalGameTime: out.readyGameTime + duration }];
+  });
+  // The outbound was already lost; the aircraft is still at base and fit to fly when the return comes due.
+  const stranded = { ...game.fleet[0], schedule: legs.map((leg) => leg.id === "out-0" ?
+    { ...leg, status: "cancelled" as const, operationalStatus: "cancelled" as const, cancellationReason: "grounded" as const } : leg) };
+  const end = advanceAircraftOperations(stranded, game.routes, now + 2 * DAY_MS, game.difficultyConfig);
+  const byId = Object.fromEntries(end.aircraft.schedule.map((leg) => [leg.id, leg]));
+  assert.equal(byId["back-0"].status, "cancelled");
+  assert.equal(byId["back-0"].cancellationReason, "position");
+  assert.deepEqual(end.entries.map((entry) => entry.id), ["out-1", "back-1"], "the next whole rotation still flies");
+  assert.equal(end.aircraft.currentAirportId, "lhr");
+});
+
+test("home maintenance ferries back instead of waiting days for a distant timetabled return", () => {
+  const game = fixture();
+  const far = { ...flight(game, "far-return", now + 5 * DAY_MS), originAirportId: "cdg", destinationAirportId: "lhr" };
+  const soon = { ...flight(game, "soon-return", now + 3 * hour), originAirportId: "cdg", destinationAirportId: "lhr" };
+  const away = { ...game.fleet[0], currentAirportId: "cdg", lifecycle: { ...game.fleet[0].lifecycle!,
+    reservation: { mode: "home" as const, kind: "service" as const, requestedGameTimeMs: now, state: "scheduled" as const } } };
+  const ferried = prepareHomeMaintenance({ ...away, schedule: [far] }, now);
+  assert.equal(ferried.schedule.filter((leg) => leg.isMaintenanceFerry).length, 1);
+  assert.notEqual(ferried.lifecycle!.reservation!.afterFlightId, "far-return");
+  const scheduled = prepareHomeMaintenance({ ...away, schedule: [soon, far] }, now);
+  assert.equal(scheduled.lifecycle!.reservation!.afterFlightId, "soon-return");
+  assert.equal(scheduled.schedule.some((leg) => leg.isMaintenanceFerry), false);
+  // A save already waiting on a distant return is re-planned, not left waiting.
+  const legacy = prepareHomeMaintenance({ ...away, schedule: [far], lifecycle: { ...away.lifecycle,
+    reservation: { ...away.lifecycle.reservation, afterFlightId: "far-return" } } }, now);
+  assert.equal(legacy.schedule.filter((leg) => leg.isMaintenanceFerry).length, 1);
 });
 
 test("maintenance postpones departures, finishes before flying, and settles each flight once", () => {
@@ -758,8 +846,8 @@ test("a time jump settles the first leg then grounds later legs when condition c
   assert.ok(result.aircraft.lifecycle!.condition < 30);
   assert.equal(result.aircraft.status, "grounded");
   const held = result.aircraft.schedule.find((item) => item.id === "return-flight")!;
-  assert.equal(held.status, "scheduled");
-  assert.equal(held.operationalStatus, "grounded");
+  assert.equal(held.status, "cancelled");
+  assert.equal(held.cancellationReason, "grounded");
   assert.equal(advanceAircraftOperations(result.aircraft, game.routes, now + 24 * hour, game.difficultyConfig).entries.length, 0);
 });
 

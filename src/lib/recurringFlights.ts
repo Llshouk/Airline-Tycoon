@@ -5,7 +5,12 @@ import { nextFlightNumber } from "@/lib/schedule";
 import { DAY_MS, WEEK_MS, flightWaitMs, turnaroundWaitMs, timeOfDayMs, weekStartMs } from "@/lib/time";
 import type { AircraftInstance, DayOfWeek, Route, ScheduleItem } from "@/types/game";
 
-export function generateWeeklyEvents(aircraft: AircraftInstance, routes: Route[], fromGameTime: number, toGameTime: number) {
+/**
+ * Expands weekly timetables into dated flights. `existingIds` lets the per-second simulation skip
+ * building flights it already holds: ids are deterministic, so a known id is a known flight.
+ */
+export function generateWeeklyEvents(aircraft: AircraftInstance, routes: Route[], fromGameTime: number, toGameTime: number,
+  existingIds?: ReadonlySet<string>) {
   const events: ScheduleItem[] = [];
   const start = weekStartMs(fromGameTime) - WEEK_MS;
   const end = weekStartMs(toGameTime) + WEEK_MS;
@@ -18,6 +23,9 @@ export function generateWeeklyEvents(aircraft: AircraftInstance, routes: Route[]
       weekly.daysOfWeek.forEach((day) => {
         const departure = week + day * DAY_MS + timeOfDayMs(weekly.departureTimeLocal);
         if (departure < weekly.createdGameTime || departure < fromGameTime || departure > toGameTime) return;
+        const outboundId = `${weekly.id}-${departure}-out`;
+        const returnId = `${weekly.id}-${departure}-return`;
+        if (existingIds?.has(outboundId) && (!weekly.isRoundTrip || existingIds.has(returnId))) return;
         const outbound = createFlightItem({
           aircraft,
           route,
@@ -29,7 +37,7 @@ export function generateWeeklyEvents(aircraft: AircraftInstance, routes: Route[]
           operatingDay: day,
           flightNumber: weekly.outboundFlightNumber,
           legType: "outbound",
-          fixedId: `${weekly.id}-${departure}-out`
+          fixedId: outboundId
         });
         events.push(outbound);
         if (weekly.isRoundTrip) {
@@ -45,7 +53,7 @@ export function generateWeeklyEvents(aircraft: AircraftInstance, routes: Route[]
               operatingDay: day,
               flightNumber: weekly.returnFlightNumber ?? nextFlightNumber(weekly.outboundFlightNumber),
               legType: "return",
-              fixedId: `${weekly.id}-${departure}-return`
+              fixedId: returnId
             })
           );
         }
